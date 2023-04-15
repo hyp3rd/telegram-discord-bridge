@@ -7,6 +7,7 @@ A cheeky `Python` bot to slyly forward messages from those pesky Telegram channe
 - Relocate messages from a multitude of Telegram channels
 - Shove forwarded messages into a designated Discord channel
 - Toss in messages with URLs and casually mention '@everyone' in Discord
+- It deals with Media on your behalf
 
 ## Installation
 
@@ -67,7 +68,7 @@ Once the script gets going, it will eavesdrop on new messages in the specified T
 
 ### Caveats
 
-When you run the script for the first time, it will ask you to input your Telegram phone number and the verification code that Telegram sends to your phone. After that, rerun the script, which will lurk in the background, forwarding messages from Telegram to Discord. It is required to authenticate the script with Telegram, or it won't work.
+When you run the script for the first time, it will ask you to input the verification code that Telegram sends to your phone. After that, you might occasionally need to rerun the script, which will lurk in the background, forwarding messages from Telegram to Discord.
 
 ## License
 

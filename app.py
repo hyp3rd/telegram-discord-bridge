@@ -101,7 +101,7 @@ async def start_telegram(config):
                 message_text = "@everyone"
                 contains_url = False
 
-            # Send the image as an attachment to Discord along with the text only if it doesn't contain a URL
+            # Send the image as an attachment to Discord along with the text if it doesn't contain a URL
             if not contains_url:
                 with open(file_path, "rb") as image_file:
                     discord_file = discord.File(image_file)
@@ -123,8 +123,6 @@ async def start_telegram(config):
 
             messages.append(parsed_response + '\n' + '@everyone')
             await discord_channel.send(messages.pop())
-
-
 
 
     async def background_task():
