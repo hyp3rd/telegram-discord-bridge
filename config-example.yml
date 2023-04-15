@@ -1,0 +1,21 @@
+---
+# The name of your application.
+app_name: 'Telegram to Discord Bridge'
+
+# This has to be an integer. Read more [here](https://core.telegram.org/api/obtaining_api_id) | No quotes
+api_id: <your api id>
+
+# Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
+api_hash: '<your api hash>' 
+
+# Discord Bot Token. Go create a bot on discord. | No quotes
+discord_bot_token: <your discord bot token>
+
+# Discord Channel ID, may need to enable discord developer mode in settings. | No quotes
+discord_channel: 967377158374834248
+
+# The channels that you'd like to forward messages from. Input telegram channel names here.
+# The user running the client must have these channels present on it's dialogs.
+input_channels:
+  - 'your channel name'
+  - 123321123

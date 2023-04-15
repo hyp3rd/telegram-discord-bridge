@@ -1,0 +1,111 @@
+"""A script to forward messages from Telegram channels to a Discord channel."""
+
+import sys
+import asyncio
+from typing import Any
+import logging
+import yaml
+from telethon import TelegramClient, events
+from telethon.tl.types import InputChannel
+import discord
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.getLogger('telethon').setLevel(level=logging.WARNING)
+logger = logging.getLogger(__name__)
+
+messages = []
+discord_client = discord.Client(intents=discord.Intents.default())
+
+def load_config() -> Any:
+    """Load configuration from the 'config.yml' file."""
+    try:
+        with open('config.yml', 'rb') as config_file:
+            config_data = yaml.safe_load(config_file)
+    except FileNotFoundError:
+        logger.error("Error: Configuration file 'config.yml' not found.")
+        sys.exit(-1)
+    except yaml.YAMLError as ex:
+        logger.error("Error parsing configuration file: %s", ex)
+        sys.exit(1)
+
+    required_keys = [
+        "app_name",
+        "api_id",
+        "api_hash",
+        "discord_bot_token",
+        "discord_channel",
+        "input_channels",
+    ]
+
+    for key in required_keys:
+        if key not in config_data:
+            logger.error("Error: Key '%s' not found in the configuration file.", key)
+            sys.exit(1)
+
+    return config_data
+
+
+async def start_telegram(config):
+    """Start the Telegram client."""
+    telegram_client = TelegramClient(config["app_name"], config["api_id"], config["api_hash"])
+    await telegram_client.start()
+
+    input_channels_entities = []
+
+    async for dialog in telegram_client.iter_dialogs():
+        if dialog.name in config["input_channels"] or dialog.entity.id in config["input_channels"]:
+            input_channels_entities.append(InputChannel(dialog.entity.id, dialog.entity.access_hash))
+
+    if not input_channels_entities:
+        logger.error("No input channels found, exiting")
+        sys.exit(1)
+
+    @telegram_client.on(events.NewMessage(chats=input_channels_entities))
+    async def handler(event):
+        """Handle new messages in the specified Telegram channels."""
+        logger.debug(event)
+        # If our entities contain URL, we want to parse and send Message + URL
+        try:
+            parsed_response = event.message.message + '\n' + event.message.entities[0].url
+            parsed_response = ''.join(parsed_response)
+        # Or else we only send Message
+        except Exception:   # pylint: disable=broad-except
+            parsed_response = event.message.message
+
+        messages.append(parsed_response + '\n' + '@everyone')
+
+
+    async def background_task():
+        """Send messages from the Telegram channels to the Discord channel."""
+        await discord_client.wait_until_ready()
+        discord_channel = discord_client.get_channel(config["discord_channel"])
+        while True:
+            if messages:
+                logger.debug(messages)
+                await discord_channel.send(messages.pop())
+            await asyncio.sleep(1)  # Updated sleep time
+
+
+    @discord_client.event
+    async def on_ready():
+        """Create a task for the background_task() function."""
+        discord_client.loop.create_task(background_task())
+
+
+    await telegram_client.run_until_disconnected()
+
+
+async def start_discord(config):
+    """Start the Discord client."""
+    await discord_client.start(config["discord_bot_token"])
+
+
+async def main():
+    """Start the Telegram and Discord clients."""
+    conf = load_config()
+    await asyncio.gather(start_telegram(config=conf), start_discord(config=conf))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
