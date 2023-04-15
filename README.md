@@ -41,7 +41,7 @@ api_hash: '<your api hash>'
 discord_bot_token: <your discord bot token>
 
 # Discord Channel ID, may need to enable discord developer mode in settings. | No quotes
-discord_channel: 967377158374834248
+discord_channel: <your discord channel id>
 
 # The channels that you'd like to forward messages from. Input telegram channel names here.
 # The user running the client must have these channels on its dialogs.
