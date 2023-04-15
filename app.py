@@ -7,7 +7,7 @@ from typing import Any
 import logging
 import yaml
 from telethon import TelegramClient, events
-from telethon.tl.types import InputChannel
+from telethon.tl.types import InputChannel, Channel
 import discord
 
 logging.basicConfig(level=logging.INFO,
@@ -38,7 +38,6 @@ def load_config() -> Any:
         "telegram_api_hash",
         "telegram_input_channels",
         "discord_bot_token",
-        "discord_channel"
     ]
 
     for key in required_keys:
@@ -54,18 +53,27 @@ async def start_telegram(config):
     telegram_client = TelegramClient(
         session=config["app_name"],
         api_id=config["telegram_api_id"],
-        api_hash=config["telegram_api_hash"],
-        use_ipv6=False)
+        api_hash=config["telegram_api_hash"])
 
     await telegram_client.start(
         phone=config["telegram_phone"],
         password=config["telegram_password"])
 
     input_channels_entities = []
+    discord_channel_mappings = {}
 
     async for dialog in telegram_client.iter_dialogs():
-        if dialog.name in config["telegram_input_channels"] or dialog.entity.id in config["telegram_input_channels"]:
-            input_channels_entities.append(InputChannel(dialog.entity.id, dialog.entity.access_hash))
+        if not isinstance(dialog.entity, Channel):
+            continue
+
+        for channel_mapping in config["telegram_input_channels"]:
+            for tg_channel, discord_channel_id in channel_mapping.items():
+                if tg_channel in {dialog.name, dialog.entity.id}:
+                    input_channels_entities.append(
+                        InputChannel(dialog.entity.id, dialog.entity.access_hash))
+                    discord_channel_mappings[dialog.entity.id] = discord_channel_id
+                    logger.info("Registered TG channel '%s' with ID %s as input for Discord channel ID %s",
+                                dialog.name, dialog.entity.id, discord_channel_id)
 
     if not input_channels_entities:
         logger.error("No input channels found, exiting")
@@ -77,8 +85,16 @@ async def start_telegram(config):
         """Handle new messages in the specified Telegram channels."""
         logger.debug(event)
 
+        # Get the corresponding Discord channel ID
+        tg_channel_id = event.message.peer_id.channel_id
+        discord_channel_id = discord_channel_mappings.get(tg_channel_id)
+
+        if not discord_channel_id:
+            logger.error("Discord channel not found for Telegram channel %s", tg_channel_id)
+            return
+
         # Get the Discord channel
-        discord_channel = discord_client.get_channel(config["discord_channel"])
+        discord_channel = discord_client.get_channel(discord_channel_id)
 
         # Check if the message contains media
         if event.message.media:
@@ -101,7 +117,8 @@ async def start_telegram(config):
                 message_text = "@everyone"
                 contains_url = False
 
-            # Send the image as an attachment to Discord along with the text if it doesn't contain a URL
+            # Send the image as an attachment to Discord along with the text
+            # if it doesn't contain a URL
             if not contains_url:
                 with open(file_path, "rb") as image_file:
                     discord_file = discord.File(image_file)
@@ -123,24 +140,6 @@ async def start_telegram(config):
 
             messages.append(parsed_response + '\n' + '@everyone')
             await discord_channel.send(messages.pop())
-
-
-    async def background_task():
-        """Send messages from the Telegram channels to the Discord channel."""
-        await discord_client.wait_until_ready()
-        discord_channel = discord_client.get_channel(config["discord_channel"])
-        while True:
-            if messages:
-                logger.debug(messages)
-                await discord_channel.send(messages.pop())
-            await asyncio.sleep(1)  # Updated sleep time
-
-
-    @discord_client.event
-    async def on_ready():
-        """Create a task for the background_task() function."""
-        discord_client.loop.create_task(background_task())
-
 
     try:
         await asyncio.wait_for(telegram_client.run_until_disconnected(),
