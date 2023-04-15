@@ -1,5 +1,6 @@
 """A script to forward messages from Telegram channels to a Discord channel."""
 
+import os
 import sys
 import asyncio
 from typing import Any
@@ -70,19 +71,60 @@ async def start_telegram(config):
         logger.error("No input channels found, exiting")
         sys.exit(1)
 
+
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
         """Handle new messages in the specified Telegram channels."""
         logger.debug(event)
-        # If our entities contain URL, we want to parse and send Message + URL
-        try:
-            parsed_response = event.message.message + '\n' + event.message.entities[0].url
-            parsed_response = ''.join(parsed_response)
-        # Or else we only send Message
-        except Exception:   # pylint: disable=broad-except
-            parsed_response = event.message.message
 
-        messages.append(parsed_response + '\n' + '@everyone')
+        # Get the Discord channel
+        discord_channel = discord_client.get_channel(config["discord_channel"])
+
+        # Check if the message contains media
+        if event.message.media:
+            # Download the media (image) from Telegram
+            file_path = await telegram_client.download_media(event.message)
+
+            # If the message also contains text
+            if event.message.message:
+                # If our entities contain URL, we want to parse and send Message + URL
+                try:
+                    parsed_response = event.message.message + '\n' + event.message.entities[0].url
+                    parsed_response = ''.join(parsed_response)
+                # Or else we only send Message
+                except Exception:   # pylint: disable=broad-except
+                    parsed_response = event.message.message
+
+                message_text = parsed_response + '\n' + '@everyone'
+                contains_url = True
+            else:
+                message_text = "@everyone"
+                contains_url = False
+
+            # Send the image as an attachment to Discord along with the text only if it doesn't contain a URL
+            if not contains_url:
+                with open(file_path, "rb") as image_file:
+                    discord_file = discord.File(image_file)
+                    await discord_channel.send(message_text, file=discord_file)
+            else:
+                await discord_channel.send(message_text)
+
+            # Remove the downloaded file to clean up
+            os.remove(file_path)
+
+        else:
+            # If our entities contain URL, we want to parse and send Message + URL
+            try:
+                parsed_response = event.message.message + '\n' + event.message.entities[0].url
+                parsed_response = ''.join(parsed_response)
+            # Or else we only send Message
+            except Exception:   # pylint: disable=broad-except
+                parsed_response = event.message.message
+
+            messages.append(parsed_response + '\n' + '@everyone')
+            await discord_channel.send(messages.pop())
+
+
 
 
     async def background_task():
@@ -102,7 +144,12 @@ async def start_telegram(config):
         discord_client.loop.create_task(background_task())
 
 
-    await telegram_client.run_until_disconnected()
+    try:
+        await asyncio.wait_for(telegram_client.run_until_disconnected(),
+                               timeout=3600) # 1 hour
+    except asyncio.TimeoutError:
+        logger.warning("Telegram client timeout reached. Disconnecting...")
+        await telegram_client.disconnect()
 
 
 async def start_discord(config):
