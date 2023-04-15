@@ -28,14 +28,19 @@ Craft a new `config.yml` file in the root directory, starting from the `config-e
 
 ```yaml
 ---
-# The name of your application.
-app_name: 'Telegram to Discord Bridge'
+app_name: '<your app name>'
+
+# Your Telegram phone number | With quotes
+telegram_phone: '<your phone number>'
+
+# Your Telegram password (Two-step verification) | With quotes
+telegram_password: '<your password>'
 
 # This has to be an integer. Read more [here](https://core.telegram.org/api/obtaining_api_id) | No quotes
-api_id: <your api id>
+telegram_api_id: <your api id>
 
 # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
-api_hash: '<your api hash>' 
+telegram_api_hash: '<your api hash>' 
 
 # Discord Bot Token. Go create a bot on discord. | No quotes
 discord_bot_token: <your discord bot token>
@@ -44,10 +49,10 @@ discord_bot_token: <your discord bot token>
 discord_channel: <your discord channel id>
 
 # The channels that you'd like to forward messages from. Input telegram channel names here.
-# The user running the client must have these channels on its dialogs.
-input_channels:
-  - 'your channel name'
-  - 123321123
+# The user running the client must have these channels present on it's dialogs.
+telegram_input_channels:
+  - '<your telegram channel name>'
+  - <your telegram channel id>
 ```
 
 Finally, run the script and watch the magic happen, almost, read the **caveats** section:

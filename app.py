@@ -31,11 +31,13 @@ def load_config() -> Any:
 
     required_keys = [
         "app_name",
-        "api_id",
-        "api_hash",
+        "telegram_phone",
+        "telegram_password",
+        "telegram_api_id",
+        "telegram_api_hash",
+        "telegram_input_channels",
         "discord_bot_token",
-        "discord_channel",
-        "input_channels",
+        "discord_channel"
     ]
 
     for key in required_keys:
@@ -48,13 +50,20 @@ def load_config() -> Any:
 
 async def start_telegram(config):
     """Start the Telegram client."""
-    telegram_client = TelegramClient(config["app_name"], config["api_id"], config["api_hash"])
-    await telegram_client.start()
+    telegram_client = TelegramClient(
+        session=config["app_name"],
+        api_id=config["telegram_api_id"],
+        api_hash=config["telegram_api_hash"],
+        use_ipv6=False)
+
+    await telegram_client.start(
+        phone=config["telegram_phone"],
+        password=config["telegram_password"])
 
     input_channels_entities = []
 
     async for dialog in telegram_client.iter_dialogs():
-        if dialog.name in config["input_channels"] or dialog.entity.id in config["input_channels"]:
+        if dialog.name in config["telegram_input_channels"] or dialog.entity.id in config["telegram_input_channels"]:
             input_channels_entities.append(InputChannel(dialog.entity.id, dialog.entity.access_hash))
 
     if not input_channels_entities:
