@@ -169,13 +169,14 @@ async def start_telegram(config):
             if mention_everyone or override_mention_everyone:
                 parsed_response += '\n' + '@everyone'
 
+            logger.debug("Sending message to Discord: %s", parsed_response)
+
             await discord_channel.send(parsed_response)
 
 
 
     try:
-        await asyncio.wait_for(telegram_client.run_until_disconnected(),
-                               timeout=3600) # 1 hour
+        await asyncio.wait_for(telegram_client.run_until_disconnected(), timeout=None) # 1 hour
     except asyncio.TimeoutError:
         logger.warning("Telegram client timeout reached. Disconnecting...")
         await telegram_client.disconnect()
