@@ -52,11 +52,20 @@ telegram_input_channels:
   - tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: True
-    hashtags: ['#example1', '#example2']
+    forward_everything: False   # whether forwarding everything regardless the hashtag
+    hashtags:
+      - name: '#example1'
+        override_mention_everyone: True
+      - name: '#example6'
+
   - tg_channel_id: "<tg channel name>"
     discord_channel_id: <discord channel id>
     mention_everyone: False
-    hashtags: ['#example3', '#example4']
+    forward_everything: False   # whether forwarding everything regardless the hashtag
+    hashtags:
+      - name: '#example3'
+        override_mention_everyone: True
+      - name: '#example4'
 ```
 
 Finally, run the script and watch the magic happen, almost, read the **caveats** section:
