@@ -7,7 +7,7 @@ from typing import Any
 import logging
 import yaml
 from telethon import TelegramClient, events
-from telethon.tl.types import InputChannel, Channel
+from telethon.tl.types import InputChannel, Channel, MessageEntityHashtag
 import discord
 
 logging.basicConfig(level=logging.INFO,
@@ -70,9 +70,9 @@ async def start_telegram(config):
             tg_channel_id = channel_mapping["tg_channel_id"]
             discord_channel_config = {
                 "discord_channel_id": channel_mapping["discord_channel_id"],
-                "mention_everyone": channel_mapping["mention_everyone"]
+                "mention_everyone": channel_mapping["mention_everyone"],
+                "hashtags": channel_mapping.get("hashtags", [])
             }
-
             if tg_channel_id in {dialog.name, dialog.entity.id}:
                 input_channels_entities.append(
                     InputChannel(dialog.entity.id, dialog.entity.access_hash))
@@ -100,6 +100,17 @@ async def start_telegram(config):
 
         discord_channel_id = discord_channel_config["discord_channel_id"]
         mention_everyone = discord_channel_config["mention_everyone"]
+        allowed_hashtags = discord_channel_config.get("hashtags", [])
+
+        # Check if the message contains any of the allowed hashtags or no hashtags are specified
+        if allowed_hashtags:
+            if event.message.entities:
+                message_hashtags = {event.message.text[tag.offset:tag.offset + tag.length] for tag in event.message.entities if isinstance(tag, MessageEntityHashtag)}
+            else:
+                message_hashtags = set()
+
+            if not any(tag in message_hashtags for tag in allowed_hashtags):
+                return
 
         # Get the Discord channel
         discord_channel = discord_client.get_channel(discord_channel_id)

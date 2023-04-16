@@ -21,6 +21,8 @@ telegram_input_channels:
   - tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: True
+    hashtags: ['#example1', '#example2']
   - tg_channel_id: "<tg channel name>"
     discord_channel_id: <discord channel id>
     mention_everyone: False
+    hashtags: ['#example3', '#example4']
