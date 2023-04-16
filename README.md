@@ -8,6 +8,7 @@ A cheeky `Python` bot to slyly forward messages from those pesky Telegram channe
 - Shove forwarded messages into a designated Discord channel
 - Toss in messages with URLs and casually mention '@everyone' in Discord
 - It deals with Media on your behalf
+- Filter by hashtag keeping unrelevant alpha out
 
 ## Installation
 
@@ -51,9 +52,11 @@ telegram_input_channels:
   - tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: True
+    hashtags: ['#example1', '#example2']
   - tg_channel_id: "<tg channel name>"
     discord_channel_id: <discord channel id>
     mention_everyone: False
+    hashtags: ['#example3', '#example4']
 ```
 
 Finally, run the script and watch the magic happen, almost, read the **caveats** section:
