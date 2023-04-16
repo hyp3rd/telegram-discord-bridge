@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO,
 logging.getLogger('telethon').setLevel(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-messages = []
 discord_client = discord.Client(intents=discord.Intents.default())
 
 def load_config() -> Any:
@@ -170,8 +169,7 @@ async def start_telegram(config):
             if mention_everyone or override_mention_everyone:
                 parsed_response += '\n' + '@everyone'
 
-            messages.append(parsed_response)
-            await discord_channel.send(messages.pop())
+            await discord_channel.send(parsed_response)
 
 
 
@@ -191,7 +189,14 @@ async def start_discord(config):
 async def main():
     """Start the Telegram and Discord clients."""
     conf = load_config()
-    await asyncio.gather(start_telegram(config=conf), start_discord(config=conf))
+    coroutines = [start_telegram(config=conf), start_discord(config=conf)]
+    coroutine_names = ['start_telegram', 'start_discord']
+
+    for coroutine, coroutine_name in zip(asyncio.as_completed(coroutines), coroutine_names):
+        try:
+            await coroutine
+        except (asyncio.CancelledError, RuntimeError) as ex:
+            logger.error("Error occurred in %s: %s", coroutine_name, ex)
 
 
 if __name__ == "__main__":
