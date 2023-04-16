@@ -46,14 +46,14 @@ telegram_api_hash: '<your api hash>'
 # Discord Bot Token. Go create a bot on discord. | No quotes
 discord_bot_token: <your discord bot token>
 
-# Discord Channel ID, may need to enable discord developer mode in settings. | No quotes
-discord_channel: <your discord channel id>
-
-# The channels that you'd like to forward messages from. Input telegram channel names here.
-# The user running the client must have these channels present on it's dialogs.
+# The channels map to discord channels.
 telegram_input_channels:
-  - '<your telegram channel name>'
-  - <your telegram channel id>
+  - tg_channel_id: <tg channel id>
+    discord_channel_id: <discord channel id>
+    mention_everyone: True
+  - tg_channel_id: "<tg channel name>"
+    discord_channel_id: <discord channel id>
+    mention_everyone: False
 ```
 
 Finally, run the script and watch the magic happen, almost, read the **caveats** section:
