@@ -46,11 +46,14 @@ telegram_api_hash: '<your api hash>'
 # Discord Bot Token. Go create a bot on discord. | No quotes
 discord_bot_token: <your discord bot token>
 
-# The channels map to discord channels. You can use the channel id or the channel name.
+# The channels map to discord channels.
 telegram_input_channels:
-  - telegram_channel1: discord_channel_id1
-  - telegram_channel2: discord_channel_id2
-  - telegram_channel3: discord_channel_id3
+  - tg_channel_id: <tg channel id>
+    discord_channel_id: <discord channel id>
+    mention_everyone: True
+  - tg_channel_id: "<tg channel name>"
+    discord_channel_id: <discord channel id>
+    mention_everyone: False
 ```
 
 Finally, run the script and watch the magic happen, almost, read the **caveats** section:

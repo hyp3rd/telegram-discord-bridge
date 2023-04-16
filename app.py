@@ -25,7 +25,7 @@ def load_config() -> Any:
             config_data = yaml.safe_load(config_file)
     except FileNotFoundError:
         logger.error("Error: Configuration file 'config.yml' not found.")
-        sys.exit(-1)
+        sys.exit(1)
     except yaml.YAMLError as ex:
         logger.error("Error parsing configuration file: %s", ex)
         sys.exit(1)
@@ -67,13 +67,18 @@ async def start_telegram(config):
             continue
 
         for channel_mapping in config["telegram_input_channels"]:
-            for tg_channel, discord_channel_id in channel_mapping.items():
-                if tg_channel in {dialog.name, dialog.entity.id}:
-                    input_channels_entities.append(
-                        InputChannel(dialog.entity.id, dialog.entity.access_hash))
-                    discord_channel_mappings[dialog.entity.id] = discord_channel_id
-                    logger.info("Registered TG channel '%s' with ID %s as input for Discord channel ID %s",
-                                dialog.name, dialog.entity.id, discord_channel_id)
+            tg_channel_id = channel_mapping["tg_channel_id"]
+            discord_channel_config = {
+                "discord_channel_id": channel_mapping["discord_channel_id"],
+                "mention_everyone": channel_mapping["mention_everyone"]
+            }
+
+            if tg_channel_id in {dialog.name, dialog.entity.id}:
+                input_channels_entities.append(
+                    InputChannel(dialog.entity.id, dialog.entity.access_hash))
+                discord_channel_mappings[dialog.entity.id] = discord_channel_config
+                logger.info("Registered TG channel '%s' with ID %s with Discord channel config %s",
+                            dialog.name, dialog.entity.id, discord_channel_config)
 
     if not input_channels_entities:
         logger.error("No input channels found, exiting")
@@ -87,11 +92,14 @@ async def start_telegram(config):
 
         # Get the corresponding Discord channel ID
         tg_channel_id = event.message.peer_id.channel_id
-        discord_channel_id = discord_channel_mappings.get(tg_channel_id)
+        discord_channel_config = discord_channel_mappings.get(tg_channel_id)
 
-        if not discord_channel_id:
+        if not discord_channel_config:
             logger.error("Discord channel not found for Telegram channel %s", tg_channel_id)
             return
+
+        discord_channel_id = discord_channel_config["discord_channel_id"]
+        mention_everyone = discord_channel_config["mention_everyone"]
 
         # Get the Discord channel
         discord_channel = discord_client.get_channel(discord_channel_id)
@@ -111,11 +119,14 @@ async def start_telegram(config):
                 except Exception:   # pylint: disable=broad-except
                     parsed_response = event.message.message
 
-                message_text = parsed_response + '\n' + '@everyone'
+                message_text = parsed_response
                 contains_url = True
             else:
-                message_text = "@everyone"
+                message_text = ""
                 contains_url = False
+
+            if mention_everyone:
+                message_text += '\n' + '@everyone'
 
             # Send the image as an attachment to Discord along with the text
             # if it doesn't contain a URL
@@ -138,8 +149,12 @@ async def start_telegram(config):
             except Exception:   # pylint: disable=broad-except
                 parsed_response = event.message.message
 
-            messages.append(parsed_response + '\n' + '@everyone')
+            if mention_everyone:
+                parsed_response += '\n' + '@everyone'
+
+            messages.append(parsed_response)
             await discord_channel.send(messages.pop())
+
 
     try:
         await asyncio.wait_for(telegram_client.run_until_disconnected(),
