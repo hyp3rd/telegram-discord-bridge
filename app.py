@@ -89,6 +89,28 @@ async def start_telegram(config):
         sys.exit(1)
 
 
+    def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool) -> str:
+        """Process the message text and return the processed text."""
+        message_text = event.message.message
+
+        if mention_everyone or override_mention_everyone:
+            message_text += '\n' + '@everyone'
+
+        return telegram_entities_to_markdown(message_text, event.message.entities)
+
+
+    async def send_message_to_discord(discord_channel, message_text: str, image_file=None):
+        """Send a message to Discord."""
+        message_parts = split_message(message_text)
+        if image_file:
+            discord_file = discord.File(image_file)
+            await discord_channel.send(message_parts[0], file=discord_file)
+            message_parts.pop(0)
+
+        for part in message_parts:
+            await discord_channel.send(part)
+
+
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
         """Handle new messages in the specified Telegram channels."""
@@ -124,59 +146,32 @@ async def start_telegram(config):
         # Get the Discord channel
         discord_channel = discord_client.get_channel(discord_channel_id)
 
-        # Check if the message contains media
-        if event.message.media:
-            # If the message also contains text
-            if event.message.message:
-                message_text = event.message.message
+        message_text = process_message_text(event, mention_everyone, override_mention_everyone)
 
-                # Check if our entities contain a URL
-                contains_url = False
+        contains_url = False
+
+        if event.message.media:
+            if event.message.message:
+                message_text = process_message_text(event, mention_everyone, override_mention_everyone)
+
                 if event.message.entities:
                     for entity in event.message.entities:
                         if isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl)):
-                            if isinstance(entity, MessageEntityTextUrl):
-                                url = entity.url
-                                message_text += '\n' + url
-                            else:
-                                url = message_text[entity.offset : entity.offset + entity.length]
-
                             contains_url = True
                             break
             else:
                 message_text = ""
-                contains_url = False
 
-            if mention_everyone or override_mention_everyone:
-                message_text += '\n' + '@everyone'
-
-            # If there's a URL, just send the message without the image
             if contains_url:
-                message_text = telegram_entities_to_markdown(message_text, event.message.entities)
-                message_parts = split_message(message_text)
-                for part in message_parts:
-                    await discord_channel.send(part)
+                await send_message_to_discord(discord_channel, message_text)
             else:
-                # Download the media (image) from Telegram
                 file_path = await telegram_client.download_media(event.message)
-
                 with open(file_path, "rb") as image_file:
-                    discord_file = discord.File(image_file)
-                    message_text = telegram_entities_to_markdown(message_text, event.message.entities)
-                    await discord_channel.send(message_text, file=discord_file)
-                # Remove the downloaded file to clean up
+                    await send_message_to_discord(discord_channel, message_text, image_file=image_file)
                 os.remove(file_path)
         else:
-            # If there's no media, just process and send the message
-            message_text = event.message.message
-
-            if mention_everyone or override_mention_everyone:
-                message_text += '\n' + '@everyone'
-
-            message_text = telegram_entities_to_markdown(message_text, event.message.entities)
-            message_parts = split_message(message_text)
-            for part in message_parts:
-                await discord_channel.send(part)
+            message_text = process_message_text(event, mention_everyone, override_mention_everyone)
+            await send_message_to_discord(discord_channel, message_text)
 
 
     try:
