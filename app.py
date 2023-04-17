@@ -3,11 +3,14 @@
 import os
 import sys
 import asyncio
-from typing import Any
+from typing import Any, List
 import logging
 import yaml
 from telethon import TelegramClient, events
-from telethon.tl.types import InputChannel, Channel, MessageEntityHashtag
+from telethon.tl.types import (InputChannel, Channel, MessageEntityHashtag,MessageEntityBold,
+                               MessageEntityItalic, MessageEntityCode, MessageEntityPre,
+                               MessageEntityTextUrl, MessageEntityUrl, MessageEntityStrike)
+
 import discord
 
 logging.basicConfig(level=logging.INFO,
@@ -123,21 +126,23 @@ async def start_telegram(config):
 
         # Check if the message contains media
         if event.message.media:
-            # Download the media (image) from Telegram
-            file_path = await telegram_client.download_media(event.message)
-
             # If the message also contains text
             if event.message.message:
-                # If our entities contain URL, we want to parse and send Message + URL
-                try:
-                    parsed_response = event.message.message + '\n' + event.message.entities[0].url
-                    parsed_response = ''.join(parsed_response)
-                # Or else we only send Message
-                except Exception:   # pylint: disable=broad-except
-                    parsed_response = event.message.message
+                message_text = event.message.message
 
-                message_text = parsed_response
-                contains_url = True
+                # Check if our entities contain a URL
+                contains_url = False
+                if event.message.entities:
+                    for entity in event.message.entities:
+                        if isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl)):
+                            if isinstance(entity, MessageEntityTextUrl):
+                                url = entity.url
+                                message_text += '\n' + url
+                            else:
+                                url = message_text[entity.offset : entity.offset + entity.length]
+
+                            contains_url = True
+                            break
             else:
                 message_text = ""
                 contains_url = False
@@ -145,34 +150,33 @@ async def start_telegram(config):
             if mention_everyone or override_mention_everyone:
                 message_text += '\n' + '@everyone'
 
-            # Send the image as an attachment to Discord along with the text
-            # if it doesn't contain a URL
-            if not contains_url:
+            # If there's a URL, just send the message without the image
+            if contains_url:
+                message_text = telegram_entities_to_markdown(message_text, event.message.entities)
+                message_parts = split_message(message_text)
+                for part in message_parts:
+                    await discord_channel.send(part)
+            else:
+                # Download the media (image) from Telegram
+                file_path = await telegram_client.download_media(event.message)
+
                 with open(file_path, "rb") as image_file:
                     discord_file = discord.File(image_file)
+                    message_text = telegram_entities_to_markdown(message_text, event.message.entities)
                     await discord_channel.send(message_text, file=discord_file)
-            else:
-                await discord_channel.send(message_text)
-
-            # Remove the downloaded file to clean up
-            os.remove(file_path)
-
+                # Remove the downloaded file to clean up
+                os.remove(file_path)
         else:
-            # If our entities contain URL, we want to parse and send Message + URL
-            try:
-                parsed_response = event.message.message + '\n' + event.message.entities[0].url
-                parsed_response = ''.join(parsed_response)
-            # Or else we only send Message
-            except Exception:   # pylint: disable=broad-except
-                parsed_response = event.message.message
+            # If there's no media, just process and send the message
+            message_text = event.message.message
 
             if mention_everyone or override_mention_everyone:
-                parsed_response += '\n' + '@everyone'
+                message_text += '\n' + '@everyone'
 
-            logger.debug("Sending message to Discord: %s", parsed_response)
-
-            await discord_channel.send(parsed_response)
-
+            message_text = telegram_entities_to_markdown(message_text, event.message.entities)
+            message_parts = split_message(message_text)
+            for part in message_parts:
+                await discord_channel.send(part)
 
 
     try:
@@ -185,6 +189,62 @@ async def start_telegram(config):
 async def start_discord(config):
     """Start the Discord client."""
     await discord_client.start(config["discord_bot_token"])
+
+
+def telegram_entities_to_markdown(message_text: str, message_entities: list) -> str:
+    """Convert Telegram entities to Markdown."""
+    if not message_entities:
+        return message_text
+
+    markdown_text = message_text
+    offset_correction = 0
+
+    for entity in message_entities:
+        start = entity.offset + offset_correction
+        end = start + entity.length
+
+        # pylint: disable=line-too-long
+        if isinstance(entity, MessageEntityBold):
+            markdown_text = markdown_text[:start] + '**' + markdown_text[start:end] + '**' + markdown_text[end:]
+            offset_correction += 4
+        elif isinstance(entity, MessageEntityItalic):
+            markdown_text = markdown_text[:start] + '*' + markdown_text[start:end] + '*' + markdown_text[end:]
+            offset_correction += 2
+        elif isinstance(entity, MessageEntityStrike):
+            markdown_text = markdown_text[:start] + '~~' + markdown_text[start:end] + '~~' + markdown_text[end:]
+            offset_correction += 4
+        elif isinstance(entity, MessageEntityCode):
+            markdown_text = markdown_text[:start] + '`' + markdown_text[start:end] + '`' + markdown_text[end:]
+            offset_correction += 2
+        elif isinstance(entity, MessageEntityPre):
+            markdown_text = markdown_text[:start] + '```' + markdown_text[start:end] + '```' + markdown_text[end:]
+            offset_correction += 6
+        elif isinstance(entity, MessageEntityTextUrl):
+            markdown_text = markdown_text[:start] + '[' + markdown_text[start:end] + '](' + entity.url + ')' + markdown_text[end:]
+            offset_correction += len(entity.url) + 4
+
+    return markdown_text
+
+
+def split_message(message: str, max_length: int = 2000) -> List[str]:
+    """Split a message into multiple messages if it exceeds the max length."""
+    if len(message) <= max_length:
+        return [message]
+
+    message_parts = []
+    while len(message) > max_length:
+        split_index = message[:max_length].rfind("\n")
+        if split_index == -1:
+            split_index = max_length
+
+        message_parts.append(message[:split_index])
+        message = message[split_index:].lstrip()
+
+    if message:
+        message_parts.append(message)
+
+    return message_parts
+
 
 
 async def main():
