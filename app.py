@@ -1,18 +1,19 @@
 """A script to forward messages from Telegram channels to a Discord channel."""
 
+import asyncio
+import logging
 import os
 import sys
-import asyncio
 from typing import Any, List
-import logging
-import yaml
-from telethon import TelegramClient, events
-from telethon.tl.types import (InputChannel, Channel, MessageEntityHashtag,MessageEntityBold,
-                               MessageEntityItalic, MessageEntityCode, MessageEntityPre,
-                               MessageEntityTextUrl, MessageEntityUrl, MessageEntityStrike)
 
 import discord
-
+import yaml
+from telethon import TelegramClient, events
+from telethon.tl.types import (Channel, InputChannel, MessageEntityBold,
+                               MessageEntityCode, MessageEntityHashtag,
+                               MessageEntityItalic, MessageEntityPre,
+                               MessageEntityStrike, MessageEntityTextUrl,
+                               MessageEntityUrl)
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -21,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 """initiate discord client"""
 discord_client = discord.Client(intents=discord.Intents.default())
+
+tg_to_discord_message_ids = {}
+telegram_msg_id_to_discord_msg = {}
+
 
 def load_config() -> Any:
     """Load configuration from the 'config.yml' file."""
@@ -46,7 +51,8 @@ def load_config() -> Any:
 
     for key in required_keys:
         if key not in config_data:
-            logger.error("Error: Key '%s' not found in the configuration file.", key)
+            logger.error(
+                "Error: Key '%s' not found in the configuration file.", key)
             sys.exit(1)
 
     return config_data
@@ -90,7 +96,6 @@ async def start_telegram(config):
         logger.error("No input channels found, exiting")
         sys.exit(1)
 
-
     def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool) -> str:
         """Process the message text and return the processed text."""
         message_text = event.message.message
@@ -100,30 +105,36 @@ async def start_telegram(config):
 
         return telegram_entities_to_markdown(message_text, event.message.entities)
 
-
-    async def send_message_to_discord(discord_channel, message_text: str, image_file=None):
+    async def fowrward_to_discord(discord_channel, message_text: str,
+                                  image_file=None, reference=None):
         """Send a message to Discord."""
+        sent_messages = []
         message_parts = split_message(message_text)
         if image_file:
             discord_file = discord.File(image_file)
-            await discord_channel.send(message_parts[0], file=discord_file)
+            sent_message = await discord_channel.send(message_parts[0],
+                                                      file=discord_file,
+                                                      reference=reference)
+            sent_messages.append(sent_message)
             message_parts.pop(0)
 
         for part in message_parts:
-            await discord_channel.send(part)
+            sent_message = await discord_channel.send(part, reference=reference)
+            sent_messages.append(sent_message)
 
+        return sent_messages
 
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
         """Handle new messages in the specified Telegram channels."""
         logger.debug(event)
 
-        # Get the corresponding Discord channel ID
         tg_channel_id = event.message.peer_id.channel_id
         discord_channel_config = discord_channel_mappings.get(tg_channel_id)
 
         if not discord_channel_config:
-            logger.error("Discord channel not found for Telegram channel %s", tg_channel_id)
+            logger.error(
+                "Discord channel not found for Telegram channel %s", tg_channel_id)
             return
 
         discord_channel_id = discord_channel_config["discord_channel_id"]
@@ -132,56 +143,60 @@ async def start_telegram(config):
         allowed_hashtags = discord_channel_config["hashtags"]
         override_mention_everyone = False
 
-        # Check if the message contains any of the allowed hashtags
         if allowed_hashtags:
             if event.message.entities:
-                message_hashtags = {event.message.text[tag.offset:tag.offset + tag.length] for tag in event.message.entities if isinstance(tag, MessageEntityHashtag)}  # pylint: disable=line-too-long
+                message_hashtags = {event.message.text[tag.offset:tag.offset + tag.length]
+                                    for tag in event.message.entities if isinstance(tag, MessageEntityHashtag)}  # pylint: disable=line-too-long
             else:
                 message_hashtags = set()
 
-            matching_hashtags = [tag for tag in allowed_hashtags if tag["name"] in message_hashtags]
+            matching_hashtags = [
+                tag for tag in allowed_hashtags if tag["name"] in message_hashtags]
             if len(matching_hashtags) == 0 and not forward_everything:
                 return
 
-            override_mention_everyone = any(tag.get("override_mention_everyone", False) for tag in matching_hashtags)   # pylint: disable=line-too-long
+            override_mention_everyone = any(tag.get("override_mention_everyone", False)
+                                            for tag in matching_hashtags)   # pylint: disable=line-too-long
 
-        # Get the Discord channel
         discord_channel = discord_client.get_channel(discord_channel_id)
+        message_text = process_message_text(
+            event, mention_everyone, override_mention_everyone)
 
-        message_text = process_message_text(event, mention_everyone, override_mention_everyone)
-
-        contains_url = False
+        discord_reference = None
+        if event.message.reply_to_msg_id:
+            discord_reference = telegram_msg_id_to_discord_msg.get(
+                event.message.reply_to_msg_id)
 
         if event.message.media:
-            if event.message.message:
-                message_text = process_message_text(event,
-                                                    mention_everyone,
-                                                    override_mention_everyone)
-
-                if event.message.entities:
-                    for entity in event.message.entities:
-                        if isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl)):
-                            contains_url = True
-                            break
-            else:
-                message_text = ""
+            contains_url = False
+            if event.message.entities:
+                for entity in event.message.entities:
+                    if isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl)):
+                        contains_url = True
+                        break
 
             if contains_url:
-                await send_message_to_discord(discord_channel, message_text)
+                sent_discord_messages = await fowrward_to_discord(discord_channel,
+                                                                  message_text,
+                                                                  reference=discord_reference)
             else:
                 file_path = await telegram_client.download_media(event.message)
                 with open(file_path, "rb") as image_file:
-                    await send_message_to_discord(discord_channel,
-                                                  message_text,
-                                                  image_file=image_file)
+                    sent_discord_messages = await fowrward_to_discord(discord_channel,
+                                                                      message_text,
+                                                                      image_file=image_file,
+                                                                      reference=discord_reference)
                 os.remove(file_path)
         else:
-            message_text = process_message_text(event, mention_everyone, override_mention_everyone)
-            await send_message_to_discord(discord_channel, message_text)
+            sent_discord_messages = await fowrward_to_discord(discord_channel,
+                                                              message_text,
+                                                              reference=discord_reference)
 
+        if sent_discord_messages:
+            telegram_msg_id_to_discord_msg[event.message.id] = sent_discord_messages[0]
 
     try:
-        await asyncio.wait_for(telegram_client.run_until_disconnected(), timeout=None) # 1 hour
+        await asyncio.wait_for(telegram_client.run_until_disconnected(), timeout=None)
     except asyncio.TimeoutError:
         logger.warning("Telegram client timeout reached. Disconnecting...")
         await telegram_client.disconnect()
@@ -206,22 +221,29 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list) -> 
 
         # pylint: disable=line-too-long
         if isinstance(entity, MessageEntityBold):
-            markdown_text = markdown_text[:start] + '**' + markdown_text[start:end] + '**' + markdown_text[end:]
+            markdown_text = markdown_text[:start] + '**' + \
+                markdown_text[start:end] + '**' + markdown_text[end:]
             offset_correction += 4
         elif isinstance(entity, MessageEntityItalic):
-            markdown_text = markdown_text[:start] + '*' + markdown_text[start:end] + '*' + markdown_text[end:]
+            markdown_text = markdown_text[:start] + '*' + \
+                markdown_text[start:end] + '*' + markdown_text[end:]
             offset_correction += 2
         elif isinstance(entity, MessageEntityStrike):
-            markdown_text = markdown_text[:start] + '~~' + markdown_text[start:end] + '~~' + markdown_text[end:]
+            markdown_text = markdown_text[:start] + '~~' + \
+                markdown_text[start:end] + '~~' + markdown_text[end:]
             offset_correction += 4
         elif isinstance(entity, MessageEntityCode):
-            markdown_text = markdown_text[:start] + '`' + markdown_text[start:end] + '`' + markdown_text[end:]
+            markdown_text = markdown_text[:start] + '`' + \
+                markdown_text[start:end] + '`' + markdown_text[end:]
             offset_correction += 2
         elif isinstance(entity, MessageEntityPre):
-            markdown_text = markdown_text[:start] + '```' + markdown_text[start:end] + '```' + markdown_text[end:]
+            markdown_text = markdown_text[:start] + '```' + \
+                markdown_text[start:end] + '```' + markdown_text[end:]
             offset_correction += 6
         elif isinstance(entity, MessageEntityTextUrl):
-            markdown_text = markdown_text[:start] + '[' + markdown_text[start:end] + '](' + entity.url + ')' + markdown_text[end:]
+            markdown_text = markdown_text[:start] + '[' + \
+                markdown_text[start:end] + \
+                '](' + entity.url + ')' + markdown_text[end:]
             offset_correction += len(entity.url) + 4
 
     return markdown_text
@@ -245,7 +267,6 @@ def split_message(message: str, max_length: int = 2000) -> List[str]:
         message_parts.append(message)
 
     return message_parts
-
 
 
 async def main():
