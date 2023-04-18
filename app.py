@@ -13,11 +13,13 @@ from telethon.tl.types import (InputChannel, Channel, MessageEntityHashtag,Messa
 
 import discord
 
+
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logging.getLogger('telethon').setLevel(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
+"""initiate discord client"""
 discord_client = discord.Client(intents=discord.Intents.default())
 
 def load_config() -> Any:
@@ -65,7 +67,7 @@ async def start_telegram(config):
     discord_channel_mappings = {}
 
     async for dialog in telegram_client.iter_dialogs():
-        if not isinstance(dialog.entity, Channel):
+        if not isinstance(dialog.entity, Channel) and not isinstance(dialog.entity, InputChannel):
             continue
 
         for channel_mapping in config["telegram_input_channels"]:
@@ -152,7 +154,9 @@ async def start_telegram(config):
 
         if event.message.media:
             if event.message.message:
-                message_text = process_message_text(event, mention_everyone, override_mention_everyone)
+                message_text = process_message_text(event,
+                                                    mention_everyone,
+                                                    override_mention_everyone)
 
                 if event.message.entities:
                     for entity in event.message.entities:
@@ -167,7 +171,9 @@ async def start_telegram(config):
             else:
                 file_path = await telegram_client.download_media(event.message)
                 with open(file_path, "rb") as image_file:
-                    await send_message_to_discord(discord_channel, message_text, image_file=image_file)
+                    await send_message_to_discord(discord_channel,
+                                                  message_text,
+                                                  image_file=image_file)
                 os.remove(file_path)
         else:
             message_text = process_message_text(event, mention_everyone, override_mention_everyone)
