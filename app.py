@@ -1,4 +1,4 @@
-"""A script to forward messages from Telegram channels to a Discord channel."""
+"""A `Bot` to forward messages from Telegram to a Discord server."""
 
 import asyncio
 import os
@@ -103,8 +103,8 @@ async def start_telegram(config):
 
         return telegram_entities_to_markdown(message_text, event.message.entities)
 
-    async def fowrward_to_discord(discord_channel, message_text: str,
-                                  image_file=None, reference=None):
+    async def forward_to_discord(discord_channel, message_text: str,
+                                 image_file=None, reference=None):
         """Send a message to Discord."""
         sent_messages = []
         message_parts = split_message(message_text)
@@ -121,6 +121,77 @@ async def start_telegram(config):
             sent_messages.append(sent_message)
 
         return sent_messages
+
+    async def process_url_message(discord_channel, message_text, discord_reference):
+        """Process a message that contains a URL."""
+        sent_discord_messages = await forward_to_discord(discord_channel,
+                                                         message_text,
+                                                         reference=discord_reference)
+        return sent_discord_messages
+
+    async def process_media_message(event, discord_channel, message_text, discord_reference):
+        """Process a message that contains media."""
+        file_path = await telegram_client.download_media(event.message)
+        with open(file_path, "rb") as image_file:
+            sent_discord_messages = await forward_to_discord(discord_channel,
+                                                             message_text,
+                                                             image_file=image_file,
+                                                             reference=discord_reference)
+        os.remove(file_path)
+        return sent_discord_messages
+
+    async def handle_message_media(event, discord_channel, message_text, discord_reference):
+        """Handle a message that contains media."""
+        contains_url = any(isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl))
+                           for entity in event.message.entities or [])
+
+        if contains_url:
+            sent_discord_messages = await process_url_message(discord_channel,
+                                                              message_text,
+                                                              discord_reference)
+        else:
+            sent_discord_messages = await process_media_message(event, discord_channel,
+                                                                message_text,
+                                                                discord_reference)
+
+        return sent_discord_messages
+
+    async def fetch_discord_reference(event, discord_channel):
+        """Fetch the Discord message reference."""
+        discord_message_id = get_discord_message_id(
+            event.message.reply_to_msg_id)
+        if not discord_message_id:
+            logger.debug("No mapping found for TG message %s",
+                         event.message.reply_to_msg_id)
+            return None
+
+        try:
+            messages = []
+            async for message in discord_channel.history(around=discord.Object(id=discord_message_id),
+                                                         limit=10):
+                messages.append(message)
+
+            discord_message = next(
+                (msg for msg in messages if msg.id == discord_message_id), None)
+            if not discord_message:
+                logger.debug(
+                    "Reference Discord message not found for TG message %s",
+                    event.message.reply_to_msg_id)
+                return None
+
+            return MessageReference.from_message(discord_message)
+        except discord.NotFound:
+            logger.debug("Reference Discord message not found for TG message %s",
+                         event.message.reply_to_msg_id)
+            return None
+
+    def get_message_hashtags(message):
+        """Get hashtags from a message."""
+        entities = message.entities or []
+        hashtags = [entity for entity in entities if isinstance(
+            entity, MessageEntityHashtag)]
+
+        return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in hashtags]   # Pylint: disable=line-too-long
 
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
@@ -139,79 +210,40 @@ async def start_telegram(config):
         mention_everyone = discord_channel_config["mention_everyone"]
         forward_everything = discord_channel_config["forward_everything"]
         allowed_hashtags = discord_channel_config["hashtags"]
-        override_mention_everyone = False
+
+        should_override_mention_everyone = False
+        should_forward_message = forward_everything
 
         if allowed_hashtags:
-            if event.message.entities:
-                message_hashtags = {event.message.text[tag.offset:tag.offset + tag.length]
-                                    for tag in event.message.entities if isinstance(tag, MessageEntityHashtag)}  # pylint: disable=line-too-long
-            else:
-                message_hashtags = set()
+            message_hashtags = get_message_hashtags(event.message)
 
             matching_hashtags = [
                 tag for tag in allowed_hashtags if tag["name"] in message_hashtags]
-            if len(matching_hashtags) == 0 and not forward_everything:
-                return
 
-            override_mention_everyone = any(tag.get("override_mention_everyone", False)
-                                            for tag in matching_hashtags)   # pylint: disable=line-too-long
+            if len(matching_hashtags) > 0:
+                should_forward_message = True
+                should_override_mention_everyone = any(tag.get("override_mention_everyone", False)
+                                                       for tag in matching_hashtags)
+
+        if not should_forward_message:
+            return
 
         discord_channel = discord_client.get_channel(discord_channel_id)
         message_text = process_message_text(
-            event, mention_everyone, override_mention_everyone)
+            event, mention_everyone, should_override_mention_everyone)
 
-        discord_reference = None
-        if event.message.reply_to_msg_id:
-            discord_message_id = get_discord_message_id(
-                event.message.reply_to_msg_id)
-            if discord_message_id:
-                try:
-                    messages = []
-                    async for message in discord_channel.history(around=discord.Object(id=discord_message_id), limit=10):
-                        messages.append(message)
-
-                    discord_message = next(
-                        (msg for msg in messages if msg.id == discord_message_id), None)
-                    if discord_message:
-                        discord_reference = MessageReference.from_message(
-                            discord_message)
-                    else:
-                        discord_reference = None
-                        logger.debug(
-                            "Reference Discord message not found for TG message %s", event.message.reply_to_msg_id)
-
-                except discord.NotFound:
-                    discord_reference = None
-                    logger.debug(
-                        "Reference Discord message not found for TG message %s", event.message.reply_to_msg_id)
-            else:
-                logger.debug("No mapping found for TG message %s",
-                             event.message.reply_to_msg_id)
+        discord_reference = await fetch_discord_reference(event,
+                                                          discord_channel) if event.message.reply_to_msg_id else None
 
         if event.message.media:
-            contains_url = False
-            if event.message.entities:
-                for entity in event.message.entities:
-                    if isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl)):
-                        contains_url = True
-                        break
-
-            if contains_url:
-                sent_discord_messages = await fowrward_to_discord(discord_channel,
-                                                                  message_text,
-                                                                  reference=discord_reference)
-            else:
-                file_path = await telegram_client.download_media(event.message)
-                with open(file_path, "rb") as image_file:
-                    sent_discord_messages = await fowrward_to_discord(discord_channel,
-                                                                      message_text,
-                                                                      image_file=image_file,
-                                                                      reference=discord_reference)
-                os.remove(file_path)
+            sent_discord_messages = await handle_message_media(event,
+                                                               discord_channel,
+                                                               message_text,
+                                                               discord_reference)
         else:
-            sent_discord_messages = await fowrward_to_discord(discord_channel,
-                                                              message_text,
-                                                              reference=discord_reference)
+            sent_discord_messages = await forward_to_discord(discord_channel,
+                                                             message_text,
+                                                             reference=discord_reference)
 
         if sent_discord_messages:
             main_sent_discord_message = sent_discord_messages[0]
@@ -231,6 +263,20 @@ async def start_discord(config):
     await discord_client.start(config["discord_bot_token"])
 
 
+def apply_markdown(markdown_text, start, end, markdown_delimiters):
+    """Apply Markdown delimiters to a text range."""
+    delimiter_length = len(
+        markdown_delimiters[0]) + len(markdown_delimiters[1])
+    return (
+        markdown_text[:start]
+        + markdown_delimiters[0]
+        + markdown_text[start:end]
+        + markdown_delimiters[1]
+        + markdown_text[end:],
+        delimiter_length,
+    )
+
+
 def telegram_entities_to_markdown(message_text: str, message_entities: list) -> str:
     """Convert Telegram entities to Markdown."""
     if not message_entities:
@@ -239,35 +285,34 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list) -> 
     markdown_text = message_text
     offset_correction = 0
 
+    markdown_map = {
+        MessageEntityBold: ("**", "**"),
+        MessageEntityItalic: ("*", "*"),
+        MessageEntityStrike: ("~~", "~~"),
+        MessageEntityCode: ("`", "`"),
+        MessageEntityPre: ("```", "```"),
+    }
+
     for entity in message_entities:
         start = entity.offset + offset_correction
         end = start + entity.length
+        markdown_delimiters = markdown_map.get(type(entity))
 
-        # pylint: disable=line-too-long
-        if isinstance(entity, MessageEntityBold):
-            markdown_text = markdown_text[:start] + '**' + \
-                markdown_text[start:end] + '**' + markdown_text[end:]
-            offset_correction += 4
-        elif isinstance(entity, MessageEntityItalic):
-            markdown_text = markdown_text[:start] + '*' + \
-                markdown_text[start:end] + '*' + markdown_text[end:]
-            offset_correction += 2
-        elif isinstance(entity, MessageEntityStrike):
-            markdown_text = markdown_text[:start] + '~~' + \
-                markdown_text[start:end] + '~~' + markdown_text[end:]
-            offset_correction += 4
-        elif isinstance(entity, MessageEntityCode):
-            markdown_text = markdown_text[:start] + '`' + \
-                markdown_text[start:end] + '`' + markdown_text[end:]
-            offset_correction += 2
-        elif isinstance(entity, MessageEntityPre):
-            markdown_text = markdown_text[:start] + '```' + \
-                markdown_text[start:end] + '```' + markdown_text[end:]
-            offset_correction += 6
+        if markdown_delimiters:
+            markdown_text, correction = apply_markdown(
+                markdown_text, start, end, markdown_delimiters
+            )
+            offset_correction += correction
         elif isinstance(entity, MessageEntityTextUrl):
-            markdown_text = markdown_text[:start] + '[' + \
-                markdown_text[start:end] + \
-                '](' + entity.url + ')' + markdown_text[end:]
+            markdown_text = (
+                markdown_text[:start]
+                + "["
+                + markdown_text[start:end]
+                + "]("
+                + entity.url
+                + ")"
+                + markdown_text[end:]
+            )
             offset_correction += len(entity.url) + 4
 
     return markdown_text
