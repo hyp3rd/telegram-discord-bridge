@@ -56,7 +56,7 @@ def load_config() -> Any:
     return config_data
 
 
-async def start_telegram(config):
+async def start_telegram(config):   # pylint: disable=too-many-statements,too-many-locals
     """Start the Telegram client."""
     telegram_client = TelegramClient(
         session=config["app_name"],
@@ -167,7 +167,7 @@ async def start_telegram(config):
 
         try:
             messages = []
-            async for message in discord_channel.history(around=discord.Object(id=discord_message_id),
+            async for message in discord_channel.history(around=discord.Object(id=discord_message_id),   # pylint: disable=line-too-long
                                                          limit=10):
                 messages.append(message)
 
@@ -191,7 +191,7 @@ async def start_telegram(config):
         hashtags = [entity for entity in entities if isinstance(
             entity, MessageEntityHashtag)]
 
-        return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in hashtags]   # Pylint: disable=line-too-long
+        return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in hashtags]   # pylint: disable=line-too-long
 
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
@@ -233,7 +233,7 @@ async def start_telegram(config):
             event, mention_everyone, should_override_mention_everyone)
 
         discord_reference = await fetch_discord_reference(event,
-                                                          discord_channel) if event.message.reply_to_msg_id else None
+                                                          discord_channel) if event.message.reply_to_msg_id else None   # pylint: disable=line-too-long
 
         if event.message.media:
             sent_discord_messages = await handle_message_media(event,
