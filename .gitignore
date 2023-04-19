@@ -252,3 +252,4 @@ tags
 *.session-journal
 config.yml
 config.yaml
+messages_mapping_history.json

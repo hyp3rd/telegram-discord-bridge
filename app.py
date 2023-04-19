@@ -1,13 +1,13 @@
 """A script to forward messages from Telegram channels to a Discord channel."""
 
 import asyncio
-import logging
 import os
 import sys
-from typing import Any, List
+from typing import Any
 
 import discord
 import yaml
+from discord import MessageReference
 from telethon import TelegramClient, events
 from telethon.tl.types import (Channel, InputChannel, MessageEntityBold,
                                MessageEntityCode, MessageEntityHashtag,
@@ -15,16 +15,14 @@ from telethon.tl.types import (Channel, InputChannel, MessageEntityBold,
                                MessageEntityStrike, MessageEntityTextUrl,
                                MessageEntityUrl)
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('telethon').setLevel(level=logging.WARNING)
-logger = logging.getLogger(__name__)
+from logger import app_logger
+from utils import get_discord_message_id, save_mapping_data, split_message
 
-"""initiate discord client"""
 discord_client = discord.Client(intents=discord.Intents.default())
 
 tg_to_discord_message_ids = {}
-telegram_msg_id_to_discord_msg = {}
+
+logger = app_logger()
 
 
 def load_config() -> Any:
@@ -164,8 +162,31 @@ async def start_telegram(config):
 
         discord_reference = None
         if event.message.reply_to_msg_id:
-            discord_reference = telegram_msg_id_to_discord_msg.get(
+            discord_message_id = get_discord_message_id(
                 event.message.reply_to_msg_id)
+            if discord_message_id:
+                try:
+                    messages = []
+                    async for message in discord_channel.history(around=discord.Object(id=discord_message_id), limit=10):
+                        messages.append(message)
+
+                    discord_message = next(
+                        (msg for msg in messages if msg.id == discord_message_id), None)
+                    if discord_message:
+                        discord_reference = MessageReference.from_message(
+                            discord_message)
+                    else:
+                        discord_reference = None
+                        logger.debug(
+                            "Reference Discord message not found for TG message %s", event.message.reply_to_msg_id)
+
+                except discord.NotFound:
+                    discord_reference = None
+                    logger.debug(
+                        "Reference Discord message not found for TG message %s", event.message.reply_to_msg_id)
+            else:
+                logger.debug("No mapping found for TG message %s",
+                             event.message.reply_to_msg_id)
 
         if event.message.media:
             contains_url = False
@@ -193,7 +214,10 @@ async def start_telegram(config):
                                                               reference=discord_reference)
 
         if sent_discord_messages:
-            telegram_msg_id_to_discord_msg[event.message.id] = sent_discord_messages[0]
+            main_sent_discord_message = sent_discord_messages[0]
+            save_mapping_data(event.message.id, main_sent_discord_message.id)
+            logger.info("Forwarded TG message %s to Discord message %s",
+                        event.message.id, main_sent_discord_message.id)
 
     try:
         await asyncio.wait_for(telegram_client.run_until_disconnected(), timeout=None)
@@ -249,29 +273,10 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list) -> 
     return markdown_text
 
 
-def split_message(message: str, max_length: int = 2000) -> List[str]:
-    """Split a message into multiple messages if it exceeds the max length."""
-    if len(message) <= max_length:
-        return [message]
-
-    message_parts = []
-    while len(message) > max_length:
-        split_index = message[:max_length].rfind("\n")
-        if split_index == -1:
-            split_index = max_length
-
-        message_parts.append(message[:split_index])
-        message = message[split_index:].lstrip()
-
-    if message:
-        message_parts.append(message)
-
-    return message_parts
-
-
 async def main():
     """Start the Telegram and Discord clients."""
     conf = load_config()
+
     coroutines = [start_telegram(config=conf), start_discord(config=conf)]
     coroutine_names = ['start_telegram', 'start_discord']
 
