@@ -2,9 +2,6 @@
 import logging
 
 
-import logging
-
-
 class SingletonLogger(logging.Logger):
     """Singleton logger class. It allows to create only one instance of the logger."""
     _instance = None

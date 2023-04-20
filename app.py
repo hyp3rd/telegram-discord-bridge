@@ -135,9 +135,9 @@ async def on_shutdown(telegram_client, discord_client):
     except (Exception, asyncio.CancelledError) as ex:  # pylint: disable=broad-except
         logger.error("Error disconnecting Discord client: %s", {ex})
 
-    for t in all_tasks:
-        if t is not task:
-            t.cancel()
+    for task in all_tasks:
+        if task is not task:
+            task.cancel()
 
     logger.info("Shutdown process completed.")
 
@@ -206,7 +206,7 @@ async def run_bot() -> Tuple[TelegramClient, discord.Client]:
         await asyncio.gather(start_task, telegram_wait_task, discord_wait_task)
     except asyncio.CancelledError:
         logger.warning("CancelledError caught, shutting down...")
-    except Exception as ex:
+    except Exception as ex:  # pylint: disable=broad-except
         logger.error("Error while running the bot: %s", ex)
     finally:
         await on_shutdown(telegram_client_instance, discord_client_instance)
