@@ -1,5 +1,7 @@
 # Telegram - Discord Bridge
 
+[![Pylint](https://github.com/hyp3rd/telegram-discord-bridge/actions/workflows/pylint.yml/badge.svg)][pylint_badge]
+
 A cheeky `Python` bot to slyly forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?
 
 ## Cunning Features
@@ -95,3 +97,5 @@ This project is a masked vigilante inspired by the base idea of [Telegram-To-Dis
 I'm a surfer, a crypto trader, and a software architect with 15 years of experience designing highly available distributed production environments and developing cloud-native apps in public and private clouds. Just your average bloke. Feel free to connect with me on LinkedIn, but no funny business, alright?
   
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/francesco-cosentino/)
+
+[pylint_badge]: https://github.com/hyp3rd/telegram-discord-bridge/actions/workflows/pylint.yml
