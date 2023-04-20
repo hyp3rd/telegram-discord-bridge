@@ -33,7 +33,8 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
         if not isinstance(dialog.entity, Channel) and not isinstance(dialog.entity, InputChannel):
             continue
 
-        for channel_mapping in config["telegram_input_channels"]:
+        for channel_mapping in config["telegram_forwarders"]:
+            forwarder_name = channel_mapping["forwarder_name"]
             tg_channel_id = channel_mapping["tg_channel_id"]
             discord_channel_config = {
                 "discord_channel_id": channel_mapping["discord_channel_id"],
@@ -45,7 +46,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
             if tg_channel_id in {dialog.name, dialog.entity.id}:
                 input_channels_entities.append(
                     InputChannel(dialog.entity.id, dialog.entity.access_hash))
-                discord_channel_mappings[dialog.entity.id] = discord_channel_config
+                discord_channel_mappings[forwarder_name] = discord_channel_config
                 logger.info("Registered TG channel '%s' with ID %s with Discord channel config %s",
                             dialog.name, dialog.entity.id, discord_channel_config)
 
@@ -54,65 +55,83 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
         sys.exit(1)
 
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
-    async def handler(event):
+    async def handler(event):  # pylint: disable=too-many-locals
         """Handle new messages in the specified Telegram channels."""
         logger.debug(event)
 
         tg_channel_id = event.message.peer_id.channel_id
-        discord_channel_config = discord_channel_mappings.get(tg_channel_id)
 
-        if not discord_channel_config:
+        matching_forwarders = get_matching_forwarders(
+            tg_channel_id, config)
+
+        if len(matching_forwarders) < 1:
             logger.error(
-                "Discord channel not found for Telegram channel %s", tg_channel_id)
+                "No forwarders found for Telegram channel %s", tg_channel_id)
             return
 
-        discord_channel_id = discord_channel_config["discord_channel_id"]
+        for discord_channel_config in matching_forwarders:
+            forwarder_name = discord_channel_config["forwarder_name"]
+            discord_channel_config = discord_channel_mappings.get(
+                forwarder_name)
 
-        config_data = {
-            "mention_everyone": discord_channel_config["mention_everyone"],
-            "forward_everything": discord_channel_config["forward_everything"],
-            "allowed_hashtags": discord_channel_config["hashtags"],
-        }
+            if not discord_channel_config:
+                logger.error(
+                    "Discord channel not found for Telegram channel %s", tg_channel_id)
+                continue
 
-        should_override_mention_everyone = False
-        should_forward_message = config_data["forward_everything"]
+            discord_channel_id = discord_channel_config["discord_channel_id"]
 
-        if config_data["allowed_hashtags"]:
-            message_hashtags = get_message_hashtags(event.message)
+            config_data = {
+                "mention_everyone": discord_channel_config["mention_everyone"],
+                "forward_everything": discord_channel_config["forward_everything"],
+                "allowed_hashtags": discord_channel_config["hashtags"],
+            }
 
-            matching_hashtags = [
-                tag for tag in config_data["allowed_hashtags"] if tag["name"] in message_hashtags]
+            should_override_mention_everyone = False
+            should_forward_message = config_data["forward_everything"]
 
-            if len(matching_hashtags) > 0:
-                should_forward_message = True
-                should_override_mention_everyone = any(tag.get("override_mention_everyone", False)
-                                                       for tag in matching_hashtags)
+            if config_data["allowed_hashtags"]:
+                message_hashtags = get_message_hashtags(event.message)
 
-        if not should_forward_message:
-            return
+                matching_hashtags = [
+                    tag for tag in config_data["allowed_hashtags"] if tag["name"].lower() in message_hashtags]
 
-        discord_channel = discord_client.get_channel(discord_channel_id)
-        message_text = process_message_text(
-            event, config_data["mention_everyone"], should_override_mention_everyone)
+                if len(matching_hashtags) > 0:
+                    should_forward_message = True
+                    should_override_mention_everyone = any(tag.get("override_mention_everyone", False)
+                                                           for tag in matching_hashtags)
 
-        discord_reference = await fetch_discord_reference(event,
-                                                          discord_channel) if event.message.reply_to_msg_id else None
+            if not should_forward_message:
+                continue
 
-        if event.message.media:
-            sent_discord_messages = await handle_message_media(telegram_client, event,
-                                                               discord_channel,
-                                                               message_text,
-                                                               discord_reference)
-        else:
-            sent_discord_messages = await forward_to_discord(discord_channel,
-                                                             message_text,
-                                                             reference=discord_reference)
+            discord_channel = discord_client.get_channel(discord_channel_id)
+            message_text = process_message_text(
+                event, config_data["mention_everyone"], should_override_mention_everyone)
 
-        if sent_discord_messages:
-            main_sent_discord_message = sent_discord_messages[0]
-            save_mapping_data(event.message.id, main_sent_discord_message.id)
-            logger.info("Forwarded TG message %s to Discord message %s",
-                        event.message.id, main_sent_discord_message.id)
+            discord_reference = await fetch_discord_reference(event,
+                                                              discord_channel) if event.message.reply_to_msg_id else None
+
+            if event.message.media:
+                sent_discord_messages = await handle_message_media(telegram_client, event,
+                                                                   discord_channel,
+                                                                   message_text,
+                                                                   discord_reference)
+            else:
+                sent_discord_messages = await forward_to_discord(discord_channel,
+                                                                 message_text,
+                                                                 reference=discord_reference)
+
+            if sent_discord_messages:
+                main_sent_discord_message = sent_discord_messages[0]
+                save_mapping_data(event.message.id,
+                                  main_sent_discord_message.id)
+                logger.info("Forwarded TG message %s to Discord message %s",
+                            event.message.id, main_sent_discord_message.id)
+
+
+def get_matching_forwarders(tg_channel_id, config):
+    """Get the forwarders that match the given Telegram channel ID."""
+    return [forwarder_config for forwarder_config in config["telegram_forwarders"] if tg_channel_id == forwarder_config["tg_channel_id"]]  # pylint: disable=line-too-long
 
 
 async def on_shutdown(telegram_client, discord_client):
