@@ -135,8 +135,8 @@ async def on_shutdown(telegram_client, discord_client):
     except (Exception, asyncio.CancelledError) as ex:  # pylint: disable=broad-except
         logger.error("Error disconnecting Discord client: %s", {ex})
 
-    for task in all_tasks:
-        if task is not task:
+    for running_task in all_tasks:
+        if running_task is not task:
             task.cancel()
 
     logger.info("Shutdown process completed.")
