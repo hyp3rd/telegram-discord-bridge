@@ -1,71 +1,30 @@
 """A `Bot` to forward messages from Telegram to a Discord server."""
 
 import asyncio
-import os
+import signal
 import sys
-from typing import Any
+from typing import Tuple
 
 import discord
-import yaml
-from discord import MessageReference
 from telethon import TelegramClient, events
-from telethon.tl.types import (Channel, InputChannel, MessageEntityBold,
-                               MessageEntityCode, MessageEntityHashtag,
-                               MessageEntityItalic, MessageEntityPre,
-                               MessageEntityStrike, MessageEntityTextUrl,
-                               MessageEntityUrl)
+from telethon.tl.types import Channel, InputChannel
 
+from config import load_config
+from discord_handler import (fetch_discord_reference, forward_to_discord,
+                             start_discord)
 from logger import app_logger
-from utils import get_discord_message_id, save_mapping_data, split_message
-
-discord_client = discord.Client(intents=discord.Intents.default())
+from telegram_handler import (get_message_hashtags, handle_message_media,
+                              process_message_text, start_telegram_client)
+from utils import save_mapping_data
 
 tg_to_discord_message_ids = {}
 
 logger = app_logger()
 
 
-def load_config() -> Any:
-    """Load configuration from the 'config.yml' file."""
-    try:
-        with open('config.yml', 'rb') as config_file:
-            config_data = yaml.safe_load(config_file)
-    except FileNotFoundError:
-        logger.error("Error: Configuration file 'config.yml' not found.")
-        sys.exit(1)
-    except yaml.YAMLError as ex:
-        logger.error("Error parsing configuration file: %s", ex)
-        sys.exit(1)
-
-    required_keys = [
-        "app_name",
-        "telegram_phone",
-        "telegram_password",
-        "telegram_api_id",
-        "telegram_api_hash",
-        "telegram_input_channels",
-        "discord_bot_token",
-    ]
-
-    for key in required_keys:
-        if key not in config_data:
-            logger.error(
-                "Error: Key '%s' not found in the configuration file.", key)
-            sys.exit(1)
-
-    return config_data
-
-
-async def start_telegram(config):   # pylint: disable=too-many-statements,too-many-locals
-    """Start the Telegram client."""
-    telegram_client = TelegramClient(
-        session=config["app_name"],
-        api_id=config["telegram_api_id"],
-        api_hash=config["telegram_api_hash"])
-
-    await telegram_client.start(
-        phone=config["telegram_phone"],
-        password=config["telegram_password"])
+async def start(telegram_client: TelegramClient, discord_client: discord.Client, config):
+    """Start the bot."""
+    logger.info("Starting the bot...")
 
     input_channels_entities = []
     discord_channel_mappings = {}
@@ -94,105 +53,6 @@ async def start_telegram(config):   # pylint: disable=too-many-statements,too-ma
         logger.error("No input channels found, exiting")
         sys.exit(1)
 
-    def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool) -> str:
-        """Process the message text and return the processed text."""
-        message_text = event.message.message
-
-        if mention_everyone or override_mention_everyone:
-            message_text += '\n' + '@everyone'
-
-        return telegram_entities_to_markdown(message_text, event.message.entities)
-
-    async def forward_to_discord(discord_channel, message_text: str,
-                                 image_file=None, reference=None):
-        """Send a message to Discord."""
-        sent_messages = []
-        message_parts = split_message(message_text)
-        if image_file:
-            discord_file = discord.File(image_file)
-            sent_message = await discord_channel.send(message_parts[0],
-                                                      file=discord_file,
-                                                      reference=reference)
-            sent_messages.append(sent_message)
-            message_parts.pop(0)
-
-        for part in message_parts:
-            sent_message = await discord_channel.send(part, reference=reference)
-            sent_messages.append(sent_message)
-
-        return sent_messages
-
-    async def process_url_message(discord_channel, message_text, discord_reference):
-        """Process a message that contains a URL."""
-        sent_discord_messages = await forward_to_discord(discord_channel,
-                                                         message_text,
-                                                         reference=discord_reference)
-        return sent_discord_messages
-
-    async def process_media_message(event, discord_channel, message_text, discord_reference):
-        """Process a message that contains media."""
-        file_path = await telegram_client.download_media(event.message)
-        with open(file_path, "rb") as image_file:
-            sent_discord_messages = await forward_to_discord(discord_channel,
-                                                             message_text,
-                                                             image_file=image_file,
-                                                             reference=discord_reference)
-        os.remove(file_path)
-        return sent_discord_messages
-
-    async def handle_message_media(event, discord_channel, message_text, discord_reference):
-        """Handle a message that contains media."""
-        contains_url = any(isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl))
-                           for entity in event.message.entities or [])
-
-        if contains_url:
-            sent_discord_messages = await process_url_message(discord_channel,
-                                                              message_text,
-                                                              discord_reference)
-        else:
-            sent_discord_messages = await process_media_message(event, discord_channel,
-                                                                message_text,
-                                                                discord_reference)
-
-        return sent_discord_messages
-
-    async def fetch_discord_reference(event, discord_channel):
-        """Fetch the Discord message reference."""
-        discord_message_id = get_discord_message_id(
-            event.message.reply_to_msg_id)
-        if not discord_message_id:
-            logger.debug("No mapping found for TG message %s",
-                         event.message.reply_to_msg_id)
-            return None
-
-        try:
-            messages = []
-            async for message in discord_channel.history(around=discord.Object(id=discord_message_id),   # pylint: disable=line-too-long
-                                                         limit=10):
-                messages.append(message)
-
-            discord_message = next(
-                (msg for msg in messages if msg.id == discord_message_id), None)
-            if not discord_message:
-                logger.debug(
-                    "Reference Discord message not found for TG message %s",
-                    event.message.reply_to_msg_id)
-                return None
-
-            return MessageReference.from_message(discord_message)
-        except discord.NotFound:
-            logger.debug("Reference Discord message not found for TG message %s",
-                         event.message.reply_to_msg_id)
-            return None
-
-    def get_message_hashtags(message):
-        """Get hashtags from a message."""
-        entities = message.entities or []
-        hashtags = [entity for entity in entities if isinstance(
-            entity, MessageEntityHashtag)]
-
-        return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in hashtags]   # pylint: disable=line-too-long
-
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
         """Handle new messages in the specified Telegram channels."""
@@ -207,18 +67,21 @@ async def start_telegram(config):   # pylint: disable=too-many-statements,too-ma
             return
 
         discord_channel_id = discord_channel_config["discord_channel_id"]
-        mention_everyone = discord_channel_config["mention_everyone"]
-        forward_everything = discord_channel_config["forward_everything"]
-        allowed_hashtags = discord_channel_config["hashtags"]
+
+        config_data = {
+            "mention_everyone": discord_channel_config["mention_everyone"],
+            "forward_everything": discord_channel_config["forward_everything"],
+            "allowed_hashtags": discord_channel_config["hashtags"],
+        }
 
         should_override_mention_everyone = False
-        should_forward_message = forward_everything
+        should_forward_message = config_data["forward_everything"]
 
-        if allowed_hashtags:
+        if config_data["allowed_hashtags"]:
             message_hashtags = get_message_hashtags(event.message)
 
             matching_hashtags = [
-                tag for tag in allowed_hashtags if tag["name"] in message_hashtags]
+                tag for tag in config_data["allowed_hashtags"] if tag["name"] in message_hashtags]
 
             if len(matching_hashtags) > 0:
                 should_forward_message = True
@@ -230,13 +93,13 @@ async def start_telegram(config):   # pylint: disable=too-many-statements,too-ma
 
         discord_channel = discord_client.get_channel(discord_channel_id)
         message_text = process_message_text(
-            event, mention_everyone, should_override_mention_everyone)
+            event, config_data["mention_everyone"], should_override_mention_everyone)
 
         discord_reference = await fetch_discord_reference(event,
-                                                          discord_channel) if event.message.reply_to_msg_id else None   # pylint: disable=line-too-long
+                                                          discord_channel) if event.message.reply_to_msg_id else None
 
         if event.message.media:
-            sent_discord_messages = await handle_message_media(event,
+            sent_discord_messages = await handle_message_media(telegram_client, event,
                                                                discord_channel,
                                                                message_text,
                                                                discord_reference)
@@ -251,86 +114,138 @@ async def start_telegram(config):   # pylint: disable=too-many-statements,too-ma
             logger.info("Forwarded TG message %s to Discord message %s",
                         event.message.id, main_sent_discord_message.id)
 
+
+async def on_shutdown(telegram_client, discord_client):
+    """Shutdown the bot."""
+    logger.info("Starting shutdown process...")
+    task = asyncio.current_task()
+    all_tasks = asyncio.all_tasks()
+
     try:
-        await asyncio.wait_for(telegram_client.run_until_disconnected(), timeout=None)
-    except asyncio.TimeoutError:
-        logger.warning("Telegram client timeout reached. Disconnecting...")
+        logger.info("Disconnecting Telegram client...")
         await telegram_client.disconnect()
+        logger.info("Telegram client disconnected.")
+    except (Exception, asyncio.CancelledError) as ex:  # pylint: disable=broad-except
+        logger.error("Error disconnecting Telegram client: %s", {ex})
+
+    try:
+        logger.info("Disconnecting Discord client...")
+        await discord_client.close()
+        logger.info("Discord client disconnected.")
+    except (Exception, asyncio.CancelledError) as ex:  # pylint: disable=broad-except
+        logger.error("Error disconnecting Discord client: %s", {ex})
+
+    for t in all_tasks:
+        if t is not task:
+            t.cancel()
+
+    logger.info("Shutdown process completed.")
 
 
-async def start_discord(config):
-    """Start the Discord client."""
-    await discord_client.start(config["discord_bot_token"])
+async def shutdown(sig, tasks_loop: None):
+    """Shutdown the application gracefully."""
+    logger.warning("shutdown received signal %s, shutting down...", {sig})
+    tasks = [task for task in asyncio.all_tasks(
+    ) if task is not asyncio.current_task()]
+
+    for task in tasks:
+        task.cancel()
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for result in results:
+        if isinstance(result, asyncio.CancelledError):
+            continue
+        if isinstance(result, Exception):
+            logger.error("Error during shutdown: %s", result)
+
+    if tasks_loop is not None:
+        tasks_loop.stop()
 
 
-def apply_markdown(markdown_text, start, end, markdown_delimiters):
-    """Apply Markdown delimiters to a text range."""
-    delimiter_length = len(
-        markdown_delimiters[0]) + len(markdown_delimiters[1])
-    return (
-        markdown_text[:start]
-        + markdown_delimiters[0]
-        + markdown_text[start:end]
-        + markdown_delimiters[1]
-        + markdown_text[end:],
-        delimiter_length,
-    )
+async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
+    """Handle graceful shutdown on received signal."""
+    logger.warning("Received signal %s, shutting down...", {sig})
+
+    # Disconnect clients
+    if tgc.is_connected():
+        await tgc.disconnect()
+    if dcl.is_ready():
+        await dcl.close()
+
+    # Cancel all tasks
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
-def telegram_entities_to_markdown(message_text: str, message_entities: list) -> str:
-    """Convert Telegram entities to Markdown."""
-    if not message_entities:
-        return message_text
+async def run_bot() -> Tuple[TelegramClient, discord.Client]:
+    """Run the bot."""
+    conf = load_config()
 
-    markdown_text = message_text
-    offset_correction = 0
+    telegram_client_instance = await start_telegram_client(config=conf)
+    discord_client_instance = await start_discord(config=conf)
 
-    markdown_map = {
-        MessageEntityBold: ("**", "**"),
-        MessageEntityItalic: ("*", "*"),
-        MessageEntityStrike: ("~~", "~~"),
-        MessageEntityCode: ("`", "`"),
-        MessageEntityPre: ("```", "```"),
-    }
+    event_loop = asyncio.get_event_loop()
 
-    for entity in message_entities:
-        start = entity.offset + offset_correction
-        end = start + entity.length
-        markdown_delimiters = markdown_map.get(type(entity))
+    # Set signal handlers
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        event_loop.add_signal_handler(
+            sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))
 
-        if markdown_delimiters:
-            markdown_text, correction = apply_markdown(
-                markdown_text, start, end, markdown_delimiters
-            )
-            offset_correction += correction
-        elif isinstance(entity, MessageEntityTextUrl):
-            markdown_text = (
-                markdown_text[:start]
-                + "["
-                + markdown_text[start:end]
-                + "]("
-                + entity.url
-                + ")"
-                + markdown_text[end:]
-            )
-            offset_correction += len(entity.url) + 4
+    try:
+        # Create tasks for starting the main logic and waiting for clients to disconnect
+        start_task = asyncio.create_task(
+            start(telegram_client_instance, discord_client_instance, config=conf)
+        )
+        telegram_wait_task = asyncio.create_task(
+            telegram_client_instance.run_until_disconnected()
+        )
+        discord_wait_task = asyncio.create_task(
+            discord_client_instance.wait_until_ready()
+        )
 
-    return markdown_text
+        await asyncio.gather(start_task, telegram_wait_task, discord_wait_task)
+    except asyncio.CancelledError:
+        logger.warning("CancelledError caught, shutting down...")
+    except Exception as ex:
+        logger.error("Error while running the bot: %s", ex)
+    finally:
+        await on_shutdown(telegram_client_instance, discord_client_instance)
+
+    return telegram_client_instance, discord_client_instance
 
 
 async def main():
-    """Start the Telegram and Discord clients."""
-    conf = load_config()
+    """Run the bot."""
+    client = ()
+    try:
+        client = await run_bot()
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user, shutting down...")
+    except asyncio.CancelledError:
+        logger.warning("CancelledError caught, shutting down...")
+    finally:
+        if client:
+            telegram_client, discord_client = client[0], client[1]
+            if not telegram_client.is_connected() and not discord_client.is_ready():
+                client = ()
+            else:
+                await on_shutdown(telegram_client, discord_client)
+                client = ()
 
-    coroutines = [start_telegram(config=conf), start_discord(config=conf)]
-    coroutine_names = ['start_telegram', 'start_discord']
 
-    for coroutine, coroutine_name in zip(asyncio.as_completed(coroutines), coroutine_names):
-        try:
-            await coroutine
-        except (asyncio.CancelledError, RuntimeError) as ex:
-            logger.error("Error occurred in %s: %s", coroutine_name, ex)
+def event_loop_exception_handler(context):
+    """Asyncio Event loop exception handler."""
+    exception = context.get("exception")
+    if not isinstance(exception, asyncio.CancelledError):
+        loop.default_exception_handler(context)
+    else:
+        loop.warning("CancelledError caught during shutdown")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.set_exception_handler(event_loop_exception_handler)
+    try:
+        loop.run_until_complete(main())
+    except asyncio.CancelledError:
+        pass
