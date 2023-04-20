@@ -27,7 +27,7 @@ def load_config() -> Any:
         "telegram_password",
         "telegram_api_id",
         "telegram_api_hash",
-        "telegram_input_channels",
+        "telegram_forwarders",
         "discord_bot_token",
     ]
 

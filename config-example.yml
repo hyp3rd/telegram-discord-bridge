@@ -1,37 +1,39 @@
 ---
-app_name: '<your app name>'
+app_name: "<your app name>"
 
 # Your Telegram phone number | With quotes
-telegram_phone: '<your phone number>'
+telegram_phone: "<your phone number>"
 
 # Your Telegram password (Two-step verification) | With quotes
-telegram_password: '<your password>'
+telegram_password: "<your password>"
 
 # This has to be an integer. Read more [here](https://core.telegram.org/api/obtaining_api_id) | No quotes
 telegram_api_id: <your api id>
 
 # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
-telegram_api_hash: '<your api hash>' 
+telegram_api_hash: "<your api hash>"
 
 # Discord Bot Token. Go create a bot on discord. | No quotes
 discord_bot_token: <your discord bot token>
 
 # The channels map to discord channels.
-telegram_input_channels:
-  - tg_channel_id: <tg channel id>
+telegram_forwarders:
+  - forwarder_name: "<forwarder_name>"
+    tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: True
-    forward_everything: False   # whether forwarding everything regardless the hashtag
+    forward_everything: False # whether forwarding everything regardless the hashtag
     hashtags:
-      - name: '#example1'
+      - name: "#example1"
         override_mention_everyone: True
-      - name: '#example6'
+      - name: "#example6"
 
-  - tg_channel_id: "<tg channel name>"
+  - forwarder_name: "<forwarder_name>"
+    tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: False
-    forward_everything: False   # whether forwarding everything regardless the hashtag
+    forward_everything: False # whether forwarding everything regardless the hashtag
     hashtags:
-      - name: '#example3'
+      - name: "#example3"
         override_mention_everyone: True
-      - name: '#example4'
+      - name: "#example4"

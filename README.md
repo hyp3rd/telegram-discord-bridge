@@ -50,24 +50,27 @@ telegram_api_hash: '<your api hash>'
 discord_bot_token: <your discord bot token>
 
 # The channels map to discord channels.
-telegram_input_channels:
-  - tg_channel_id: <tg channel id>
+telegram_forwarders:
+  - forwarder_name: "<forwarder_name>"
+    tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: True
-    forward_everything: False   # whether forwarding everything regardless the hashtag
+    forward_everything: False # whether forwarding everything regardless the hashtag
     hashtags:
-      - name: '#example1'
+      - name: "#example1"
         override_mention_everyone: True
-      - name: '#example6'
+      - name: "#example6"
 
-  - tg_channel_id: "<tg channel name>"
+  - forwarder_name: "<forwarder_name>"
+    tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: False
-    forward_everything: False   # whether forwarding everything regardless the hashtag
+    forward_everything: False # whether forwarding everything regardless the hashtag
     hashtags:
-      - name: '#example3'
+      - name: "#example3"
         override_mention_everyone: True
-      - name: '#example4'
+      - name: "#example4"
+
 ```
 
 Finally, run the script and watch the magic happen, almost, read the **caveats** section:
