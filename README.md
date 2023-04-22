@@ -2,19 +2,20 @@
 
 [![Pylint](https://github.com/hyp3rd/telegram-discord-bridge/actions/workflows/pylint.yml/badge.svg)][pylint_badge]
 
-A cheeky `Python` bot to slyly forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?
+A `Python` bot to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not? It is highly customizable and allows you to configure various settings, such as forwarding messages with specific hashtags, mentioning roles or users in Discord, and more.
 
 ## Cunning Features
 
 - Relocate messages from a multitude of Telegram channels
 - Shove forwarded messages into a designated Discord channel
-- Toss in messages with URLs and casually mention '@everyone' in Discord
-- It deals with Media on your behalf
-- Filter by hashtag keeping unrelevant alpha out
+- It deals with Media and URL previews on your behalf (photos, videos, documents) from Telegram to Discord
+- The forwarding is configurable based on hashtags, keeping irrelevant content away
+- It is customizable mention settings, including mentioning roles or users in Discord when forwarding messages
+- It maintains the history, storing a map of the forwarded messages, allowing you to track correspondence between Telegram and Discord, **making possible replies**.
 
 ## Installation
 
-First, mate, you need to clone this repository:
+First, you need to clone this repository:
 
 ```bash
 
@@ -22,13 +23,14 @@ git clone https://github.com/hyp3rd/telegram-discord-bridge.git
 cd telegram-discord-bridge
 ```
 
-Next, install the required packages (don't worry, it won't bite):
+Next, follow the instructions here (don't worry, they won't won't bite):
 
-```bash
-pip install -r requirements.txt
-```
+1. Install Python 3.8 or higher and set up a virtual environment;
+2. Install the dependencies: `pip install -r requirements.txt`
+3. Set up a [**Telegram Application**](https://core.telegram.org/api/obtaining_api_id) and obtain the API creds.
+4. Set up a Discord bot with the necessary permissions to read and write the messages,5. and obtain the bot token.
 
-Craft a new `config.yml` file in the root directory, starting from the `config-example.yml` file:
+Now craft a new `config.yml` file in the root directory, starting from the `config-example.yml` file:
 
 ```yaml
 ---
@@ -46,10 +48,10 @@ telegram_api_id: <your api id>
 # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
 telegram_api_hash: "<your api hash>"
 
-# Discord Bot Token. Go create a bot on discord. | No quotes
+# Discord Bot Token. Go create a bot on Discord. | No quotes
 discord_bot_token: <your discord bot token>
 
-# built-in roles in discord, they need special attention when parsing thee name to mention
+# built-in roles in Discord, they need special attention when parsing thee name to mention
 discord_built_in_roles: ["everyone", "here", "@Admin"]
 
 # The channels map to discord channels.
@@ -88,11 +90,13 @@ python app.py
 
 ## Usage
 
-Once the script gets going, it will eavesdrop on new messages in the specified Telegram channels. When a message is intercepted, it will be sneakily forwarded to the Discord channel, and '@everyone' will be mentioned. Messages with URLs will include the URLs in the forwarded message because sharing is caring.
+Once the script gets going, it will eavesdrop on new messages in the specified Telegram channels. Messages can be filtered based on hashtags, and you can configure the bot to mention specific roles or users in Discord when forwarding messages. The bot supports built-in Discord roles like "@everyone" and "@here" and custom role names.
 
-### Caveats
+In addition to text messages, the bot can forward media files such as photos, videos, and documents from Telegram to Discord. The bot also handles replies to messages and embeds them as Discord replies, maintaining a mapping of forwarded messages for easier correspondence tracking between the two platforms.
 
-When you run the script for the first time, it will ask you to input the verification code that Telegram sends to your phone. After that, you might occasionally need to rerun the script, which will lurk in the background, forwarding messages from Telegram to Discord.
+### Limitations
+
+Currently, a local' JSON' file is the sole storage supported to maintain the correspondence between Telegram and Discord. It implies that you figure out how to rotate the file, or it will grow out of proportion. **I'm working on a solution to store the history in databases, Redis, and KV storage, but it still needs to be prepared.**
 
 ## License
 
