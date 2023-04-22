@@ -32,22 +32,25 @@ Craft a new `config.yml` file in the root directory, starting from the `config-e
 
 ```yaml
 ---
-app_name: '<your app name>'
+app_name: "<your app name>"
 
 # Your Telegram phone number | With quotes
-telegram_phone: '<your phone number>'
+telegram_phone: "<your phone number>"
 
 # Your Telegram password (Two-step verification) | With quotes
-telegram_password: '<your password>'
+telegram_password: "<your password>"
 
 # This has to be an integer. Read more [here](https://core.telegram.org/api/obtaining_api_id) | No quotes
 telegram_api_id: <your api id>
 
 # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
-telegram_api_hash: '<your api hash>' 
+telegram_api_hash: "<your api hash>"
 
 # Discord Bot Token. Go create a bot on discord. | No quotes
 discord_bot_token: <your discord bot token>
+
+# built-in roles in discord, they need special attention when parsing thee name to mention
+discord_built_in_roles: ["everyone", "here", "@Admin"]
 
 # The channels map to discord channels.
 telegram_forwarders:
@@ -66,11 +69,15 @@ telegram_forwarders:
     discord_channel_id: <discord channel id>
     mention_everyone: False
     forward_everything: False # whether forwarding everything regardless the hashtag
+    mention_override:
+      - tag: "#important"
+        roles: ["everyone", "here", "@Admin"]
+      - tag: "#trading"
+        roles: ["Trading", "here"]
     forward_hashtags:
       - name: "#example3"
         override_mention_everyone: True
       - name: "#example4"
-
 ```
 
 Finally, run the script and watch the magic happen, almost, read the **caveats** section:

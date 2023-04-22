@@ -27,8 +27,9 @@ def load_config() -> Any:
         "telegram_password",
         "telegram_api_id",
         "telegram_api_hash",
-        "telegram_forwarders",
         "discord_bot_token",
+        "discord_built_in_roles",
+        "telegram_forwarders",
     ]
 
     for key in required_keys:
@@ -55,6 +56,19 @@ def validate_config(config):
         discord_channel_id = forwarder["discord_channel_id"]
         mention_everyone = forwarder["mention_everyone"]
         forward_hashtags = forwarder["forward_hashtags"]
+
+        # Check for valid types
+        if not isinstance(tg_channel_id, int):
+            logger.error(
+                "Invalid configuration: `tg_channel_id` must be an integer: forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
+                tg_channel_id)
+            sys.exit(1)
+
+        if not isinstance(discord_channel_id, int):
+            logger.error(
+                "Invalid configuration: `discord_channel_id` must be an integer: forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
+                tg_channel_id)
+            sys.exit(1)
 
         # Check for unique combination of tg_channel_id and discord_channel_id
         combination = (tg_channel_id, discord_channel_id)

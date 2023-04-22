@@ -16,6 +16,9 @@ telegram_api_hash: "<your api hash>"
 # Discord Bot Token. Go create a bot on discord. | No quotes
 discord_bot_token: <your discord bot token>
 
+# built-in roles in discord, they need special attention when parsing thee name to mention
+discord_built_in_roles: ["everyone", "here", "@Admin"]
+
 # The channels map to discord channels.
 telegram_forwarders:
   - forwarder_name: "<forwarder_name>"
@@ -33,6 +36,11 @@ telegram_forwarders:
     discord_channel_id: <discord channel id>
     mention_everyone: False
     forward_everything: False # whether forwarding everything regardless the hashtag
+    mention_override:
+      - tag: "#important"
+        roles: ["everyone", "here", "@Admin"]
+      - tag: "#trading"
+        roles: ["Trading", "here"]
     forward_hashtags:
       - name: "#example3"
         override_mention_everyone: True

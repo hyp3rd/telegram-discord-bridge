@@ -11,7 +11,7 @@ from telethon.tl.types import Channel, InputChannel
 
 from config import load_config
 from discord_handler import (fetch_discord_reference, forward_to_discord,
-                             start_discord)
+                             get_mention_roles, start_discord)
 from logger import app_logger
 from telegram_handler import (get_message_forward_hashtags,
                               handle_message_media, process_message_text,
@@ -23,7 +23,7 @@ tg_to_discord_message_ids = {}
 logger = app_logger()
 
 
-async def start(telegram_client: TelegramClient, discord_client: discord.Client, config):
+async def start(telegram_client: TelegramClient, discord_client: discord.Client, config):   # pylint: disable=too-many-statements
     """Start the bot."""
     logger.info("Starting the bot...")
 
@@ -37,11 +37,17 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
         for channel_mapping in config["telegram_forwarders"]:
             forwarder_name = channel_mapping["forwarder_name"]
             tg_channel_id = channel_mapping["tg_channel_id"]
+            mention_override = channel_mapping.get("mention_override", [])
+            mention_override = {override["tag"].lower(
+            ): override["roles"] for override in mention_override}
+
             discord_channel_config = {
                 "discord_channel_id": channel_mapping["discord_channel_id"],
                 "mention_everyone": channel_mapping["mention_everyone"],
                 "forward_everything": channel_mapping.get("forward_everything", False),
                 "forward_hashtags": channel_mapping.get("forward_hashtags", []),
+                "mention_override": mention_override,
+                "roles": channel_mapping.get("roles", []),
             }
 
             if tg_channel_id in {dialog.name, dialog.entity.id}:
@@ -86,10 +92,13 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
                 "mention_everyone": discord_channel_config["mention_everyone"],
                 "forward_everything": discord_channel_config["forward_everything"],
                 "allowed_forward_hashtags": discord_channel_config["forward_hashtags"],
+                "mention_override": discord_channel_config["mention_override"],
+                "roles": discord_channel_config["roles"],
             }
 
-            should_override_mention_everyone = False
             should_forward_message = config_data["forward_everything"]
+            mention_everyone = config_data["mention_everyone"]
+            mention_roles = []
 
             if config_data["allowed_forward_hashtags"]:
                 message_forward_hashtags = get_message_forward_hashtags(
@@ -100,15 +109,22 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
                 if len(matching_forward_hashtags) > 0:
                     should_forward_message = True
-                    should_override_mention_everyone = any(tag.get("override_mention_everyone", False)
-                                                           for tag in matching_forward_hashtags)
+                    mention_everyone = any(tag.get("override_mention_everyone", False)
+                                           for tag in matching_forward_hashtags)
 
             if not should_forward_message:
                 continue
 
             discord_channel = discord_client.get_channel(discord_channel_id)
+            server_roles = discord_channel.guild.roles
+
+            mention_roles = get_mention_roles(message_forward_hashtags,
+                                              discord_channel_config["mention_override"],
+                                              config["discord_built_in_roles"],
+                                              server_roles)
+
             message_text = process_message_text(
-                event, config_data["mention_everyone"], should_override_mention_everyone)
+                event, mention_everyone, False, mention_roles)
 
             discord_reference = await fetch_discord_reference(event,
                                                               discord_channel) if event.message.reply_to_msg_id else None
