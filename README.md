@@ -56,7 +56,7 @@ telegram_forwarders:
     discord_channel_id: <discord channel id>
     mention_everyone: True
     forward_everything: False # whether forwarding everything regardless the hashtag
-    hashtags:
+    forward_hashtags:
       - name: "#example1"
         override_mention_everyone: True
       - name: "#example6"
@@ -66,7 +66,7 @@ telegram_forwarders:
     discord_channel_id: <discord channel id>
     mention_everyone: False
     forward_everything: False # whether forwarding everything regardless the hashtag
-    hashtags:
+    forward_hashtags:
       - name: "#example3"
         override_mention_everyone: True
       - name: "#example4"

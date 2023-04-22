@@ -13,8 +13,9 @@ from config import load_config
 from discord_handler import (fetch_discord_reference, forward_to_discord,
                              start_discord)
 from logger import app_logger
-from telegram_handler import (get_message_hashtags, handle_message_media,
-                              process_message_text, start_telegram_client)
+from telegram_handler import (get_message_forward_hashtags,
+                              handle_message_media, process_message_text,
+                              start_telegram_client)
 from utils import save_mapping_data
 
 tg_to_discord_message_ids = {}
@@ -40,7 +41,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
                 "discord_channel_id": channel_mapping["discord_channel_id"],
                 "mention_everyone": channel_mapping["mention_everyone"],
                 "forward_everything": channel_mapping.get("forward_everything", False),
-                "hashtags": channel_mapping.get("hashtags", []),
+                "forward_hashtags": channel_mapping.get("forward_hashtags", []),
             }
 
             if tg_channel_id in {dialog.name, dialog.entity.id}:
@@ -84,22 +85,23 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
             config_data = {
                 "mention_everyone": discord_channel_config["mention_everyone"],
                 "forward_everything": discord_channel_config["forward_everything"],
-                "allowed_hashtags": discord_channel_config["hashtags"],
+                "allowed_forward_hashtags": discord_channel_config["forward_hashtags"],
             }
 
             should_override_mention_everyone = False
             should_forward_message = config_data["forward_everything"]
 
-            if config_data["allowed_hashtags"]:
-                message_hashtags = get_message_hashtags(event.message)
+            if config_data["allowed_forward_hashtags"]:
+                message_forward_hashtags = get_message_forward_hashtags(
+                    event.message)
 
-                matching_hashtags = [
-                    tag for tag in config_data["allowed_hashtags"] if tag["name"].lower() in message_hashtags]
+                matching_forward_hashtags = [
+                    tag for tag in config_data["allowed_forward_hashtags"] if tag["name"].lower() in message_forward_hashtags]
 
-                if len(matching_hashtags) > 0:
+                if len(matching_forward_hashtags) > 0:
                     should_forward_message = True
                     should_override_mention_everyone = any(tag.get("override_mention_everyone", False)
-                                                           for tag in matching_hashtags)
+                                                           for tag in matching_forward_hashtags)
 
             if not should_forward_message:
                 continue

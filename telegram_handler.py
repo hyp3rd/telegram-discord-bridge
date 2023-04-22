@@ -81,10 +81,10 @@ async def process_url_message(discord_channel, message_text, discord_reference):
     return sent_discord_messages
 
 
-def get_message_hashtags(message):
-    """Get hashtags from a message."""
+def get_message_forward_hashtags(message):
+    """Get forward_hashtags from a message."""
     entities = message.entities or []
-    hashtags = [entity for entity in entities if isinstance(
+    forward_hashtags = [entity for entity in entities if isinstance(
         entity, MessageEntityHashtag)]
 
-    return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in hashtags]   # pylint: disable=line-too-long
+    return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
