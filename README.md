@@ -68,9 +68,8 @@ telegram_forwarders:
     forward_everything: False # whether forwarding everything regardless the hashtag
     forward_hashtags:
       - name: "#example3"
-        override_mention_everyone: True
       - name: "#example4"
-
+        override_mention_everyone: True
 ```
 
 Finally, run the script and watch the magic happen, almost, read the **caveats** section:
