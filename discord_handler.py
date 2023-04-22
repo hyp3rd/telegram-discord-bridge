@@ -1,6 +1,7 @@
 """Discord handler."""
 import asyncio
 import sys
+from typing import List
 
 import discord
 from discord import MessageReference
@@ -79,3 +80,30 @@ async def fetch_discord_reference(event, discord_channel):
         logger.debug("Reference Discord message not found for TG message %s",
                      event.message.reply_to_msg_id)
         return None
+
+
+def get_mention_roles(message_forward_hashtags: List[str],
+                      mention_override: dict,
+                      discord_built_in_roles: List[str],
+                      server_roles: List[discord.Role]) -> List[str]:
+    """Get the roles to mention."""
+    mention_roles = set()
+
+    for tag in message_forward_hashtags:
+        if tag.lower() in mention_override:
+            logger.debug("Found mention override for tag %s: %s",
+                         tag, mention_override[tag.lower()])
+            for role_name in mention_override[tag.lower()]:
+                if is_builtin_mention(role_name, discord_built_in_roles):
+                    mention_roles.add("@" + role_name)
+                else:
+                    role = discord.utils.get(server_roles, name=role_name)
+                    if role:
+                        mention_roles.add(role.mention)
+
+    return list(mention_roles)
+
+
+def is_builtin_mention(role_name: str, discord_built_in_roles: List[str]) -> bool:
+    """Check if a role name is a Discord built-in mention."""
+    return role_name.lower() in discord_built_in_roles

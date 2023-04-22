@@ -1,5 +1,6 @@
 """Telegram handler."""
 import os
+from typing import List
 
 from telethon import TelegramClient
 from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
@@ -34,6 +35,29 @@ async def start_telegram_client(config) -> TelegramClient:
     return telegram_client
 
 
+def get_message_forward_hashtags(message):
+    """Get forward_hashtags from a message."""
+    entities = message.entities or []
+    forward_hashtags = [entity for entity in entities if isinstance(
+        entity, MessageEntityHashtag)]
+
+    return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
+
+
+def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool, mention_roles: List[str]) -> str:
+    """Process the message text and return the processed text."""
+    message_text = event.message.message
+
+    if mention_everyone or override_mention_everyone:
+        message_text += '\n' + '@everyone'
+
+    if mention_roles:
+        mention_text = ", ".join(role for role in mention_roles)
+        message_text = f"{mention_text}\n{message_text}"
+
+    return telegram_entities_to_markdown(message_text, event.message.entities)
+
+
 async def process_media_message(telegram_client: TelegramClient, event, discord_channel, message_text, discord_reference):
     """Process a message that contains media."""
     file_path = await telegram_client.download_media(event.message)
@@ -63,28 +87,9 @@ async def handle_message_media(telegram_client: TelegramClient, event, discord_c
         return sent_discord_messages
 
 
-def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool) -> str:
-    """Process the message text and return the processed text."""
-    message_text = event.message.message
-
-    if mention_everyone or override_mention_everyone:
-        message_text += '\n' + '@everyone'
-
-    return telegram_entities_to_markdown(message_text, event.message.entities)
-
-
 async def process_url_message(discord_channel, message_text, discord_reference):
     """Process a message that contains a URL."""
     sent_discord_messages = await forward_to_discord(discord_channel,
                                                      message_text,
                                                      reference=discord_reference)
     return sent_discord_messages
-
-
-def get_message_forward_hashtags(message):
-    """Get forward_hashtags from a message."""
-    entities = message.entities or []
-    forward_hashtags = [entity for entity in entities if isinstance(
-        entity, MessageEntityHashtag)]
-
-    return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
