@@ -12,6 +12,7 @@ A `Python` bot to forward messages from those pesky Telegram channels to a shiny
 - The forwarding is configurable based on hashtags, keeping irrelevant content away
 - It is customizable mention settings, including mentioning roles or users in Discord when forwarding messages
 - It maintains the history, storing a map of the forwarded messages, allowing you to track correspondence between Telegram and Discord, **making possible replies**.
+- **It supports OpenAI's API to generate suggestions and sentiment analysys based on the text you're forwarding.**
 
 ## Installation
 
