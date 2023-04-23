@@ -9,7 +9,7 @@ import discord
 from telethon import TelegramClient, events
 from telethon.tl.types import Channel, InputChannel
 
-from config import load_config
+from config import Config
 from discord_handler import (fetch_discord_reference, forward_to_discord,
                              get_mention_roles, start_discord)
 from logger import app_logger
@@ -23,7 +23,7 @@ tg_to_discord_message_ids = {}
 logger = app_logger()
 
 
-async def start(telegram_client: TelegramClient, discord_client: discord.Client, config):   # pylint: disable=too-many-statements
+async def start(telegram_client: TelegramClient, discord_client: discord.Client, config: Config):   # pylint: disable=too-many-statements
     """Start the bot."""
     logger.info("Starting the bot...")
 
@@ -34,7 +34,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
         if not isinstance(dialog.entity, Channel) and not isinstance(dialog.entity, InputChannel):
             continue
 
-        for channel_mapping in config["telegram_forwarders"]:
+        for channel_mapping in config.telegram_forwarders:
             forwarder_name = channel_mapping["forwarder_name"]
             tg_channel_id = channel_mapping["tg_channel_id"]
             mention_override = channel_mapping.get("mention_override", [])
@@ -68,8 +68,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
         tg_channel_id = event.message.peer_id.channel_id
 
-        matching_forwarders = get_matching_forwarders(
-            tg_channel_id, config)
+        matching_forwarders = get_matching_forwarders(tg_channel_id, config)
 
         if len(matching_forwarders) < 1:
             logger.error(
@@ -120,11 +119,11 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
             mention_roles = get_mention_roles(message_forward_hashtags,
                                               discord_channel_config["mention_override"],
-                                              config["discord_built_in_roles"],
+                                              config.discord_built_in_roles,
                                               server_roles)
 
-            message_text = process_message_text(
-                event, mention_everyone, False, mention_roles)
+            message_text = await process_message_text(
+                event, mention_everyone, False, mention_roles, config=config)
 
             discord_reference = await fetch_discord_reference(event,
                                                               discord_channel) if event.message.reply_to_msg_id else None
@@ -147,9 +146,9 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
                             event.message.id, main_sent_discord_message.id)
 
 
-def get_matching_forwarders(tg_channel_id, config):
+def get_matching_forwarders(tg_channel_id, config: Config):
     """Get the forwarders that match the given Telegram channel ID."""
-    return [forwarder_config for forwarder_config in config["telegram_forwarders"] if tg_channel_id == forwarder_config["tg_channel_id"]]  # pylint: disable=line-too-long
+    return [forwarder_config for forwarder_config in config.telegram_forwarders if tg_channel_id == forwarder_config["tg_channel_id"]]  # pylint: disable=line-too-long
 
 
 async def on_shutdown(telegram_client, discord_client):
@@ -214,12 +213,10 @@ async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def run_bot() -> Tuple[TelegramClient, discord.Client]:
+async def run_bot(config: Config) -> Tuple[TelegramClient, discord.Client]:
     """Run the bot."""
-    conf = load_config()
-
-    telegram_client_instance = await start_telegram_client(config=conf)
-    discord_client_instance = await start_discord(config=conf)
+    telegram_client_instance = await start_telegram_client(config)
+    discord_client_instance = await start_discord(config)
 
     event_loop = asyncio.get_event_loop()
 
@@ -231,7 +228,7 @@ async def run_bot() -> Tuple[TelegramClient, discord.Client]:
     try:
         # Create tasks for starting the main logic and waiting for clients to disconnect
         start_task = asyncio.create_task(
-            start(telegram_client_instance, discord_client_instance, config=conf)
+            start(telegram_client_instance, discord_client_instance, config)
         )
         telegram_wait_task = asyncio.create_task(
             telegram_client_instance.run_until_disconnected()
@@ -251,11 +248,11 @@ async def run_bot() -> Tuple[TelegramClient, discord.Client]:
     return telegram_client_instance, discord_client_instance
 
 
-async def main():
+async def main(config: Config):
     """Run the bot."""
     client = ()
     try:
-        client = await run_bot()
+        client = await run_bot(config)
     except KeyboardInterrupt:
         logger.warning("Interrupted by user, shutting down...")
     except asyncio.CancelledError:
@@ -280,9 +277,10 @@ def event_loop_exception_handler(context):
 
 
 if __name__ == "__main__":
+    app_config = Config()
     loop = asyncio.get_event_loop()
     loop.set_exception_handler(event_loop_exception_handler)
     try:
-        loop.run_until_complete(main())
+        loop.run_until_complete(main(app_config))
     except asyncio.CancelledError:
         pass

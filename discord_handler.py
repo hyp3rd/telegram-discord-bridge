@@ -6,20 +6,21 @@ from typing import List
 import discord
 from discord import MessageReference
 
+from config import Config
 from logger import app_logger
 from utils import get_discord_message_id, split_message
 
 logger = app_logger()
 
 
-async def start_discord(config: dict) -> discord.Client:
+async def start_discord(config: Config) -> discord.Client:
     """Start the Discord client."""
     async def start_discord_client(discord_client: discord.Client, token: str):
         try:
             logger.info("Starting Discord client...")
             await discord_client.start(token)
             logger.info("Discord client started the session: %s, with identity: %s",
-                        config["app_name"], discord_client.user.id)
+                        config.app_name, discord_client.user.id)
         except (discord.LoginFailure, TypeError) as login_failure:
             logger.error(
                 "Error while connecting to Discord: %s", login_failure)
@@ -27,7 +28,7 @@ async def start_discord(config: dict) -> discord.Client:
 
     discord_client = discord.Client(intents=discord.Intents.default())
     _ = asyncio.ensure_future(
-        start_discord_client(discord_client, config["discord_bot_token"]))
+        start_discord_client(discord_client, config.discord_bot_token))
 
     return discord_client
 

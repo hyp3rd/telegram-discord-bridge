@@ -6,8 +6,10 @@ from telethon import TelegramClient
 from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
                                MessageEntityUrl)
 
+from config import Config
 from discord_handler import forward_to_discord
 from logger import app_logger
+from openai_handler import analyze_message_sentiment
 from utils import telegram_entities_to_markdown
 
 tg_to_discord_message_ids = {}
@@ -15,22 +17,22 @@ tg_to_discord_message_ids = {}
 logger = app_logger()
 
 
-async def start_telegram_client(config) -> TelegramClient:
+async def start_telegram_client(config: Config) -> TelegramClient:
     """Start the Telegram client."""
     logger.info("Starting Telegram client...")
 
     telegram_client = TelegramClient(
-        session=config["app_name"],
-        api_id=config["telegram_api_id"],
-        api_hash=config["telegram_api_hash"])
+        session=config.app_name,
+        api_id=config.telegram_api_id,
+        api_hash=config.telegram_api_hash)
 
     await telegram_client.start(
-        phone=config["telegram_phone"],
-        password=config["telegram_password"])
+        phone=config.telegram_phone,
+        password=config.telegram_password)
 
     bot_identity = await telegram_client.get_me()
     logger.info("Telegram client started the session: %s, with identity: %s",
-                config["app_name"], bot_identity.id)
+                config.app_name, bot_identity.id)
 
     return telegram_client
 
@@ -44,9 +46,13 @@ def get_message_forward_hashtags(message):
     return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
 
 
-def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool, mention_roles: List[str]) -> str:
+async def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool, mention_roles: List[str], config: Config) -> str:
     """Process the message text and return the processed text."""
     message_text = event.message.message
+
+    if config.openai_enabled:
+        suggestions = await analyze_message_sentiment(message_text)
+        message_text = f'{message_text}\n{suggestions}'
 
     if mention_everyone or override_mention_everyone:
         message_text += '\n' + '@everyone'
