@@ -15,7 +15,6 @@ from utils import telegram_entities_to_markdown
 tg_to_discord_message_ids = {}
 
 logger = app_logger()
-config = Config()
 
 
 async def start_telegram_client(config: Config) -> TelegramClient:
@@ -47,7 +46,7 @@ def get_message_forward_hashtags(message):
     return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
 
 
-async def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool, mention_roles: List[str]) -> str:
+async def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool, mention_roles: List[str], config: Config) -> str:
     """Process the message text and return the processed text."""
     message_text = event.message.message
 

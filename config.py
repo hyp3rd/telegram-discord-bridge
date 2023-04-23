@@ -9,7 +9,7 @@ from logger import app_logger
 logger = app_logger()
 
 
-class Config:
+class Config:  # pylint: disable=too-many-instance-attributes
     """Configuration handler."""
     _instance = None
 
@@ -93,7 +93,7 @@ class Config:
         if config["openai_enabled"]:
             if config["openai_api_key"] == "" or config["openai_organization"] == "" or config["openai_sentiment_analysis_prompt"] is None:
                 logger.error(
-                    "Invalid configuration: `openai_api_key`, `openai_organization`, and `openai_sentiment_analysis_prompt` must be set when `openai_enabled` is True.")
+                    "Invalid configuration: `openai_api_key`, `openai_organization`, and `openai_sentiment_analysis_prompt` must be set when `openai_enabled` is True.")   # pylint: disable=line-too-long
                 sys.exit(1)
 
         for forwarder in forwarders:

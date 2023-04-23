@@ -123,7 +123,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
                                               server_roles)
 
             message_text = await process_message_text(
-                event, mention_everyone, False, mention_roles)
+                event, mention_everyone, False, mention_roles, config=config)
 
             discord_reference = await fetch_discord_reference(event,
                                                               discord_channel) if event.message.reply_to_msg_id else None
