@@ -119,7 +119,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
             mention_roles = get_mention_roles(message_forward_hashtags,
                                               discord_channel_config["mention_override"],
-                                              config.discord_built_in_roles,
+                                              config.discord.built_in_roles,
                                               server_roles)
 
             message_text = await process_message_text(
