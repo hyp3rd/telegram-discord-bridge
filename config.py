@@ -85,7 +85,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
         return config_data
 
     @staticmethod
-    def validate_config(config):
+    def validate_config(config):  # pylint: disable=too-many-branches
         """Validate the configuration."""
         forwarders = config["telegram_forwarders"]
         forwarder_combinations = set()
