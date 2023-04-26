@@ -85,7 +85,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
         return config_data
 
     @staticmethod
-    def validate_config(config):
+    def validate_config(config):  # pylint: disable=too-many-branches
         """Validate the configuration."""
         forwarders = config["telegram_forwarders"]
         forwarder_combinations = set()
@@ -100,7 +100,19 @@ class Config:  # pylint: disable=too-many-instance-attributes
             tg_channel_id = forwarder["tg_channel_id"]
             discord_channel_id = forwarder["discord_channel_id"]
             mention_everyone = forwarder["mention_everyone"]
-            forward_hashtags = forwarder["forward_hashtags"]
+
+            if "forward_hashtags" in forwarder:
+                forward_hashtags = forwarder["forward_hashtags"]
+            else:
+                logger.debug(
+                    "No hashtags found for forwarder with `tg_channel_id` %s", tg_channel_id)
+                if not forwarder["forward_everything"]:
+                    logger.error(
+                        "Invalid configuration: forwarder with `tg_channel_id` %s must either forward everything or forward hashtags",  # pylint: disable=line-too-long
+                        tg_channel_id)
+                    sys.exit(1)
+
+                forward_hashtags = []
 
             # Check for valid types
             if not isinstance(tg_channel_id, int):
@@ -134,15 +146,18 @@ class Config:  # pylint: disable=too-many-instance-attributes
         tg_channel_hashtags = {}
         for forwarder in forwarders:
             tg_channel_id = forwarder["tg_channel_id"]
-            forward_hashtags = [tag["name"].lower()
-                                for tag in forwarder["forward_hashtags"]]
+            forward_hashtags = {tag["name"].lower() for tag in forwarder.get(
+                "forward_hashtags", [])} if forwarder.get("forward_hashtags") else set()
 
-            if tg_channel_id not in tg_channel_hashtags:
-                tg_channel_hashtags[tg_channel_id] = set(forward_hashtags)
-            else:
-                shared_hashtags = tg_channel_hashtags[tg_channel_id].intersection(
-                    forward_hashtags)
-                if shared_hashtags:
-                    logger.warning(
-                        "Shared hashtags %s found for forwarders with tg_channel_id %s. The same message will be forwarded multiple times.",
-                        shared_hashtags, tg_channel_id)
+            if forward_hashtags:  # Only process non-empty forward_hashtags
+                if tg_channel_id not in tg_channel_hashtags:
+                    tg_channel_hashtags[tg_channel_id] = [forward_hashtags]
+                else:
+                    for existing_hashtags in tg_channel_hashtags[tg_channel_id]:
+                        shared_hashtags = existing_hashtags.intersection(
+                            forward_hashtags)
+                        if shared_hashtags:
+                            logger.warning(
+                                "Shared hashtags %s found for forwarders with tg_channel_id %s. The same message will be forwarded multiple times.",
+                                shared_hashtags, tg_channel_id)
+                    tg_channel_hashtags[tg_channel_id].append(forward_hashtags)
