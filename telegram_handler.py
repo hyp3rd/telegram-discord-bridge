@@ -23,12 +23,12 @@ async def start_telegram_client(config: Config) -> TelegramClient:
 
     telegram_client = TelegramClient(
         session=config.app_name,
-        api_id=config.telegram_api_id,
-        api_hash=config.telegram_api_hash)
+        api_id=config.telegram.api_id,
+        api_hash=config.telegram.api_hash)
 
     await telegram_client.start(
-        phone=config.telegram_phone,
-        password=config.telegram_password)
+        phone=config.telegram.phone,
+        password=config.telegram.password)
 
     bot_identity = await telegram_client.get_me()
     logger.info("Telegram client started the session: %s, with identity: %s",
@@ -50,7 +50,7 @@ async def process_message_text(event, mention_everyone: bool, override_mention_e
     """Process the message text and return the processed text."""
     message_text = event.message.message
 
-    if config.openai_enabled:
+    if config.openai.enabled:
         suggestions = await analyze_message_sentiment(message_text)
         message_text = f'{message_text}\n{suggestions}'
 

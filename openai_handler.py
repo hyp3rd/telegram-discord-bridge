@@ -11,8 +11,8 @@ from logger import app_logger
 logger = app_logger()
 config = Config()
 
-openai.api_key = config.openai_api_key
-openai.organization = config.openai_organization
+openai.api_key = config.openai.api_key
+openai.organization = config.openai.organization
 
 
 async def analyze_message_and_generate_suggestions(text: str) -> str:
@@ -60,7 +60,7 @@ async def analyze_message_sentiment(text: str) -> str:
     loop = asyncio.get_event_loop()
     try:
         prompt = None
-        for prompt_line in config.openai_sentiment_analysis_prompt:
+        for prompt_line in config.openai.sentiment_analysis_prompt:
             prompt = f"{prompt} {prompt_line}\n"
 
         prompt = prompt.replace("#text_to_parse", text)

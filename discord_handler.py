@@ -28,7 +28,7 @@ async def start_discord(config: Config) -> discord.Client:
 
     discord_client = discord.Client(intents=discord.Intents.default())
     _ = asyncio.ensure_future(
-        start_discord_client(discord_client, config.discord_bot_token))
+        start_discord_client(discord_client, config.discord.bot_token))
 
     return discord_client
 
