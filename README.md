@@ -92,10 +92,16 @@ telegram_forwarders:
       - name: "#example4"
 ```
 
-Finally, run the script and watch the magic happen, almost, read the **caveats** section:
+Finally, start the bridge and watch the magic happen:
 
 ```bash
-python app.py
+python app.py --start
+```
+
+You can control the process with a stop command:
+
+```bash
+python app.py --stop
 ```
 
 ## Usage

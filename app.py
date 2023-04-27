@@ -1,155 +1,85 @@
-"""A `Bot` to forward messages from Telegram to a Discord server."""
+"""handles the process of the bridge between telegram and discord"""
 
+import argparse
 import asyncio
+import os
 import signal
 import sys
 from typing import Tuple
 
 import discord
-from telethon import TelegramClient, events
-from telethon.tl.types import Channel, InputChannel
+from telethon import TelegramClient
 
+from bridge import start
 from config import Config
-from discord_handler import (fetch_discord_reference, forward_to_discord,
-                             get_mention_roles, start_discord)
+from discord_handler import start_discord
 from logger import app_logger
-from process_handler import create_pid_file, remove_pid_file
-from telegram_handler import (get_message_forward_hashtags,
-                              handle_message_media, process_message_text,
-                              start_telegram_client)
-from utils import save_mapping_data
-
-tg_to_discord_message_ids = {}
+from telegram_handler import start_telegram_client
 
 logger = app_logger()
 
 
-async def start(telegram_client: TelegramClient, discord_client: discord.Client, config: Config):   # pylint: disable=too-many-statements
-    """Start the bot."""
-    logger.info("Starting the bot...")
+def create_pid_file() -> str:
+    """Create a PID file."""
+    pid = os.getpid()
+    bot_pid_file = f'{config.app_name}.pid'
 
-    input_channels_entities = []
-    discord_channel_mappings = {}
+    process_state, _ = determine_process_state(bot_pid_file)
 
-    async for dialog in telegram_client.iter_dialogs():
-        if not isinstance(dialog.entity, Channel) and not isinstance(dialog.entity, InputChannel):
-            continue
-
-        for channel_mapping in config.telegram_forwarders:
-            forwarder_name = channel_mapping["forwarder_name"]
-            tg_channel_id = channel_mapping["tg_channel_id"]
-            mention_override = channel_mapping.get("mention_override", [])
-            mention_override = {override["tag"].lower(
-            ): override["roles"] for override in mention_override}
-
-            discord_channel_config = {
-                "discord_channel_id": channel_mapping["discord_channel_id"],
-                "mention_everyone": channel_mapping["mention_everyone"],
-                "forward_everything": channel_mapping.get("forward_everything", False),
-                "forward_hashtags": channel_mapping.get("forward_hashtags", []),
-                "mention_override": mention_override,
-                "roles": channel_mapping.get("roles", []),
-            }
-
-            if tg_channel_id in {dialog.name, dialog.entity.id}:
-                input_channels_entities.append(
-                    InputChannel(dialog.entity.id, dialog.entity.access_hash))
-                discord_channel_mappings[forwarder_name] = discord_channel_config
-                logger.info("Registered TG channel '%s' with ID %s with Discord channel config %s",
-                            dialog.name, dialog.entity.id, discord_channel_config)
-
-    if not input_channels_entities:
-        logger.error("No input channels found, exiting")
+    if process_state == "running":
         sys.exit(1)
 
-    @telegram_client.on(events.NewMessage(chats=input_channels_entities))
-    async def handler(event):  # pylint: disable=too-many-locals
-        """Handle new messages in the specified Telegram channels."""
-        logger.debug(event)
+    with open(bot_pid_file, "w", encoding="utf-8") as pid_file:
+        pid_file.write(str(pid))
 
-        tg_channel_id = event.message.peer_id.channel_id
-
-        matching_forwarders = get_matching_forwarders(tg_channel_id, config)
-
-        if len(matching_forwarders) < 1:
-            logger.error(
-                "No forwarders found for Telegram channel %s", tg_channel_id)
-            return
-
-        for discord_channel_config in matching_forwarders:
-            forwarder_name = discord_channel_config["forwarder_name"]
-            discord_channel_config = discord_channel_mappings.get(
-                forwarder_name)
-
-            if not discord_channel_config:
-                logger.error(
-                    "Discord channel not found for Telegram channel %s", tg_channel_id)
-                continue
-
-            discord_channel_id = discord_channel_config["discord_channel_id"]
-
-            config_data = {
-                "mention_everyone": discord_channel_config["mention_everyone"],
-                "forward_everything": discord_channel_config["forward_everything"],
-                "allowed_forward_hashtags": discord_channel_config["forward_hashtags"],
-                "mention_override": discord_channel_config["mention_override"],
-                "roles": discord_channel_config["roles"],
-            }
-
-            should_forward_message = config_data["forward_everything"]
-            mention_everyone = config_data["mention_everyone"]
-            mention_roles = []
-
-            if config_data["allowed_forward_hashtags"] or config_data["mention_override"]:
-                message_forward_hashtags = get_message_forward_hashtags(
-                    event.message)
-
-                matching_forward_hashtags = [
-                    tag for tag in config_data["allowed_forward_hashtags"] if tag["name"].lower() in message_forward_hashtags]
-
-                if len(matching_forward_hashtags) > 0:
-                    should_forward_message = True
-                    mention_everyone = any(tag.get("override_mention_everyone", False)
-                                           for tag in matching_forward_hashtags)
-
-            if not should_forward_message:
-                continue
-
-            discord_channel = discord_client.get_channel(discord_channel_id)
-            server_roles = discord_channel.guild.roles
-
-            mention_roles = get_mention_roles(message_forward_hashtags,
-                                              discord_channel_config["mention_override"],
-                                              config.discord.built_in_roles,
-                                              server_roles)
-
-            message_text = await process_message_text(
-                event, mention_everyone, False, mention_roles, config=config)
-
-            discord_reference = await fetch_discord_reference(event,
-                                                              discord_channel) if event.message.reply_to_msg_id else None
-
-            if event.message.media:
-                sent_discord_messages = await handle_message_media(telegram_client, event,
-                                                                   discord_channel,
-                                                                   message_text,
-                                                                   discord_reference)
-            else:
-                sent_discord_messages = await forward_to_discord(discord_channel,
-                                                                 message_text,
-                                                                 reference=discord_reference)
-
-            if sent_discord_messages:
-                main_sent_discord_message = sent_discord_messages[0]
-                save_mapping_data(event.message.id,
-                                  main_sent_discord_message.id)
-                logger.info("Forwarded TG message %s to Discord message %s",
-                            event.message.id, main_sent_discord_message.id)
+    return bot_pid_file
 
 
-def get_matching_forwarders(tg_channel_id, config: Config):
-    """Get the forwarders that match the given Telegram channel ID."""
-    return [forwarder_config for forwarder_config in config.telegram_forwarders if tg_channel_id == forwarder_config["tg_channel_id"]]  # pylint: disable=line-too-long
+def remove_pid_file(pid_file: str):
+    """Remove a PID file."""
+    if os.path.isfile(pid_file):
+        os.remove(pid_file)
+    else:
+        logger.error("PID file '%s' not found.", pid_file)
+
+
+def determine_process_state(pid_file: str) -> Tuple[str, int]:
+    """Determine the state of the process."""
+
+    if not os.path.isfile(pid_file):
+        return "stopped", 0
+
+    try:
+        with open(pid_file, "r", encoding="utf-8") as bot_pid_file:
+            pid = int(bot_pid_file.read().strip())
+            logger.warning(
+                "%s is already be running with PID %s. PID file: %s", config.app_name, pid, pid_file)
+            return "running", pid
+    except ProcessLookupError:
+        return "stopped", 0
+    except PermissionError:
+        return "running", pid
+    except FileNotFoundError:
+        return "stopped", 0
+
+
+def stop_bot():
+    """Stop the bot."""
+    pid_file = f'{config.app_name}.pid'
+
+    process_state, pid = determine_process_state(pid_file)
+    if process_state == "stopped":
+        logger.warning(
+            "PID file '%s' not found. The %s may not be running.", pid_file, config.app_name)
+        return
+
+    try:
+        os.kill(pid, signal.SIGINT)
+        logger.warning("Sent SIGINT to the %s process with PID %s.",
+                       config.app_name, pid)
+    except ProcessLookupError:
+        logger.error(
+            "The %s process with PID %s is not running.", config.app_name, pid)
 
 
 async def on_shutdown(telegram_client, discord_client):
@@ -214,8 +144,8 @@ async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def run_bot(config: Config, stop_bot_event: asyncio.Event) -> Tuple[TelegramClient, discord.Client]:
-    """Run the bot."""
+async def init_clients() -> Tuple[TelegramClient, discord.Client]:
+    """Handle the initialization of the bot's clients."""
     telegram_client_instance = await start_telegram_client(config)
     discord_client_instance = await start_discord(config)
 
@@ -238,7 +168,7 @@ async def run_bot(config: Config, stop_bot_event: asyncio.Event) -> Tuple[Telegr
             discord_client_instance.wait_until_ready()
         )
 
-        await asyncio.gather(start_task, telegram_wait_task, discord_wait_task, stop_bot_event.wait())
+        await asyncio.gather(start_task, telegram_wait_task, discord_wait_task)
     except asyncio.CancelledError:
         logger.warning("CancelledError caught, shutting down...")
     except Exception as ex:  # pylint: disable=broad-except
@@ -249,46 +179,18 @@ async def run_bot(config: Config, stop_bot_event: asyncio.Event) -> Tuple[Telegr
     return telegram_client_instance, discord_client_instance
 
 
-async def main(config: Config, stop_bot_event: asyncio.Event):
-    """Run the bot."""
-    client = ()
-    try:
-        client = await run_bot(config, stop_bot_event)
-    except KeyboardInterrupt:
-        logger.warning("Interrupted by user, shutting down...")
-    except asyncio.CancelledError:
-        logger.warning("CancelledError caught, shutting down...")
-    finally:
-        if client:
-            telegram_client, discord_client = client[0], client[1]
-            if not telegram_client.is_connected() and not discord_client.is_ready():
-                client = ()
-            else:
-                await on_shutdown(telegram_client, discord_client)
-                client = ()
-
-
 def start_bot():
     """Start the bot."""
-    config = Config()
     loop.set_exception_handler(event_loop_exception_handler)
 
     pid_file = create_pid_file()
-    stop_event = asyncio.Event()
 
     try:
-        loop.run_until_complete(main(config, stop_event))
+        loop.run_until_complete(main())
     except asyncio.CancelledError:
         pass
     finally:
         remove_pid_file(pid_file)
-
-    loop.run_until_complete(stop_bot(stop_event))
-
-
-async def stop_bot(stop_bot_event: asyncio.Event):
-    """Stop the bot."""
-    stop_bot_event.set()
 
 
 def event_loop_exception_handler(context):
@@ -300,6 +202,39 @@ def event_loop_exception_handler(context):
         loop.warning("CancelledError caught during shutdown")
 
 
+async def main():
+    """Run the bot."""
+    clients = ()
+    try:
+        clients = await init_clients()
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user, shutting down...")
+    except asyncio.CancelledError:
+        logger.warning("CancelledError caught, shutting down...")
+    finally:
+        if clients:
+            telegram_client, discord_client = clients[0], clients[1]
+            if not telegram_client.is_connected() and not discord_client.is_ready():
+                clients = ()
+            else:
+                await on_shutdown(telegram_client, discord_client)
+                clients = ()
+
+
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    start_bot()
+    parser = argparse.ArgumentParser(
+        description="Process handler for the bot.")
+    parser.add_argument("--start", action="store_true", help="Start the bot.")
+    parser.add_argument("--stop", action="store_true", help="Stop the bot.")
+
+    args = parser.parse_args()
+
+    config = Config()
+
+    if args.start:
+        loop = asyncio.get_event_loop()
+        start_bot()
+    elif args.stop:
+        stop_bot()
+    else:
+        print("Please use --start or --stop flags to start or stop the bot.")
