@@ -99,7 +99,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
             mention_everyone = config_data["mention_everyone"]
             mention_roles = []
 
-            if config_data["allowed_forward_hashtags"]:
+            if config_data["allowed_forward_hashtags"] or config_data["mention_override"]:
                 message_forward_hashtags = get_message_forward_hashtags(
                     event.message)
 
