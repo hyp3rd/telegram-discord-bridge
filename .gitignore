@@ -253,3 +253,4 @@ tags
 config.yml
 config.yaml
 messages_mapping_history.json
+*.pid

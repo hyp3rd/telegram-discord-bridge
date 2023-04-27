@@ -13,6 +13,7 @@ from config import Config
 from discord_handler import (fetch_discord_reference, forward_to_discord,
                              get_mention_roles, start_discord)
 from logger import app_logger
+from process_handler import create_pid_file, remove_pid_file
 from telegram_handler import (get_message_forward_hashtags,
                               handle_message_media, process_message_text,
                               start_telegram_client)
@@ -213,7 +214,7 @@ async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def run_bot(config: Config) -> Tuple[TelegramClient, discord.Client]:
+async def run_bot(config: Config, stop_bot_event: asyncio.Event) -> Tuple[TelegramClient, discord.Client]:
     """Run the bot."""
     telegram_client_instance = await start_telegram_client(config)
     discord_client_instance = await start_discord(config)
@@ -237,7 +238,7 @@ async def run_bot(config: Config) -> Tuple[TelegramClient, discord.Client]:
             discord_client_instance.wait_until_ready()
         )
 
-        await asyncio.gather(start_task, telegram_wait_task, discord_wait_task)
+        await asyncio.gather(start_task, telegram_wait_task, discord_wait_task, stop_bot_event.wait())
     except asyncio.CancelledError:
         logger.warning("CancelledError caught, shutting down...")
     except Exception as ex:  # pylint: disable=broad-except
@@ -248,11 +249,11 @@ async def run_bot(config: Config) -> Tuple[TelegramClient, discord.Client]:
     return telegram_client_instance, discord_client_instance
 
 
-async def main(config: Config):
+async def main(config: Config, stop_bot_event: asyncio.Event):
     """Run the bot."""
     client = ()
     try:
-        client = await run_bot(config)
+        client = await run_bot(config, stop_bot_event)
     except KeyboardInterrupt:
         logger.warning("Interrupted by user, shutting down...")
     except asyncio.CancelledError:
@@ -267,6 +268,29 @@ async def main(config: Config):
                 client = ()
 
 
+def start_bot():
+    """Start the bot."""
+    config = Config()
+    loop.set_exception_handler(event_loop_exception_handler)
+
+    pid_file = create_pid_file()
+    stop_event = asyncio.Event()
+
+    try:
+        loop.run_until_complete(main(config, stop_event))
+    except asyncio.CancelledError:
+        pass
+    finally:
+        remove_pid_file(pid_file)
+
+    loop.run_until_complete(stop_bot(stop_event))
+
+
+async def stop_bot(stop_bot_event: asyncio.Event):
+    """Stop the bot."""
+    stop_bot_event.set()
+
+
 def event_loop_exception_handler(context):
     """Asyncio Event loop exception handler."""
     exception = context.get("exception")
@@ -277,10 +301,5 @@ def event_loop_exception_handler(context):
 
 
 if __name__ == "__main__":
-    app_config = Config()
     loop = asyncio.get_event_loop()
-    loop.set_exception_handler(event_loop_exception_handler)
-    try:
-        loop.run_until_complete(main(app_config))
-    except asyncio.CancelledError:
-        pass
+    start_bot()
