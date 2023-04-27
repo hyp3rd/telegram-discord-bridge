@@ -2,7 +2,7 @@
 import logging
 
 
-class SingletonLogger(logging.Logger):
+class Logger(logging.Logger):
     """Singleton logger class. It allows to create only one instance of the logger."""
     _instance = None
 
@@ -22,7 +22,7 @@ class SingletonLogger(logging.Logger):
             logging.getLogger('telethon').setLevel(level=logging.WARNING)
 
 
-def app_logger() -> SingletonLogger:
+def app_logger() -> Logger:
     """Create a logger for the application."""
-    logger = SingletonLogger("hyp3rbridg3")
+    logger = Logger("hyp3rbridg3")
     return logger
