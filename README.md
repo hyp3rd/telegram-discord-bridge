@@ -2,7 +2,7 @@
 
 [![Pylint](https://github.com/hyp3rd/telegram-discord-bridge/actions/workflows/pylint.yml/badge.svg)][pylint_badge]
 
-A `Python` bot to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not? It is highly customizable and allows you to configure various settings, such as forwarding messages with specific hashtags, mentioning roles or users in Discord, and more.
+A `Python` bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not? It is highly customizable and allows you to configure various settings, such as forwarding messages with specific hashtags, mentioning roles or users in Discord, and more.
 
 ## Cunning Features
 
@@ -29,7 +29,7 @@ Next, follow the instructions here (don't worry, they won't won't bite):
 1. Install Python 3.8 or higher and set up a virtual environment;
 2. Install the dependencies: `pip install -r requirements.txt`
 3. Set up a [**Telegram Application**](https://core.telegram.org/api/obtaining_api_id) and obtain the API creds.
-4. Set up a Discord bot with the necessary permissions to read and write the messages,5. and obtain the bot token.
+4. Set up a Discord bridge with the necessary permissions to read and write the messages,5. and obtain the bridge token.
 
 Now craft a new `config.yml` file in the root directory, starting from the `config-example.yml` file:
 
@@ -49,8 +49,8 @@ telegram_api_id: <your api id>
 # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
 telegram_api_hash: "<your api hash>"
 
-# Discord Bot Token. Go create a bot on discord. | No quotes
-discord_bot_token: <your discord bot token>
+# Discord Bot Token. Go create a bridge on discord. | No quotes
+discord_bot_token: <your discord bridge token>
 
 # built-in roles in discord, they need special attention when parsing thee name to mention
 discord_built_in_roles: ["everyone", "here", "@Admin"]
@@ -106,9 +106,9 @@ python app.py --stop
 
 ## Usage
 
-Once the script gets going, it will eavesdrop on new messages in the specified Telegram channels. Messages can be filtered based on hashtags, and you can configure the bot to mention specific roles or users in Discord when forwarding messages. The bot supports built-in Discord roles like "@everyone" and "@here" and custom role names.
+Once the script gets going, it will eavesdrop on new messages in the specified Telegram channels. Messages can be filtered based on hashtags, and you can configure the bridge to mention specific roles or users in Discord when forwarding messages. The bridge supports built-in Discord roles like "@everyone" and "@here" and custom role names.
 
-In addition to text messages, the bot can forward media files such as photos, videos, and documents from Telegram to Discord. The bot also handles replies to messages and embeds them as Discord replies, maintaining a mapping of forwarded messages for easier correspondence tracking between the two platforms.
+In addition to text messages, the bridge can forward media files such as photos, videos, and documents from Telegram to Discord. The bridge also handles replies to messages and embeds them as Discord replies, maintaining a mapping of forwarded messages for easier correspondence tracking between the two platforms.
 
 ### Limitations
 

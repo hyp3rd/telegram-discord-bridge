@@ -13,8 +13,8 @@ telegram_api_id: <your api id>
 # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
 telegram_api_hash: "<your api hash>"
 
-# Discord Bot Token. Go create a bot on discord. | No quotes
-discord_bot_token: <your discord bot token>
+# Discord Bot Token. Go create a bridge on discord. | No quotes
+discord_bot_token: <your discord bridge token>
 
 # built-in roles in discord, they need special attention when parsing thee name to mention
 discord_built_in_roles: ["everyone", "here", "@Admin"]

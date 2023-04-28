@@ -24,7 +24,9 @@ async def start_telegram_client(config: Config) -> TelegramClient:
     telegram_client = TelegramClient(
         session=config.app_name,
         api_id=config.telegram.api_id,
-        api_hash=config.telegram.api_hash)
+        api_hash=config.telegram.api_hash,
+        connection_retries=15,
+        retry_delay=4)
 
     await telegram_client.start(
         phone=config.telegram.phone,

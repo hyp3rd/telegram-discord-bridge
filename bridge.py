@@ -24,8 +24,8 @@ queued_events = asyncio.Queue()
 
 
 async def start(telegram_client: TelegramClient, discord_client: discord.Client, config: Config):   # pylint: disable=too-many-statements
-    """Start the bot."""
-    logger.info("Starting the bot...")
+    """Start the bridge."""
+    logger.info("Starting the bridge...")
 
     input_channels_entities = []
     discord_channel_mappings = {}
@@ -72,36 +72,37 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
     async def handle_restored_internet_connectivity():
         """Check and restore internet connectivity."""
-        while True:
-            await asyncio.sleep(15)
+        while True:  # pylint: disable=too-many-nested-blocks
+            await asyncio.sleep(5)
             if config.status["internet_connected"] is True:
-                logger.info("Internet connection restored")
+                logger.debug(
+                    "Internet connection active, checking for missed messages")
+                try:
+                    last_messages = await history_manager.get_last_messages_for_all_forwarders()
 
-                last_messages = await history_manager.get_last_messages_for_all_forwarders()
-                print("\n\n")
-                logger.info(last_messages)
-                print("\n\n")
+                    for last_message in last_messages:
+                        forwarder_name = last_message["forwarder_name"]
+                        last_tg_message_id = last_message["telegram_id"]
 
-                for last_message in last_messages:
-                    forwarder_name = last_message["forwarder_name"]
-                    last_tg_message_id = last_message["telegram_id"]
+                        channel_id = config.get_telegram_channel_by_forwarder_name(
+                            forwarder_name)
 
-                    channel_id = config.get_telegram_channel_by_forwarder_name(
-                        forwarder_name)
+                        if channel_id:
+                            fetched_messages = await history_manager.fetch_messages_after(last_tg_message_id, channel_id, telegram_client)
+                            for fetched_message in fetched_messages:
 
-                    if channel_id:
-                        fetched_messages = await history_manager.fetch_messages_after(last_tg_message_id, channel_id, telegram_client)
-                        for fetched_message in fetched_messages:
+                                event = events.NewMessage.Event(
+                                    message=fetched_message)
+                                event.peer = telegram_client.get_input_entity(
+                                    channel_id)
 
-                            event = events.NewMessage.Event(
-                                message=fetched_message)
-                            event.peer = telegram_client.get_input_entity(
-                                channel_id)
-
-                            if config.status["discord_available"] is False:
-                                await queued_events.put(event)
-                            else:
-                                await handle_new_message(event)
+                                if config.status["discord_available"] is False:
+                                    await queued_events.put(event)
+                                else:
+                                    await handle_new_message(event)
+                except Exception as exception:  # pylint: disable=broad-except
+                    logger.error(
+                        "Failed to fetch missed messages: %s", exception)
 
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
@@ -113,6 +114,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
             return
 
         await asyncio.gather(dispatch_queued_events(), handle_new_message(event), handle_restored_internet_connectivity())
+        # await handle_new_message(event)
 
     async def handle_new_message(event):  # pylint: disable=too-many-locals
         """Handle the processing of a new Telegram message."""
