@@ -1,5 +1,6 @@
 """A `Bot` to bridge and forward messages from Telegram to a Discord server."""
 
+import asyncio
 import sys
 
 import discord
@@ -9,19 +10,22 @@ from telethon.tl.types import Channel, InputChannel
 from config import Config
 from discord_handler import (fetch_discord_reference, forward_to_discord,
                              get_mention_roles)
+from history import MessageHistoryManager
 from logger import app_logger
 from telegram_handler import (get_message_forward_hashtags,
                               handle_message_media, process_message_text)
-from utils import save_mapping_data
 
 tg_to_discord_message_ids = {}
 
 logger = app_logger()
+history_manager = MessageHistoryManager()
+
+queued_events = asyncio.Queue()
 
 
 async def start(telegram_client: TelegramClient, discord_client: discord.Client, config: Config):   # pylint: disable=too-many-statements
-    """Start the bot."""
-    logger.info("Starting the bot...")
+    """Start the bridge."""
+    logger.info("Starting the bridge...")
 
     input_channels_entities = []
     discord_channel_mappings = {}
@@ -57,9 +61,63 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
         logger.error("No input channels found, exiting")
         sys.exit(1)
 
+    async def dispatch_queued_events():
+        """Dispatch queued events to Discord."""
+        while not queued_events.empty():
+            event = await queued_events.get()
+
+            logger.info("Dispatching queued TG message")
+            await handle_new_message(event)
+            queued_events.task_done()
+
+    async def handle_restored_internet_connectivity():
+        """Check and restore internet connectivity."""
+        while True:  # pylint: disable=too-many-nested-blocks
+            await asyncio.sleep(5)
+            if config.status["internet_connected"] is True:
+                logger.debug(
+                    "Internet connection active, checking for missed messages")
+                try:
+                    last_messages = await history_manager.get_last_messages_for_all_forwarders()
+
+                    for last_message in last_messages:
+                        forwarder_name = last_message["forwarder_name"]
+                        last_tg_message_id = last_message["telegram_id"]
+
+                        channel_id = config.get_telegram_channel_by_forwarder_name(
+                            forwarder_name)
+
+                        if channel_id:
+                            fetched_messages = await history_manager.fetch_messages_after(last_tg_message_id, channel_id, telegram_client)
+                            for fetched_message in fetched_messages:
+
+                                event = events.NewMessage.Event(
+                                    message=fetched_message)
+                                event.peer = telegram_client.get_input_entity(
+                                    channel_id)
+
+                                if config.status["discord_available"] is False:
+                                    await queued_events.put(event)
+                                else:
+                                    await handle_new_message(event)
+                except Exception as exception:  # pylint: disable=broad-except
+                    logger.error(
+                        "Failed to fetch missed messages: %s", exception)
+
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
-    async def handler(event):  # pylint: disable=too-many-locals
+    async def handler(event):
         """Handle new messages in the specified Telegram channels."""
+        if config.status["discord_available"] is False:
+            logger.warning(
+                "Discord is not available, queing TG message %s", event.message.id)
+            await queued_events.put(event)
+            return
+
+        await asyncio.gather(dispatch_queued_events(), handle_new_message(event), handle_restored_internet_connectivity())
+        # await handle_new_message(event)
+
+    async def handle_new_message(event):  # pylint: disable=too-many-locals
+        """Handle the processing of a new Telegram message."""
         logger.debug(event)
 
         tg_channel_id = event.message.peer_id.channel_id
@@ -122,6 +180,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
                 event, mention_everyone, False, mention_roles, config=config)
 
             discord_reference = await fetch_discord_reference(event,
+                                                              forwarder_name,
                                                               discord_channel) if event.message.reply_to_msg_id else None
 
             if event.message.media:
@@ -136,8 +195,8 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
             if sent_discord_messages:
                 main_sent_discord_message = sent_discord_messages[0]
-                save_mapping_data(event.message.id,
-                                  main_sent_discord_message.id)
+                await history_manager.save_mapping_data(forwarder_name, event.message.id,
+                                                        main_sent_discord_message.id)
                 logger.info("Forwarded TG message %s to Discord message %s",
                             event.message.id, main_sent_discord_message.id)
 

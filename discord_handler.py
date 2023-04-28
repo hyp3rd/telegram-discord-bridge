@@ -4,13 +4,15 @@ import sys
 from typing import List
 
 import discord
-from discord import MessageReference
+from discord import MessageReference, TextChannel, Thread
 
 from config import Config
+from history import MessageHistoryManager
 from logger import app_logger
-from utils import get_discord_message_id, split_message
+from utils import split_message
 
 logger = app_logger()
+history_manager = MessageHistoryManager()
 
 
 async def start_discord(config: Config) -> discord.Client:
@@ -33,29 +35,37 @@ async def start_discord(config: Config) -> discord.Client:
     return discord_client
 
 
-async def forward_to_discord(discord_channel, message_text: str,
+async def forward_to_discord(discord_channel: TextChannel | Thread | None, message_text: str,
                              image_file=None, reference=None):
     """Send a message to Discord."""
     sent_messages = []
     message_parts = split_message(message_text)
-    if image_file:
-        discord_file = discord.File(image_file)
-        sent_message = await discord_channel.send(message_parts[0],
-                                                  file=discord_file,
-                                                  reference=reference)
-        sent_messages.append(sent_message)
-        message_parts.pop(0)
+    try:
+        if image_file:
+            discord_file = discord.File(image_file)
+            sent_message = await discord_channel.send(message_parts[0],
+                                                      file=discord_file,
+                                                      reference=reference)
+            sent_messages.append(sent_message)
+            message_parts.pop(0)
 
-    for part in message_parts:
-        sent_message = await discord_channel.send(part, reference=reference)
-        sent_messages.append(sent_message)
+        for part in message_parts:
+            sent_message = await discord_channel.send(part, reference=reference)
+            sent_messages.append(sent_message)
+    except discord.Forbidden:
+        logger.error("Discord client doesn't have permission to send messages to channel %s",
+                     discord_channel.id)
+    except discord.HTTPException as http_exception:
+        logger.error("Error while sending message to Discord: %s",
+                     http_exception)
 
     return sent_messages
 
 
-async def fetch_discord_reference(event, discord_channel):
+async def fetch_discord_reference(event, forwarder_name: str, discord_channel):
     """Fetch the Discord message reference."""
-    discord_message_id = get_discord_message_id(
+    discord_message_id = await history_manager.get_discord_message_id(
+        forwarder_name,
         event.message.reply_to_msg_id)
     if not discord_message_id:
         logger.debug("No mapping found for TG message %s",
