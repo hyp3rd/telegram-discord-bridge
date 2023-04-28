@@ -13,6 +13,7 @@ from telethon import TelegramClient
 from bridge import start
 from config import Config
 from discord_handler import start_discord
+from healtcheck_handler import healthcheck
 from logger import app_logger
 from telegram_handler import start_telegram_client
 
@@ -112,6 +113,7 @@ async def on_shutdown(telegram_client, discord_client):
 async def shutdown(sig, tasks_loop: None):
     """Shutdown the application gracefully."""
     logger.warning("shutdown received signal %s, shutting down...", {sig})
+
     tasks = [task for task in asyncio.all_tasks(
     ) if task is not asyncio.current_task()]
 
@@ -167,8 +169,11 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
         discord_wait_task = asyncio.create_task(
             discord_client_instance.wait_until_ready()
         )
+        api_healthcheck_task = asyncio.create_task(
+            healthcheck(telegram_client_instance, discord_client_instance)
+        )
 
-        await asyncio.gather(start_task, telegram_wait_task, discord_wait_task)
+        await asyncio.gather(start_task, telegram_wait_task, discord_wait_task, api_healthcheck_task)
     except asyncio.CancelledError:
         logger.warning("CancelledError caught, shutting down...")
     except Exception as ex:  # pylint: disable=broad-except

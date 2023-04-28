@@ -94,6 +94,12 @@ class Config:
         self.telegram = TelegramConfig(config_data)
         self.discord = DiscordConfig(config_data)
         self.openai = OpenAIConfig(config_data)
+        self.status = {
+            "internet_connected": True,
+            "telegram_available": True,
+            "discord_available": True,
+            "openai_available": True,
+        }
         self.telegram_forwarders = config_data["telegram_forwarders"]
 
         return config_data
@@ -190,6 +196,13 @@ class Config:
             forward_hashtags = []
 
         return forward_hashtags
+
+    def get_telegram_channel_by_forwarder_name(self, forwarder_name: int):
+        """Get the Telegram channel ID associated with a given forwarder ID."""
+        for forwarder in self.telegram_forwarders:
+            if forwarder["forwarder_name"] == forwarder_name:
+                return forwarder["tg_channel_id"]
+        return None
 
     @ staticmethod
     def validate_config(config):
