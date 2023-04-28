@@ -185,29 +185,14 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
     return telegram_client_instance, discord_client_instance
 
 
-# def start_bridge():
-#     """Start the bridge."""
-#     loop.set_exception_handler(event_loop_exception_handler)
-
-#     pid_file = create_pid_file()
-
-#     try:
-#         loop.run_until_complete(main())
-#     except asyncio.CancelledError:
-#         pass
-#     except ConnectionError as ex:
-#         logger.error("Error while running the bridge: %s", ex)
-#     finally:
-#         remove_pid_file(pid_file)
-
-def start_bridge(loop: AbstractEventLoop):
+def start_bridge(event_loop: AbstractEventLoop):
     """Start the bridge."""
-    loop.set_exception_handler(event_loop_exception_handler)
+    event_loop.set_exception_handler(event_loop_exception_handler)
 
     pid_file = create_pid_file()
 
     try:
-        loop.run_until_complete(main())
+        event_loop.run_until_complete(main())
     except asyncio.CancelledError:
         pass
     except ConnectionError as ex:
