@@ -26,7 +26,7 @@ cd telegram-discord-bridge
 
 Next, follow the instructions here (don't worry, they won't won't bite):
 
-1. Install Python 3.8 or higher and set up a virtual environment;
+1. Install **Python 3.9** or higher and set up a virtual environment;
 2. Install the dependencies: `pip install -r requirements.txt`
 3. Set up a [**Telegram Application**](https://core.telegram.org/api/obtaining_api_id) and obtain the API creds.
 4. Set up a Discord bridge with the necessary permissions to read and write the messages,5. and obtain the bridge token.
