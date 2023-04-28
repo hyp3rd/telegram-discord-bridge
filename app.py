@@ -210,6 +210,27 @@ def event_loop_exception_handler(event_loop: AbstractEventLoop, context):
         logger.warning("CancelledError caught during shutdown")
 
 
+def daemonize_process():
+    """Daemonize the process by forking and redirecting standard file descriptors."""
+    pid = os.fork()
+    if pid > 0:
+        sys.exit()
+
+    os.setsid()
+
+    # Fork again to avoid re-acquiring a controlling terminal
+    pid = os.fork()
+    if pid > 0:
+        sys.exit()
+
+    # Redirect standard file descriptors to /dev/null
+    with open(os.devnull, "r", encoding="utf-8") as devnull:
+        os.dup2(devnull.fileno(), sys.stdin.fileno())
+    with open(os.devnull, "w", encoding="utf-8") as devnull:
+        os.dup2(devnull.fileno(), sys.stdout.fileno())
+        os.dup2(devnull.fileno(), sys.stderr.fileno())
+
+
 async def main():
     """Run the bridge."""
     clients = ()
@@ -234,13 +255,18 @@ if __name__ == "__main__":
         description="Process handler for the bridge.")
     parser.add_argument("--start", action="store_true",
                         help="Start the bridge.")
+    parser.add_argument("--background", action="store_true",
+                        help="Run the bridge in the background (forked).")
     parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
-
     args = parser.parse_args()
 
     config = Config()
 
     if args.start:
+        if args.background:
+            logger.info("Starting %s in the background...", config.app_name)
+            daemonize_process()
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         start_bridge(loop)
