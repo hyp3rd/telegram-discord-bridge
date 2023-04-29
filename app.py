@@ -15,16 +15,14 @@ from bridge import start
 from config import Config
 from discord_handler import start_discord
 from healtcheck_handler import healthcheck
-from logger import app_logger
+from logger import app_logger, init_logger
 from telegram_handler import start_telegram_client
-
-logger = app_logger()
 
 
 def create_pid_file() -> str:
     """Create a PID file."""
     pid = os.getpid()
-    bot_pid_file = f'{config.app_name}.pid'
+    bot_pid_file = f'{config.app.name}.pid'
 
     process_state, _ = determine_process_state(bot_pid_file)
 
@@ -55,7 +53,7 @@ def determine_process_state(pid_file: str) -> Tuple[str, int]:
         with open(pid_file, "r", encoding="utf-8") as bot_pid_file:
             pid = int(bot_pid_file.read().strip())
             logger.warning(
-                "%s is already be running with PID %s. PID file: %s", config.app_name, pid, pid_file)
+                "%s is already be running with PID %s. PID file: %s", config.app.name, pid, pid_file)
             return "running", pid
     except ProcessLookupError:
         return "stopped", 0
@@ -67,21 +65,21 @@ def determine_process_state(pid_file: str) -> Tuple[str, int]:
 
 def stop_bridge():
     """Stop the bridge."""
-    pid_file = f'{config.app_name}.pid'
+    pid_file = f'{config.app.name}.pid'
 
     process_state, pid = determine_process_state(pid_file)
     if process_state == "stopped":
         logger.warning(
-            "PID file '%s' not found. The %s may not be running.", pid_file, config.app_name)
+            "PID file '%s' not found. The %s may not be running.", pid_file, config.app.name)
         return
 
     try:
         os.kill(pid, signal.SIGINT)
         logger.warning("Sent SIGINT to the %s process with PID %s.",
-                       config.app_name, pid)
+                       config.app.name, pid)
     except ProcessLookupError:
         logger.error(
-            "The %s process with PID %s is not running.", config.app_name, pid)
+            "The %s process with PID %s is not running.", config.app.name, pid)
 
 
 async def on_shutdown(telegram_client, discord_client):
@@ -255,16 +253,32 @@ if __name__ == "__main__":
         description="Process handler for the bridge.")
     parser.add_argument("--start", action="store_true",
                         help="Start the bridge.")
+
+    parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
+
     parser.add_argument("--background", action="store_true",
                         help="Run the bridge in the background (forked).")
-    parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
+
+    parser.add_argument("--debug", action="store_true",
+                        help="Enable debug level logging and actions.")
+
+    parser.add_argument(
+        "--log-to-file", action="store_true", help="Log to file.")
+
     args = parser.parse_args()
+
+    if args.debug:
+        init_logger(log_level="DEBUG", log_to_file=args.log_to_file)
+    else:
+        init_logger(log_level="INFO", log_to_file=args.log_to_file)
+
+    logger = app_logger()
 
     config = Config()
 
     if args.start:
         if args.background:
-            logger.info("Starting %s in the background...", config.app_name)
+            logger.info("Starting %s in the background...", config.app.name)
             daemonize_process()
 
         loop = asyncio.new_event_loop()

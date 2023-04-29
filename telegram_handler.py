@@ -22,7 +22,7 @@ async def start_telegram_client(config: Config) -> TelegramClient:
     logger.info("Starting Telegram client...")
 
     telegram_client = TelegramClient(
-        session=config.app_name,
+        session=config.app.name,
         api_id=config.telegram.api_id,
         api_hash=config.telegram.api_hash,
         connection_retries=15,
@@ -34,7 +34,7 @@ async def start_telegram_client(config: Config) -> TelegramClient:
 
     bot_identity = await telegram_client.get_me()
     logger.info("Telegram client started the session: %s, with identity: %s",
-                config.app_name, bot_identity.id)
+                config.app.name, bot_identity.id)
 
     return telegram_client
 
