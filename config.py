@@ -197,7 +197,7 @@ class Config:
             excluded_hashtags_names)
         if common_hashtags:
             logger.error(
-                "Invalid configuration: overlapping hashtags %s found in forward_hashtags and excluded_hashtags for forwarder with `tg_channel_id` %s",
+                "Invalid configuration: overlapping hashtags %s found in forward_hashtags and excluded_hashtags for forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
                 common_hashtags,
                 tg_channel_id)
             sys.exit(1)
