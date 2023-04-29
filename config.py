@@ -9,6 +9,15 @@ from logger import app_logger
 logger = app_logger()
 
 
+class AppConfig:  # pylint: disable=too-few-public-methods
+    """Application configuration handler."""
+
+    def __init__(self, config_data):
+        self.name = config_data["app_name"]
+        self.log_level = config_data["log_level"]
+        self.log_to_file = config_data["log_to_file"]
+
+
 class TelegramConfig:  # pylint: disable=too-few-public-methods
     """Telegram configuration handler."""
 
@@ -49,7 +58,7 @@ class Config:
     def __init__(self):
         if not hasattr(self, "_initialized"):
             self._initialized = True
-            self.app_name = None
+            self.app = None
             self.telegram = None
             self.discord = None
             self.openai = None
@@ -90,7 +99,7 @@ class Config:
 
         Config.validate_config(config_data)
 
-        self.app_name = config_data["app_name"]
+        self.app = AppConfig(config_data)
         self.telegram = TelegramConfig(config_data)
         self.discord = DiscordConfig(config_data)
         self.openai = OpenAIConfig(config_data)
