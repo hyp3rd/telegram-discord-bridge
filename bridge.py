@@ -46,6 +46,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
                 "mention_everyone": channel_mapping["mention_everyone"],
                 "forward_everything": channel_mapping.get("forward_everything", False),
                 "forward_hashtags": channel_mapping.get("forward_hashtags", []),
+                "excluded_hashtags": channel_mapping.get("excluded_hashtags", []),
                 "mention_override": mention_override,
                 "roles": channel_mapping.get("roles", []),
             }
@@ -145,6 +146,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
                 "mention_everyone": discord_channel_config["mention_everyone"],
                 "forward_everything": discord_channel_config["forward_everything"],
                 "allowed_forward_hashtags": discord_channel_config["forward_hashtags"],
+                "disallowed_hashtags": discord_channel_config["excluded_hashtags"],
                 "mention_override": discord_channel_config["mention_override"],
                 "roles": discord_channel_config["roles"],
             }
@@ -164,6 +166,16 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
                     should_forward_message = True
                     mention_everyone = any(tag.get("override_mention_everyone", False)
                                            for tag in matching_forward_hashtags)
+
+            if config_data["disallowed_hashtags"]:
+                message_forward_hashtags = get_message_forward_hashtags(
+                    event.message)
+
+                matching_forward_hashtags = [
+                    tag for tag in config_data["disallowed_hashtags"] if tag["name"].lower() in message_forward_hashtags]
+
+                if len(matching_forward_hashtags) > 0:
+                    should_forward_message = False
 
             if not should_forward_message:
                 continue

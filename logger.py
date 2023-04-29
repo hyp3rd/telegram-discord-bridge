@@ -15,12 +15,13 @@ class Logger(logging.Logger):
     def __init__(self, name: str):
         if not self.__dict__:
             super().__init__(name)
-            logging.getLogger('telethon').setLevel(level=logging.WARNING)
 
     def configure(self, log_level: str, log_to_file: bool):
         """Apply the logger's configuration."""
-        level = getattr(logging, log_level.upper(), logging.INFO)
-        self.setLevel(level)
+        level = getattr(logging, log_level.upper(), None)
+
+        if level is None:
+            level = logging.INFO
 
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -33,8 +34,17 @@ class Logger(logging.Logger):
         else:
             handler = logging.StreamHandler()
 
+        handler.setLevel(level)  # Set log level for the handler
         handler.setFormatter(formatter)
+
+        # Remove all handlers associated with the logger object.
+        for logger_handler in self.handlers:
+            self.removeHandler(logger_handler)
+
         self.addHandler(handler)
+
+        # Clear handlers from the root logger
+        logging.root.handlers = []
 
 
 def init_logger(log_level: str, log_to_file: bool):

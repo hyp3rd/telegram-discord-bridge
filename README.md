@@ -9,22 +9,24 @@ A `Python` bridge to forward messages from those pesky Telegram channels to a sh
 - Relocate messages from a multitude of Telegram channels
 - Shove forwarded messages into a designated Discord channel
 - It deals with Media and URL previews on your behalf (photos, videos, documents) from Telegram to Discord
-- The forwarding is configurable based on hashtags, keeping irrelevant content away
+- **The forwarding is configurable based on allowed or excluded hashtags, keeping irrelevant content away**
+- **It handles connectivity and APIs outages for you, reconnecting automatically and forwarding the messages that were missed**
 - It is customizable mention settings, including mentioning roles or users in Discord when forwarding messages
 - It maintains the history, storing a map of the forwarded messages, allowing you to track correspondence between Telegram and Discord, **making possible replies**.
-- **It supports OpenAI's API to generate suggestions and sentiment analysys based on the text you're forwarding.**
+- **It supports OpenAI's API to generate suggestions and sentiment analyses based on the text you're forwarding.**
+- It can run as a daemon and handle any shutdown gracefully, including `SIGTERM` and `SIGINT` signals. It will also save the state of the bridge, so you can resume from where you left off
+- You can enable logging to the file system, which will handle the rotation for you.
 
 ## Installation
 
 First, you need to clone this repository:
 
 ```bash
-
 git clone https://github.com/hyp3rd/telegram-discord-bridge.git
 cd telegram-discord-bridge
 ```
 
-Next, follow the instructions here (don't worry, they won't won't bite):
+Next, follow the instructions here (don't worry, they won't bite):
 
 1. Install **Python 3.10** or higher and set up a virtual environment;
 2. Install the dependencies: `pip install -r requirements.txt`
@@ -47,16 +49,16 @@ telegram_password: "<your password>"
 telegram_api_id: <your api id>
 
 # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
-telegram_api_hash: "<your api hash>"
+telegram_api_hash: "<your API hash>"
 
-# Discord Bot Token. Go create a bridge on discord. | No quotes
+# Discord Bot Token. To create a bridge on Discord. | No quotes
 discord_bot_token: <your discord bridge token>
 
-# built-in roles in discord, they need special attention when parsing thee name to mention
-discord_built_in_roles: ["everyone", "here", "@Admin"]
+# Built-in roles in Discord, need special attention when parsing the name to mention
+discord_built_in_roles: ["everyone," "here," "@Admin"]
 
 # OpenAI API Key and Organization. Read more [here](https://beta.openai.com/docs/api-reference)
-openai_api_key: "<your openai api key>"
+openai_api_key: "<your openai API key>"
 openai_organization: "<your openai organization>"
 openai_enabled: False
 openai_sentiment_analysis_prompt:
@@ -70,7 +72,7 @@ telegram_forwarders:
     tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: True
-    forward_everything: False # whether forwarding everything regardless the hashtag
+    forward_everything: False # whether forwarding everything regardless of the hashtag
     forward_hashtags:
       - name: "#example1"
         override_mention_everyone: True
@@ -80,7 +82,7 @@ telegram_forwarders:
     tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: False
-    forward_everything: False # whether forwarding everything regardless the hashtag
+    forward_everything: False # whether forwarding everything regardless of the hashtag
     mention_override:
       - tag: "#important"
         roles: ["everyone", "here", "@Admin"]
@@ -90,12 +92,27 @@ telegram_forwarders:
       - name: "#example3"
         override_mention_everyone: True
       - name: "#example4"
+    excluded_hashtags:
+      - name: "#sponsored"
+      - name: "#sponsor"
 ```
 
 Finally, start the bridge and watch the magic happen:
 
 ```bash
-python app.py --start
+python app.py --start  # it will start the bridge in the foreground
+```
+
+```bash
+python app.py --start --background  # it will start the bridge in background
+```
+
+```bash
+python app.py --start --background --log-to-file  # It will start the bridge in the background and enable logging to file
+```
+
+```bash
+python app.py --start --background --log-to-file --debug  # It will start the bridge in the background, enable logging to file, and allow the debug mode
 ```
 
 You can control the process with a stop command:
@@ -112,7 +129,7 @@ In addition to text messages, the bridge can forward media files such as photos,
 
 ### Limitations
 
-Currently, a local' JSON' file is the sole storage supported to maintain the correspondence between Telegram and Discord. It implies that you figure out how to rotate the file, or it will grow out of proportion. **I'm working on a solution to store the history in databases, Redis, and KV storage, but it still needs to be prepared.**
+A local `JSON` file is the sole storage supported to maintain the correspondence between Telegram and Discord. It implies that you figure out how to rotate the file, or it will grow out of proportion. **I'm working on a solution to store the history in databases, Redis, and KV storage, but it still needs to be prepared.**
 
 ## License
 

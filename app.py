@@ -267,7 +267,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.debug:
+    if args.debug is True:
         init_logger(log_level="DEBUG", log_to_file=args.log_to_file)
     else:
         init_logger(log_level="INFO", log_to_file=args.log_to_file)
