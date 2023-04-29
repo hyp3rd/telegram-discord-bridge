@@ -54,3 +54,6 @@ telegram_forwarders:
       - name: "#example3"
         override_mention_everyone: True
       - name: "#example4"
+    excluded_hashtags:
+      - name: "#sponsored"
+      - name: "#sponsor"

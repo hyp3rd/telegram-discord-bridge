@@ -14,8 +14,6 @@ class AppConfig:  # pylint: disable=too-few-public-methods
 
     def __init__(self, config_data):
         self.name = config_data["app_name"]
-        self.log_level = config_data["log_level"]
-        self.log_to_file = config_data["log_to_file"]
 
 
 class TelegramConfig:  # pylint: disable=too-few-public-methods
@@ -187,6 +185,23 @@ class Config:
                                 shared_hashtags, tg_channel_id)
                     tg_channel_hashtags[tg_channel_id].append(forward_hashtags)
 
+    @staticmethod
+    def validate_hashtags_overlap(forwarder, forward_hashtags, excluded_hashtags):
+        """Check for overlapping hashtags between forward_hashtags and excluded_hashtags"""
+        tg_channel_id = forwarder["tg_channel_id"]
+        forward_hashtags_names = {tag["name"].lower()
+                                  for tag in forward_hashtags}
+        excluded_hashtags_names = {tag["name"].lower()
+                                   for tag in excluded_hashtags}
+        common_hashtags = forward_hashtags_names.intersection(
+            excluded_hashtags_names)
+        if common_hashtags:
+            logger.error(
+                "Invalid configuration: overlapping hashtags %s found in forward_hashtags and excluded_hashtags for forwarder with `tg_channel_id` %s",
+                common_hashtags,
+                tg_channel_id)
+            sys.exit(1)
+
     @ staticmethod
     def get_forward_hashtags(forwarder):
         """Get forward_hashtags from forwarder or set an empty list."""
@@ -206,7 +221,19 @@ class Config:
 
         return forward_hashtags
 
-    def get_telegram_channel_by_forwarder_name(self, forwarder_name: int):
+    @staticmethod
+    def get_excluded_hashtags(forwarder):
+        """Get exclude_hashtags from forwarder or set an empty list."""
+        if "excluded_hashtags" in forwarder:
+            excluded_hashtags = forwarder["excluded_hashtags"]
+        else:
+            logger.debug(
+                "No excluded hashtags found for forwarder with `tg_channel_id` %s", forwarder["tg_channel_id"])
+            excluded_hashtags = []
+
+        return excluded_hashtags
+
+    def get_telegram_channel_by_forwarder_name(self, forwarder_name: str):
         """Get the Telegram channel ID associated with a given forwarder ID."""
         for forwarder in self.telegram_forwarders:
             if forwarder["forwarder_name"] == forwarder_name:
@@ -223,11 +250,17 @@ class Config:
 
         for forwarder in forwarders:
             forward_hashtags = Config.get_forward_hashtags(forwarder)
+            excluded_hashtags = Config.get_excluded_hashtags(forwarder)
 
             Config.validate_forwarder_types(forwarder)
+
             Config.validate_forwarder_combinations(
                 forwarder, forwarder_combinations)
+
             Config.validate_mention_everyone_and_override(
                 forwarder, forward_hashtags)
+
+            Config.validate_hashtags_overlap(
+                forwarder, forward_hashtags, excluded_hashtags)
 
         Config.validate_shared_hashtags(forwarders)

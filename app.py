@@ -267,9 +267,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.debug:
+    if args.debug is True:
+        print("args.debug is True")
         init_logger(log_level="DEBUG", log_to_file=args.log_to_file)
     else:
+        print("args.debug is False")
         init_logger(log_level="INFO", log_to_file=args.log_to_file)
 
     logger = app_logger()
