@@ -11,12 +11,12 @@ from typing import Tuple
 import discord
 from telethon import TelegramClient
 
-from bridge import start
-from config import Config
-from discord_handler import start_discord
-from healtcheck_handler import healthcheck
-from logger import app_logger, init_logger
-from telegram_handler import start_telegram_client
+from bridge.config import Config
+from bridge.core import on_restored_connectivity, start
+from bridge.discord_handler import start_discord
+from bridge.healtcheck_handler import healthcheck
+from bridge.logger import Logger
+from bridge.telegram_handler import start_telegram_client
 
 
 def create_pid_file() -> str:
@@ -49,6 +49,7 @@ def determine_process_state(pid_file: str) -> Tuple[str, int]:
     if not os.path.isfile(pid_file):
         return "stopped", 0
 
+    pid = 0
     try:
         with open(pid_file, "r", encoding="utf-8") as bot_pid_file:
             pid = int(bot_pid_file.read().strip())
@@ -137,7 +138,8 @@ async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
 
     # Disconnect clients
     if tgc.is_connected():
-        await tgc.disconnect()
+        # await tgc.disconnect()
+        tgc.disconnect()
     if dcl.is_ready():
         await dcl.close()
 
@@ -155,7 +157,7 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
     # Set signal handlers
     for sig in (signal.SIGINT, signal.SIGTERM):
         event_loop.add_signal_handler(
-            sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))
+            sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
 
     try:
         # Create tasks for starting the main logic and waiting for clients to disconnect
@@ -163,7 +165,7 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
             start(telegram_client_instance, discord_client_instance, config)
         )
         telegram_wait_task = asyncio.create_task(
-            telegram_client_instance.run_until_disconnected()
+            telegram_client_instance.run_until_disconnected()  # type: ignore
         )
         discord_wait_task = asyncio.create_task(
             discord_client_instance.wait_until_ready()
@@ -171,8 +173,19 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
         api_healthcheck_task = asyncio.create_task(
             healthcheck(telegram_client_instance, discord_client_instance)
         )
+        on_restored_connectivity_task = asyncio.create_task(
+            on_restored_connectivity(
+                config=config,
+                telegram_client=telegram_client_instance,
+                discord_client=discord_client_instance)
+        )
 
-        await asyncio.gather(start_task, telegram_wait_task, discord_wait_task, api_healthcheck_task)
+        await asyncio.gather(start_task,
+                             telegram_wait_task,
+                             discord_wait_task,
+                             api_healthcheck_task,
+                             on_restored_connectivity_task)
+
     except asyncio.CancelledError:
         logger.warning("CancelledError caught, shutting down...")
     except Exception as ex:  # pylint: disable=broad-except
@@ -259,25 +272,36 @@ if __name__ == "__main__":
     parser.add_argument("--background", action="store_true",
                         help="Run the bridge in the background (forked).")
 
-    parser.add_argument("--debug", action="store_true",
-                        help="Enable debug level logging and actions.")
-
-    parser.add_argument(
-        "--log-to-file", action="store_true", help="Log to file.")
+    parser.add_argument("--version", action="store_true",
+                        help="Get the Bridge version.")
 
     args = parser.parse_args()
 
-    if args.debug is True:
-        init_logger(log_level="DEBUG", log_to_file=args.log_to_file)
-    else:
-        init_logger(log_level="INFO", log_to_file=args.log_to_file)
-
-    logger = app_logger()
-
     config = Config()
+    logger = Logger.init_logger(config.app.name, config.logger)
+
+    if args.version:
+        print(f'The Bridge\nv{config.app.version}')
+        sys.exit(0)
 
     if args.start:
+        logger.info("%s is starting", config.app.name)
+        logger.info("Version: %s", config.app.version)
+        logger.info("Description: %s", config.app.description)
+        logger.info("Log level: %s", config.logger.level)
+        logger.info("Debug enabled: %s", config.app.debug)
         if args.background:
+            logger.info("Running %s in the background", config.app.name)
+            if os.name != "posix":
+                logger.error(
+                    "Background mode is only supported on POSIX systems")
+                sys.exit(1)
+
+            if config.logger.console is True:
+                logger.error(
+                    "Background mode requires console logging to be disabled")
+                sys.exit(1)
+
             logger.info("Starting %s in the background...", config.app.name)
             daemonize_process()
 

@@ -5,9 +5,11 @@ from telethon.tl.types import (MessageEntityBold, MessageEntityCode,
                                MessageEntityItalic, MessageEntityPre,
                                MessageEntityStrike, MessageEntityTextUrl)
 
-from logger import app_logger
+from bridge.config import Config
+from bridge.logger import Logger
 
-logger = app_logger()
+config = Config()
+logger = Logger.get_logger(config.app.name)
 
 
 def split_message(message: str, max_length: int = 2000) -> List[str]:

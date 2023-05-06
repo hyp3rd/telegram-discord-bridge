@@ -6,15 +6,15 @@ from telethon import TelegramClient
 from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
                                MessageEntityUrl)
 
-from config import Config
-from discord_handler import forward_to_discord
-from logger import app_logger
-from openai_handler import analyze_message_sentiment
-from utils import telegram_entities_to_markdown
+from bridge.config import Config
+from bridge.discord_handler import forward_to_discord
+from bridge.logger import Logger
+from bridge.openai_handler import analyze_message_sentiment
+from bridge.utils import telegram_entities_to_markdown
+
+logger = Logger.get_logger(Config().app.name)
 
 tg_to_discord_message_ids = {}
-
-logger = app_logger()
 
 
 async def start_telegram_client(config: Config) -> TelegramClient:

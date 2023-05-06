@@ -37,34 +37,51 @@ Now craft a new `config.yml` file in the root directory, starting from the `conf
 
 ```yaml
 ---
-app_name: "<your app name>"
+# Basic application configuration
+application:
+  name: "hyp3rbridg3"
+  version: "1.1.1"
+  description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
+  debug: True
 
-# Your Telegram phone number | With quotes
-telegram_phone: "<your phone number>"
+# logger setup
+logger:
+  level: "DEBUG" # NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file_max_bytes: 10485760 # 10MB
+  file_backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+  console: False # set to true to enable console logging and disable file based logging
 
-# Your Telegram password (Two-step verification) | With quotes
-telegram_password: "<your password>"
+# Telegram configuration
+telegram:
+  # Your Telegram phone number | With quotes
+  phone: "<your phone number>"
+  # Your Telegram password (Two-step verification) | With quotes
+  password: "<your password>"
+  # This has to be an integer. Read more [here](https://core.telegram.org/api/obtaining_api_id) | No quotes
+  api_id: <your api id>
+  # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
+  api_hash: "<your api hash>"
 
-# This has to be an integer. Read more [here](https://core.telegram.org/api/obtaining_api_id) | No quotes
-telegram_api_id: <your api id>
+# Discord configuration
+discord:
+  # Discord Bot Token. Go create a bridge on discord. | No quotes
+  bot_token: "<your bot token>"
+  # built-in roles in discord, they need special attention when parsing thee name to mention
+  built_in_roles: ["everyone", "here", "@Admin"]
 
-# Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
-telegram_api_hash: "<your API hash>"
-
-# Discord Bot Token. To create a bridge on Discord. | No quotes
-discord_bot_token: <your discord bridge token>
-
-# Built-in roles in Discord, need special attention when parsing the name to mention
-discord_built_in_roles: ["everyone," "here," "@Admin"]
-
-# OpenAI API Key and Organization. Read more [here](https://beta.openai.com/docs/api-reference)
-openai_api_key: "<your openai API key>"
-openai_organization: "<your openai organization>"
-openai_enabled: False
-openai_sentiment_analysis_prompt:
-  - "Analyze the following text to determine its sentiment: #text_to_parse.\n\n"
-  - "<add the rest of your prompt, if any, here>.\n\n"
-  - "<add the rest of your prompt, if any, here>.\n\n"
+# OpenAI configuration
+openai:
+  # OpenAI API Key and Organization. Read more [here](https://beta.openai.com/docs/api-reference)
+  api_key: "<your openai api key>"
+  organization: "<your openai organization>"
+  enabled: False
+  # The prompt to use for OpenAI, the #text_to_parse will be appended to this prompt
+  sentiment_analysis_prompt:
+    - "Analyze the following text to determine its sentiment: #text_to_parse.\n\n"
+    - "<add the rest of your prompt, if any, here>.\n\n"
+    - "<add the rest of your prompt, if any, here>.\n\n"
 
 # The channels map to discord channels.
 telegram_forwarders:
@@ -72,7 +89,7 @@ telegram_forwarders:
     tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: True
-    forward_everything: False # whether forwarding everything regardless of the hashtag
+    forward_everything: False # whether forwarding everything regardless the hashtag
     forward_hashtags:
       - name: "#example1"
         override_mention_everyone: True
@@ -82,7 +99,7 @@ telegram_forwarders:
     tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
     mention_everyone: False
-    forward_everything: False # whether forwarding everything regardless of the hashtag
+    forward_everything: False # whether forwarding everything regardless the hashtag
     mention_override:
       - tag: "#important"
         roles: ["everyone", "here", "@Admin"]
@@ -104,15 +121,7 @@ python app.py --start  # it will start the bridge in the foreground
 ```
 
 ```bash
-python app.py --start --background  # it will start the bridge in background
-```
-
-```bash
-python app.py --start --background --log-to-file  # It will start the bridge in the background and enable logging to file
-```
-
-```bash
-python app.py --start --background --log-to-file --debug  # It will start the bridge in the background, enable logging to file, and allow the debug mode
+python app.py --start --background  # it will start the bridge in background, requires the `Logger` console set to False
 ```
 
 You can control the process with a stop command:

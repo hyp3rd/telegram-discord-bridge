@@ -1,50 +1,61 @@
 """Configuration handler."""
 import sys
-from typing import Any
+from typing import Any, List
 
 import yaml
-
-from logger import app_logger
-
-logger = app_logger()
 
 
 class AppConfig:  # pylint: disable=too-few-public-methods
     """Application configuration handler."""
 
     def __init__(self, config_data):
-        self.name = config_data["app_name"]
+        self.name: str = config_data["name"]
+        self.version = config_data["version"]
+        self.description = config_data["description"]
+        self.debug = config_data["debug"]
+
+
+class LoggerConfig:  # pylint: disable=too-few-public-methods
+    """Logger configuration handler."""
+
+    def __init__(self, config_data):
+        self.level = config_data["level"]
+        self.file_max_bytes = config_data["file_max_bytes"]
+        self.file_backup_count = config_data["file_backup_count"]
+        self.format = config_data["format"]
+        self.date_format = config_data["date_format"]
+        self.console = config_data["console"]
 
 
 class TelegramConfig:  # pylint: disable=too-few-public-methods
     """Telegram configuration handler."""
 
     def __init__(self, config_data):
-        self.phone = config_data["telegram_phone"]
-        self.password = config_data["telegram_password"]
-        self.api_id = config_data["telegram_api_id"]
-        self.api_hash = config_data["telegram_api_hash"]
+        self.phone = config_data["phone"]
+        self.password: str = config_data["password"]
+        self.api_id: int = config_data["api_id"]
+        self.api_hash: str = config_data["api_hash"]
 
 
 class DiscordConfig:  # pylint: disable=too-few-public-methods
     """Discord configuration handler."""
 
     def __init__(self, config_data):
-        self.bot_token = config_data["discord_bot_token"]
-        self.built_in_roles = config_data["discord_built_in_roles"]
+        self.bot_token: str = config_data["bot_token"]
+        self.built_in_roles: List[str] = config_data["built_in_roles"]
 
 
 class OpenAIConfig:  # pylint: disable=too-few-public-methods
     """OpenAI configuration handler."""
 
     def __init__(self, config_data):
-        self.api_key = config_data["openai_api_key"]
-        self.organization = config_data["openai_organization"]
-        self.enabled = config_data["openai_enabled"]
-        self.sentiment_analysis_prompt = config_data["openai_sentiment_analysis_prompt"]
+        self.api_key: str = config_data["api_key"]
+        self.organization: str = config_data["organization"]
+        self.enabled: bool = config_data["enabled"]
+        self.sentiment_analysis_prompt = config_data["sentiment_analysis_prompt"]
 
 
-class Config:
+class Config:  # pylint: disable=too-many-instance-attributes
     """Configuration handler."""
     _instance = None
 
@@ -56,68 +67,68 @@ class Config:
     def __init__(self):
         if not hasattr(self, "_initialized"):
             self._initialized = True
-            self.app = None
-            self.telegram = None
-            self.discord = None
-            self.openai = None
-            self.telegram_forwarders = None
-            self.load_config()
 
-    def load_config(self) -> Any:
+            self.app: AppConfig
+            self.logger: LoggerConfig
+            self.telegram: TelegramConfig
+            self.discord: DiscordConfig
+            self.openai: OpenAIConfig
+            self.telegram_forwarders = []
+
+            self.load()
+
+    def load(self) -> Any:
         """Load configuration from the 'config.yml' file."""
         try:
             with open('config.yml', 'rb') as config_file:
                 config_data = yaml.safe_load(config_file)
         except FileNotFoundError:
-            logger.error("Error: Configuration file 'config.yml' not found.")
+            print("Error: Configuration file 'config.yml' not found.")
             sys.exit(1)
         except yaml.YAMLError as ex:
-            logger.error("Error parsing configuration file: %s", ex)
+            print("Error parsing configuration file: %s", ex)
             sys.exit(1)
 
         required_keys = [
-            "app_name",
-            "telegram_phone",
-            "telegram_password",
-            "telegram_api_id",
-            "telegram_api_hash",
-            "discord_bot_token",
-            "discord_built_in_roles",
+            "application",
+            "logger",
+            "telegram",
+            "discord",
             "telegram_forwarders",
         ]
 
         for key in required_keys:
             if key not in config_data:
-                logger.error(
+                print(
                     "Error: Key '%s' not found in the configuration file.", key)
                 sys.exit(1)
 
-        # warning: logging the `config_data` will print sensitive data in the console
-        logger.debug(config_data)
-
         Config.validate_config(config_data)
 
-        self.app = AppConfig(config_data)
-        self.telegram = TelegramConfig(config_data)
-        self.discord = DiscordConfig(config_data)
-        self.openai = OpenAIConfig(config_data)
+        self.app = AppConfig(config_data["application"])
+        self.logger = LoggerConfig(config_data["logger"])
+        self.telegram = TelegramConfig(config_data["telegram"])
+        self.discord = DiscordConfig(config_data["discord"])
+        self.openai = OpenAIConfig(config_data["openai"])
+
+        self.telegram_forwarders = config_data["telegram_forwarders"]
+
         self.status = {
-            "internet_connected": True,
-            "telegram_available": True,
-            "discord_available": True,
+            "internet_connected": False,
+            "telegram_available": False,
+            "discord_available": False,
             "openai_available": True,
         }
-        self.telegram_forwarders = config_data["telegram_forwarders"]
 
         return config_data
 
     @ staticmethod
-    def validate_openai_enabled(config):
+    def validate_openai_enabled(config: OpenAIConfig):
         """Check for valid types"""
-        if config["openai_enabled"]:
-            if config["openai_api_key"] == "" or config["openai_organization"] == "" or config["openai_sentiment_analysis_prompt"] is None:
-                logger.error(
-                    "Invalid configuration: `openai_api_key`, `openai_organization`, and `openai_sentiment_analysis_prompt` must be set when `openai_enabled` is True.")  # pylint: disable=line-too-long
+        if config["enabled"]:
+            if config["api_key"] == "" or config["organization"] == "" or config["sentiment_analysis_prompt"] is None:
+                print(
+                    "Invalid configuration: `api_key`, `organization`, and `sentiment_analysis_prompt` must be set when `enabled` is True.")  # pylint: disable=line-too-long
                 sys.exit(1)
 
     @ staticmethod
@@ -127,13 +138,13 @@ class Config:
         discord_channel_id = forwarder["discord_channel_id"]
 
         if not isinstance(tg_channel_id, int):
-            logger.error(
+            print(
                 "Invalid configuration: `tg_channel_id` must be an integer: forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
                 tg_channel_id)
             sys.exit(1)
 
         if not isinstance(discord_channel_id, int):
-            logger.error(
+            print(
                 "Invalid configuration: `discord_channel_id` must be an integer: forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
                 tg_channel_id)
             sys.exit(1)
@@ -146,7 +157,7 @@ class Config:
 
         combination = (tg_channel_id, discord_channel_id)
         if combination in forwarder_combinations:
-            logger.error(
+            print(
                 "Invalid configuration: duplicate forwarder with combination %s", combination)
             sys.exit(1)
         forwarder_combinations.add(combination)
@@ -158,7 +169,7 @@ class Config:
         mention_everyone = forwarder["mention_everyone"]
 
         if mention_everyone and any(tag.get("override_mention_everyone", False) for tag in forward_hashtags):
-            logger.error(
+            print(
                 "Invalid configuration: `override_mention_everyone` has no effect when `mention_everyone` set to True: forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
                 tg_channel_id)
             sys.exit(1)
@@ -180,7 +191,7 @@ class Config:
                         shared_hashtags = existing_hashtags.intersection(
                             forward_hashtags)
                         if shared_hashtags:
-                            logger.warning(
+                            print(
                                 "Shared hashtags %s found for forwarders with tg_channel_id %s. The same message will be forwarded multiple times.",
                                 shared_hashtags, tg_channel_id)
                     tg_channel_hashtags[tg_channel_id].append(forward_hashtags)
@@ -196,7 +207,7 @@ class Config:
         common_hashtags = forward_hashtags_names.intersection(
             excluded_hashtags_names)
         if common_hashtags:
-            logger.error(
+            print(
                 "Invalid configuration: overlapping hashtags %s found in forward_hashtags and excluded_hashtags for forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
                 common_hashtags,
                 tg_channel_id)
@@ -209,10 +220,10 @@ class Config:
             forward_hashtags = forwarder["forward_hashtags"]
         else:
             tg_channel_id = forwarder["tg_channel_id"]
-            logger.debug(
-                "No hashtags found for forwarder with `tg_channel_id` %s", tg_channel_id)
+            # print(
+            #     "No hashtags found for forwarder with `tg_channel_id` %s", tg_channel_id)
             if not forwarder["forward_everything"]:
-                logger.error(
+                print(
                     "Invalid configuration: forwarder with `tg_channel_id` %s must either forward everything or forward hashtags",  # pylint: disable=line-too-long
                     tg_channel_id)
                 sys.exit(1)
@@ -221,32 +232,13 @@ class Config:
 
         return forward_hashtags
 
-    @staticmethod
-    def get_excluded_hashtags(forwarder):
-        """Get exclude_hashtags from forwarder or set an empty list."""
-        if "excluded_hashtags" in forwarder:
-            excluded_hashtags = forwarder["excluded_hashtags"]
-        else:
-            logger.debug(
-                "No excluded hashtags found for forwarder with `tg_channel_id` %s", forwarder["tg_channel_id"])
-            excluded_hashtags = []
-
-        return excluded_hashtags
-
-    def get_telegram_channel_by_forwarder_name(self, forwarder_name: str):
-        """Get the Telegram channel ID associated with a given forwarder ID."""
-        for forwarder in self.telegram_forwarders:
-            if forwarder["forwarder_name"] == forwarder_name:
-                return forwarder["tg_channel_id"]
-        return None
-
     @ staticmethod
     def validate_config(config):
         """Validate the configuration."""
         forwarders = config["telegram_forwarders"]
         forwarder_combinations = set()
 
-        Config.validate_openai_enabled(config)
+        Config.validate_openai_enabled(config["openai"])
 
         for forwarder in forwarders:
             forward_hashtags = Config.get_forward_hashtags(forwarder)
@@ -264,3 +256,22 @@ class Config:
                 forwarder, forward_hashtags, excluded_hashtags)
 
         Config.validate_shared_hashtags(forwarders)
+
+    @staticmethod
+    def get_excluded_hashtags(forwarder):
+        """Get exclude_hashtags from forwarder or set an empty list."""
+        if "excluded_hashtags" in forwarder:
+            excluded_hashtags = forwarder["excluded_hashtags"]
+        else:
+            # print(
+            #     "No excluded hashtags found for forwarder with `tg_channel_id` %s", forwarder["tg_channel_id"])
+            excluded_hashtags = []
+
+        return excluded_hashtags
+
+    def get_telegram_channel_by_forwarder_name(self, forwarder_name: str):
+        """Get the Telegram channel ID associated with a given forwarder ID."""
+        for forwarder in self.telegram_forwarders:
+            if forwarder["forwarder_name"] == forwarder_name:
+                return forwarder["tg_channel_id"]
+        return None

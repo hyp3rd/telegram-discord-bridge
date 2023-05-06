@@ -6,15 +6,16 @@ from typing import List, Optional
 import aiofiles
 from telethon import TelegramClient
 
-from logger import app_logger
+from bridge.config import Config
+from bridge.logger import Logger
+
+logger = Logger.get_logger(Config().app.name)
 
 MESSAGES_MAPPING_HISTORY_FILE = "messages_mapping_history.json"
 
-logger = app_logger()
 
-
-class MessageHistoryManager:
-    """Messages history manager."""
+class MessageHistoryHandler:
+    """Messages history handler."""
     _instance = None
 
     def __new__(cls):
@@ -43,7 +44,7 @@ class MessageHistoryManager:
         if forwarder_name not in mapping_data:
             mapping_data[forwarder_name] = {}
 
-        tg_message_id = str(tg_message_id)
+        # tg_message_id = str(tg_message_id)
         mapping_data[forwarder_name][tg_message_id] = discord_message_id
 
         async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
@@ -57,7 +58,7 @@ class MessageHistoryManager:
         forwarder_data = mapping_data.get(forwarder_name, None)
 
         if forwarder_data is not None:
-            tg_message_id = str(tg_message_id)
+            # tg_message_id = str(tg_message_id)
             return forwarder_data.get(tg_message_id, None)
 
         return None
@@ -78,7 +79,9 @@ class MessageHistoryManager:
 
     async def fetch_messages_after(self, last_tg_message_id: int, channel_id: int, tgc: TelegramClient) -> List:
         """Fetch messages after the last TG message ID."""
+        logger.debug("Fetching messages after %s", last_tg_message_id)
         messages = []
-        async for message in tgc.iter_messages(channel_id, offset_id=last_tg_message_id):
+        async for message in tgc.iter_messages(channel_id, offset_id=last_tg_message_id, reverse=True):
+            logger.debug("Fetched message: %s", message.id)
             messages.append(message)
         return messages

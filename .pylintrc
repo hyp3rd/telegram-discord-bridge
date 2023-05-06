@@ -1,2 +1,4 @@
 [FORMAT]
 max-line-length=150
+[TYPECHECK]
+ignored-classes=Config

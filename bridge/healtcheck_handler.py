@@ -7,11 +7,12 @@ from concurrent.futures import ThreadPoolExecutor
 import discord
 from telethon import TelegramClient
 
-from config import Config
-from logger import app_logger
+from bridge.config import Config
+from bridge.logger import Logger
 
-logger = app_logger()
 config = Config()
+logger = Logger.get_logger(config.app.name)
+
 executor = ThreadPoolExecutor()
 
 
