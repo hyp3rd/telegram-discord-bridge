@@ -5,11 +5,12 @@ import functools
 import openai
 import openai.error
 
-from config import Config
-from logger import app_logger
+from bridge.config import Config
+from bridge.logger import Logger
 
-logger = app_logger()
 config = Config()
+logger = Logger.get_logger(config.app.name)
+
 
 openai.api_key = config.openai.api_key
 openai.organization = config.openai.organization

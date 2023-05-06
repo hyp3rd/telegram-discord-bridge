@@ -1,18 +1,20 @@
 """Discord handler."""
 import asyncio
 import sys
-from typing import List
+from typing import List, Sequence
 
 import discord
-from discord import MessageReference, TextChannel, Thread
+from discord import Message, MessageReference, TextChannel
 
-from config import Config
-from history import MessageHistoryManager
-from logger import app_logger
-from utils import split_message
+from bridge.config import Config
+from bridge.history import MessageHistoryHandler
+from bridge.logger import Logger
+from bridge.utils import split_message
 
-logger = app_logger()
-history_manager = MessageHistoryManager()
+# from discord.abc import GuildChannel, PrivateChannel,
+
+logger = Logger.get_logger(Config().app.name)
+history_manager = MessageHistoryHandler()
 
 
 async def start_discord(config: Config) -> discord.Client:
@@ -22,7 +24,7 @@ async def start_discord(config: Config) -> discord.Client:
             logger.info("Starting Discord client...")
             await discord_client.start(token)
             logger.info("Discord client started the session: %s, with identity: %s",
-                        config.app_name, discord_client.user.id)
+                        config.app.name, discord_client.user.id)
         except (discord.LoginFailure, TypeError) as login_failure:
             logger.error(
                 "Error while connecting to Discord: %s", login_failure)
@@ -34,9 +36,11 @@ async def start_discord(config: Config) -> discord.Client:
 
     return discord_client
 
+#  -> Optional[Union[GuildChannel, Thread, PrivateChannel]]:
 
-async def forward_to_discord(discord_channel: TextChannel | Thread | None, message_text: str,
-                             image_file=None, reference=None):
+
+async def forward_to_discord(discord_channel: TextChannel, message_text: str,
+                             image_file=None, reference: MessageReference = ...) -> List[Message]:
     """Send a message to Discord."""
     sent_messages = []
     message_parts = split_message(message_text)
@@ -62,7 +66,7 @@ async def forward_to_discord(discord_channel: TextChannel | Thread | None, messa
     return sent_messages
 
 
-async def fetch_discord_reference(event, forwarder_name: str, discord_channel):
+async def fetch_discord_reference(event, forwarder_name: str, discord_channel) -> MessageReference | None:
     """Fetch the Discord message reference."""
     discord_message_id = await history_manager.get_discord_message_id(
         forwarder_name,
@@ -96,7 +100,7 @@ async def fetch_discord_reference(event, forwarder_name: str, discord_channel):
 def get_mention_roles(message_forward_hashtags: List[str],
                       mention_override: dict,
                       discord_built_in_roles: List[str],
-                      server_roles: List[discord.Role]) -> List[str]:
+                      server_roles: Sequence[discord.Role]) -> List[str]:
     """Get the roles to mention."""
     mention_roles = set()
 
