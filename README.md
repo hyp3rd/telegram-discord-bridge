@@ -40,7 +40,7 @@ Now craft a new `config.yml` file in the root directory, starting from the `conf
 # Basic application configuration
 application:
   name: "hyp3rbridg3"
-  version: "1.1.1"
+  version: "1.1.4"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   debug: True
   # healtcheck interval in seconds
