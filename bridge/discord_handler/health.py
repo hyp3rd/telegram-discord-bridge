@@ -14,10 +14,6 @@ class DiscordClientHealth:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
-        if not hasattr(self, "_initialized"):
-            self._initialized = True
-
     @staticmethod
     def report_status(client: discord.Client, bot_max_latency: float) -> Tuple[str, bool]:
         """Report the health status of a Discord Client"""
