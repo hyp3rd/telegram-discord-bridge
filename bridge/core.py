@@ -89,7 +89,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
 async def handle_new_message(event, config: Config, telegram_client: TelegramClient, discord_client: discord.Client):  # pylint: disable=too-many-locals
     """Handle the processing of a new Telegram message."""
-    logger.debug(event)
+    logger.debug("processing Telegram message: %s", event.message.id)
 
     tg_channel_id = event.message.peer_id.channel_id
 
@@ -214,7 +214,7 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
                     for fetched_message in fetched_messages:
 
                         logger.debug(
-                            "Fetched message %s from channel %s", fetched_message, channel_id)
+                            "Recovered message %s from channel %s", fetched_message.id, channel_id)
                         event = events.NewMessage.Event(
                             message=fetched_message)
                         event.peer = await telegram_client.get_input_entity(
@@ -225,10 +225,10 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
                                            event.message.id)
                             await queued_events.put(event)
                         else:
-                            # delay the message tdelivery to avoid rate limit and flood
-                            await asyncio.sleep(60)
+                            # delay the message delivery to avoid rate limit and flood
+                            await asyncio.sleep(config.app.recoverer_delay)
                             logger.debug(
-                                "Forwarding TG message %s", event.message.id)
+                                "Forwarding recovered Telegram message %s", event.message.id)
                             await handle_new_message(event, config,
                                                      telegram_client,
                                                      discord_client)
@@ -236,6 +236,7 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
             logger.error(
                 "Failed to fetch missed messages: %s", exception)
 
-    logger.debug("Sleeping for 5 second")
-    await asyncio.sleep(5)
+    logger.debug("on_restored_connectivity will trigger again in for %s seconds",
+                 config.app.healthcheck_interval)
+    await asyncio.sleep(config.app.healthcheck_interval)
     await on_restored_connectivity(config, telegram_client, discord_client)

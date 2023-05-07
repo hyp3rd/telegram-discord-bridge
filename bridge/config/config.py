@@ -13,6 +13,8 @@ class AppConfig:  # pylint: disable=too-few-public-methods
         self.version = config_data["version"]
         self.description = config_data["description"]
         self.debug = config_data["debug"]
+        self.healthcheck_interval = config_data["healthcheck_interval"]
+        self.recoverer_delay = config_data["recoverer_delay"]
 
 
 class LoggerConfig:  # pylint: disable=too-few-public-methods
@@ -43,6 +45,7 @@ class DiscordConfig:  # pylint: disable=too-few-public-methods
     def __init__(self, config_data):
         self.bot_token: str = config_data["bot_token"]
         self.built_in_roles: List[str] = config_data["built_in_roles"]
+        self.max_latency: float = config_data["max_latency"]
 
 
 class OpenAIConfig:  # pylint: disable=too-few-public-methods
@@ -100,7 +103,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
         for key in required_keys:
             if key not in config_data:
                 print(
-                    "Error: Key '%s' not found in the configuration file.", key)
+                    "Error: Key %s not found in the configuration file.", key)
                 sys.exit(1)
 
         Config.validate_config(config_data)

@@ -31,7 +31,7 @@ Next, follow the instructions here (don't worry, they won't bite):
 1. Install **Python 3.10** or higher and set up a virtual environment;
 2. Install the dependencies: `pip install -r requirements.txt`
 3. Set up a [**Telegram Application**](https://core.telegram.org/api/obtaining_api_id) and obtain the API creds.
-4. Set up a Discord bridge with the necessary permissions to read and write the messages,5. and obtain the bridge token.
+4. Set up a Discord bridge with the necessary permissions to read and write the messages, and obtain the bridge token.
 
 Now craft a new `config.yml` file in the root directory, starting from the `config-example.yml` file:
 
@@ -43,6 +43,10 @@ application:
   version: "1.1.1"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   debug: True
+  # healtcheck interval in seconds
+  healthcheck_interval: 60
+  # The time in seconds to wait before forwarding each missed message
+  recoverer_delay: 60
 
 # logger setup
 logger:

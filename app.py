@@ -171,7 +171,8 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
             discord_client_instance.wait_until_ready()
         )
         api_healthcheck_task = asyncio.create_task(
-            healthcheck(telegram_client_instance, discord_client_instance)
+            healthcheck(telegram_client_instance,
+                        discord_client_instance, config.app.healthcheck_interval)
         )
         on_restored_connectivity_task = asyncio.create_task(
             on_restored_connectivity(

@@ -8,10 +8,13 @@ import discord
 from telethon import TelegramClient
 
 from bridge.config import Config
+from bridge.discord_handler import DiscordClientHealth
 from bridge.logger import Logger
 
 config = Config()
 logger = Logger.get_logger(config.app.name)
+
+discord__client_health = DiscordClientHealth()
 
 executor = ThreadPoolExecutor()
 
@@ -66,11 +69,19 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
 
     # Check Discord API status
     try:
-        if dcl.is_ready():
-            await dcl.fetch_user(dcl.user.id)
+        discord_status, is_healthy = discord__client_health.report_status(
+            dcl,  config.discord.max_latency)
+        if is_healthy:
             logger.debug("Discord API is healthy.")
             # set the Discord availability status to True
             config.status["discord_available"] = True
+        else:
+            logger.error(discord_status)
+        # if dcl.is_ready():
+        #     # await dcl.fetch_user(dcl.user.id)
+        #     logger.debug("Discord API is healthy.")
+        #     # set the Discord availability status to True
+        #     config.status["discord_available"] = True
     except Exception as ex:  # pylint: disable=broad-except
         logger.error(
             "An error occurred while connecting to the Discord API: %s", ex)
