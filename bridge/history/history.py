@@ -44,7 +44,6 @@ class MessageHistoryHandler:
         if forwarder_name not in mapping_data:
             mapping_data[forwarder_name] = {}
 
-        # tg_message_id = str(tg_message_id)
         mapping_data[forwarder_name][tg_message_id] = discord_message_id
 
         async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
@@ -58,7 +57,6 @@ class MessageHistoryHandler:
         forwarder_data = mapping_data.get(forwarder_name, None)
 
         if forwarder_data is not None:
-            # tg_message_id = str(tg_message_id)
             return forwarder_data.get(tg_message_id, None)
 
         return None

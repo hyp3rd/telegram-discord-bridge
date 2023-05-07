@@ -25,6 +25,7 @@ async def start_discord(config: Config) -> discord.Client:
             await discord_client.start(token)
             logger.info("Discord client started the session: %s, with identity: %s",
                         config.app.name, discord_client.user.id)
+            await discord_client.connect(reconnect=True)
         except (discord.LoginFailure, TypeError) as login_failure:
             logger.error(
                 "Error while connecting to Discord: %s", login_failure)
