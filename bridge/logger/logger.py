@@ -2,7 +2,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
 from logging import StreamHandler
-from typing import Any
 from bridge.config import LoggerConfig
 
 
