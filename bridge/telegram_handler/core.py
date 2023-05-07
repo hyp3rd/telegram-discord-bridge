@@ -21,12 +21,20 @@ async def start_telegram_client(config: Config) -> TelegramClient:
     """Start the Telegram client."""
     logger.info("Starting Telegram client...")
 
+    telethon_logger = Logger.get_telethon_logger()
+    telethon_logger_handler = Logger.generate_handler(
+        f"{config.app.name}_telegram", config.logger)
+    telethon_logger.addHandler(telethon_logger_handler)
+
     telegram_client = TelegramClient(
         session=config.app.name,
         api_id=config.telegram.api_id,
         api_hash=config.telegram.api_hash,
         connection_retries=15,
-        retry_delay=4)
+        retry_delay=4,
+        base_logger=telethon_logger,
+        lang_code="en",
+        system_lang_code="en")
 
     await telegram_client.start(
         phone=config.telegram.phone,
@@ -48,7 +56,10 @@ def get_message_forward_hashtags(message):
     return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
 
 
-async def process_message_text(event, mention_everyone: bool, override_mention_everyone: bool, mention_roles: List[str], config: Config) -> str:
+async def process_message_text(event, mention_everyone: bool,
+                               override_mention_everyone: bool,
+                               mention_roles: List[str],
+                               config: Config) -> str:
     """Process the message text and return the processed text."""
     message_text = event.message.message
 
@@ -66,7 +77,9 @@ async def process_message_text(event, mention_everyone: bool, override_mention_e
     return telegram_entities_to_markdown(message_text, event.message.entities)
 
 
-async def process_media_message(telegram_client: TelegramClient, event, discord_channel, message_text, discord_reference):
+async def process_media_message(telegram_client: TelegramClient,
+                                event, discord_channel,
+                                message_text, discord_reference):
     """Process a message that contains media."""
     file_path = await telegram_client.download_media(event.message)
     with open(file_path, "rb") as image_file:

@@ -22,14 +22,23 @@ async def start_discord(config: Config) -> discord.Client:
     async def start_discord_client(discord_client: discord.Client, token: str):
         try:
             logger.info("Starting Discord client...")
+
+            # setup discord logger
+            discord_logging_handler = Logger.generate_handler(
+                f"{config.app.name}_discord", config.logger)
+            discord.utils.setup_logging(handler=discord_logging_handler)
+
             await discord_client.start(token)
             logger.info("Discord client started the session: %s, with identity: %s",
                         config.app.name, discord_client.user.id)
-            await discord_client.connect(reconnect=True)
+
         except (discord.LoginFailure, TypeError) as login_failure:
             logger.error(
                 "Error while connecting to Discord: %s", login_failure)
             sys.exit(1)
+        except discord.HTTPException as http_exception:
+            logger.critical(
+                "Discord client failed to connect with status: %s - %s", http_exception.status, http_exception.response.reason)
 
     discord_client = discord.Client(intents=discord.Intents.default())
     _ = asyncio.ensure_future(
