@@ -74,6 +74,8 @@ discord:
   bot_token: "<your bot token>"
   # built-in roles in discord, they need special attention when parsing thee name to mention
   built_in_roles: ["everyone", "here", "@Admin"]
+  # Discord Client max tolerable latency
+  max_latency: 0.5
 
 # OpenAI configuration
 openai:

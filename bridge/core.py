@@ -192,6 +192,7 @@ def get_matching_forwarders(tg_channel_id, config: Config):
 async def on_restored_connectivity(config: Config, telegram_client: TelegramClient, discord_client: discord.Client):
     """Check and restore internet connectivity."""
     logger.debug("Checking for internet connectivity")
+
     if config.status["internet_connected"] and config.status["telegram_available"] is True:
         logger.debug(
             "Internet connection active and Telegram is connected, checking for missed messages")
