@@ -7,4 +7,3 @@ try:
     import bridge.utils
 except ImportError as ex:
     raise ex
-xw
