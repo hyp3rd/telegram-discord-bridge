@@ -23,6 +23,19 @@ logger = Logger.get_logger(Config().app.name)
 history_manager = MessageHistoryHandler()
 
 queued_events = asyncio.Queue()
+queued_event_ids = set()  # Set to store the IDs of queued events
+
+
+async def add_to_queue(event):
+    """Add unique events to the queue."""
+    event_id = event.message.id  # This assumes that event.message.id is unique for each event
+    if event_id not in queued_event_ids:
+        await queued_events.put(event)
+        queued_event_ids.add(event_id)  # Add the event ID to the set
+        logger.info("Added event with ID %s to the queue", event_id)
+    else:
+        logger.info(
+            "Event with ID %s is already in the queue, skipping", event_id)
 
 
 async def start(telegram_client: TelegramClient, discord_client: discord.Client, config: Config):
@@ -67,9 +80,11 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
         """Dispatch queued events to Discord."""
         while not queued_events.empty():
             event = await queued_events.get()
-
+            event_id = event.message.id
             logger.info("Dispatching queued TG message")
             await handle_new_message(event, config, telegram_client, discord_client)
+            # Remove the event ID from the set
+            queued_event_ids.remove(event_id)
             queued_events.task_done()
 
     # Create tasks for dispatch_queued_events and handle_restored_internet_connectivity
@@ -79,10 +94,13 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
     async def handler(event):
         """Handle new messages in the specified Telegram channels."""
         if config.status["discord_available"] is False:
-            logger.warning(
-                "Discord is not available, queing TG message %s", event.message.id)
-            await queued_events.put(event)
+            await add_to_queue(event)
             return
+
+        event_id = event.message.id
+        if event_id in queued_event_ids:
+            # If the event was previously queued but Discord is now available, remove it from the set
+            queued_event_ids.remove(event_id)
 
         await asyncio.gather(dispatch_task, handle_new_message(event, config, telegram_client, discord_client))
 
@@ -224,15 +242,17 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
                         if config.status["discord_available"] is False:
                             logger.warning("Discord is not available despite the connectivty is restored, queing TG message %s",
                                            event.message.id)
-                            await queued_events.put(event)
-                        else:
-                            # delay the message delivery to avoid rate limit and flood
-                            await asyncio.sleep(config.app.recoverer_delay)
-                            logger.debug(
-                                "Forwarding recovered Telegram message %s", event.message.id)
-                            await handle_new_message(event, config,
-                                                     telegram_client,
-                                                     discord_client)
+                            # it might create duplicates
+                            await add_to_queue(event)
+                            continue
+                        # delay the message delivery to avoid rate limit and flood
+                        await asyncio.sleep(config.app.recoverer_delay)
+                        logger.debug(
+                            "Forwarding recovered Telegram message %s", event.message.id)
+                        await handle_new_message(event, config,
+                                                 telegram_client,
+                                                 discord_client)
+
         except Exception as exception:  # pylint: disable=broad-except
             logger.error(
                 "Failed to fetch missed messages: %s", exception)
