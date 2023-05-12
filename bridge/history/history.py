@@ -1,5 +1,6 @@
 """Messages history handler"""
 
+import asyncio
 import json
 from typing import List, Optional
 
@@ -22,34 +23,40 @@ class MessageHistoryHandler:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._mapping_data_cache = None
+            cls._lock = asyncio.Lock()
         return cls._instance
 
     async def load_mapping_data(self) -> dict:
         """Load the mapping data from the mapping file."""
-        if self._mapping_data_cache is None:
-            try:
-                async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "r", encoding="utf-8") as messages_mapping:
-                    data = json.loads(await messages_mapping.read())
-                    logger.debug("Loaded mapping data: %s", data)
-                    self._mapping_data_cache = data
-            except FileNotFoundError:
-                self._mapping_data_cache = {}
+        async with self._lock:
+            if self._mapping_data_cache is None:
+                try:
+                    async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "r", encoding="utf-8") as messages_mapping:
+                        data = json.loads(await messages_mapping.read())
+                        logger.debug("Loaded mapping data: %s", data)
+                        self._mapping_data_cache = data
+                except FileNotFoundError:
+                    self._mapping_data_cache = {}
 
-        return self._mapping_data_cache
+            return self._mapping_data_cache
 
     async def save_mapping_data(self, forwarder_name: str, tg_message_id: int, discord_message_id: int) -> None:
         """Save the mapping data to the mapping file."""
-        mapping_data = await self.load_mapping_data()
+        async with self._lock:
+            mapping_data = await self.load_mapping_data()
 
-        if forwarder_name not in mapping_data:
-            mapping_data[forwarder_name] = {}
+            if forwarder_name not in mapping_data:
+                mapping_data[forwarder_name] = {}
 
-        mapping_data[forwarder_name][tg_message_id] = discord_message_id
+            mapping_data[forwarder_name][tg_message_id] = discord_message_id
+            try:
+                async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
+                    await messages_mapping.write(json.dumps(mapping_data, indent=4))
 
-        async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
-            await messages_mapping.write(json.dumps(mapping_data, indent=4))
-
-        self._mapping_data_cache = mapping_data
+                self._mapping_data_cache = mapping_data
+            except Exception as ex:  # pylint: disable=broad-except
+                logger.error(
+                    "An error occurred while saving mapping data: %s", ex)
 
     async def get_discord_message_id(self, forwarder_name: str, tg_message_id: int) -> Optional[int]:
         """Get the Discord message ID associated with the given TG message ID for the specified forwarder."""
