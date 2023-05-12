@@ -92,12 +92,19 @@ async def process_media_message(telegram_client: TelegramClient,
                                 message_text, discord_reference):
     """Process a message that contains media."""
     file_path = await telegram_client.download_media(event.message)
-    with open(file_path, "rb") as image_file:
-        sent_discord_messages = await forward_to_discord(discord_channel,
-                                                         message_text,
-                                                         image_file=image_file,
-                                                         reference=discord_reference)
-    os.remove(file_path)
+    try:
+        with open(file_path, "rb") as image_file:
+            sent_discord_messages = await forward_to_discord(discord_channel,
+                                                             message_text,
+                                                             image_file=image_file,
+                                                             reference=discord_reference)
+    except OSError as ex:
+        logger.error(
+            "An error occurred while opening the file %s: %s",  file_path, ex)
+        return
+    finally:
+        os.remove(file_path)
+
     return sent_discord_messages
 
 
