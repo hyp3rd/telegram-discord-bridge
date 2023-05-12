@@ -199,7 +199,7 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
         try:
             last_messages = await history_manager.get_last_messages_for_all_forwarders()
 
-            logger.debug("Last messages: %s", last_messages)
+            logger.debug("Last forwarded messages: %s", last_messages)
 
             for last_message in last_messages:
                 forwarder_name = last_message["forwarder_name"]
