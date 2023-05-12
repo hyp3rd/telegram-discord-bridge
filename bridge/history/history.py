@@ -61,18 +61,25 @@ class MessageHistoryHandler:
 
         return None
 
-    async def get_last_messages_for_all_forwarders(self) -> List[dict]:
+    async def get_last_messages_for_all_forwarders(self) -> List[dict] | None:
         """Get the last messages for each forwarder."""
         mapping_data = await self.load_mapping_data()
         last_messages = []
-        for forwarder_name, forwarder_data in mapping_data.items():
-            last_tg_message_id = max(forwarder_data, key=int)
-            discord_message_id = forwarder_data[last_tg_message_id]
-            last_messages.append({
-                "forwarder_name": forwarder_name,
-                "telegram_id": int(last_tg_message_id),
-                "discord_id": discord_message_id
-            })
+        if mapping_data.items():
+            for forwarder_name, forwarder_data in mapping_data.items():
+                if not forwarder_data:
+                    logger.debug("No messages found in the history for forwarder %s",
+                                 forwarder_name)
+                    continue
+                last_tg_message_id = max(forwarder_data, key=int)
+                logger.debug("Last TG message ID for forwarder %s: %s",
+                             forwarder_name, last_tg_message_id)
+                discord_message_id = forwarder_data[last_tg_message_id]
+                last_messages.append({
+                    "forwarder_name": forwarder_name,
+                    "telegram_id": int(last_tg_message_id),
+                    "discord_id": discord_message_id
+                })
         return last_messages
 
     async def fetch_messages_after(self, last_tg_message_id: int, channel_id: int, tgc: TelegramClient) -> List:
