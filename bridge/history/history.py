@@ -61,7 +61,7 @@ class MessageHistoryHandler:
 
         return None
 
-    async def get_last_messages_for_all_forwarders(self) -> List[dict] | None:
+    async def get_last_messages_for_all_forwarders(self) -> List[dict]:
         """Get the last messages for each forwarder."""
         mapping_data = await self.load_mapping_data()
         last_messages = []

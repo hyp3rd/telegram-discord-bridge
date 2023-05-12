@@ -17,6 +17,15 @@ logger = Logger.get_logger(Config().app.name)
 tg_to_discord_message_ids = {}
 
 
+def get_telegram_password(config: Config) -> str:
+    """Get the Telegram password from the environment variable or from the config file."""
+    telegram_password = os.getenv("TELEGRAM_PASSWORD", None)
+    if telegram_password is None:
+        telegram_password = config.telegram.password
+
+    return telegram_password
+
+
 async def start_telegram_client(config: Config) -> TelegramClient:
     """Start the Telegram client."""
     logger.info("Starting Telegram client...")
@@ -38,9 +47,10 @@ async def start_telegram_client(config: Config) -> TelegramClient:
 
     await telegram_client.start(
         phone=config.telegram.phone,
-        password=config.telegram.password)
+        password=lambda: get_telegram_password(config))  # type: ignore
+    # password=config.telegram.password)
 
-    bot_identity = await telegram_client.get_me()
+    bot_identity = await telegram_client.get_me(input_peer=False)
     logger.info("Telegram client started the session: %s, with identity: %s",
                 config.app.name, bot_identity.id)
 
