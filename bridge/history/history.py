@@ -45,6 +45,9 @@ class MessageHistoryHandler:
         async with self._lock:
             mapping_data = await self.load_mapping_data()
 
+            logger.debug("Saving mapping data: %s, %s, %s", forwarder_name,
+                         tg_message_id, discord_message_id)
+
             if forwarder_name not in mapping_data:
                 mapping_data[forwarder_name] = {}
 
@@ -54,6 +57,12 @@ class MessageHistoryHandler:
                     await messages_mapping.write(json.dumps(mapping_data, indent=4))
 
                 self._mapping_data_cache = mapping_data
+
+                logger.debug("Mapping data saved successfully.")
+                logger.debug("In Memory Mapping Data: %s", mapping_data)
+                mapping_data = await self.load_mapping_data()
+                logger.debug("Saved Mapping Data: %s", mapping_data)
+
             except Exception as ex:  # pylint: disable=broad-except
                 logger.error(
                     "An error occurred while saving mapping data: %s", ex)
