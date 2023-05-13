@@ -1,6 +1,6 @@
 """Telegram handler."""
 import os
-from typing import Any, List
+from typing import List
 
 from discord import Message
 from telethon import TelegramClient
