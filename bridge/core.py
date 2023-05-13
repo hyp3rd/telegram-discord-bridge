@@ -93,7 +93,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
         """Handle new messages in the specified Telegram channels."""
-        if config.status["discord_available"] is False:
+        if config.status["discord_available"] is False and config.status["internet_available"] is True:
             await add_to_queue(event)
             return
 
@@ -242,8 +242,6 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
                         if config.status["discord_available"] is False:
                             logger.warning("Discord is not available despite the connectivty is restored, queing TG message %s",
                                            event.message.id)
-                            # it might create duplicates
-                            await add_to_queue(event)
                             continue
                         # delay the message delivery to avoid rate limit and flood
                         await asyncio.sleep(config.app.recoverer_delay)
