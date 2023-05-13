@@ -50,9 +50,6 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list) -> 
     if not message_entities:
         return message_text
 
-    logger.debug("message_text: %s", message_text)
-    logger.debug("message_entities: %s", message_entities)
-
     markdown_map = {
         MessageEntityBold: ("**", "**"),
         MessageEntityItalic: ("*", "*"),

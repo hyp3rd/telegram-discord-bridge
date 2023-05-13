@@ -194,10 +194,10 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
                                                              message_text,
                                                              reference=discord_reference)
 
-        logger.debug("Forwarded TG message %s to Discord channel %s",
-                     sent_discord_messages[0].id, discord_channel_id)
-
         if sent_discord_messages:
+            logger.debug("Forwarded TG message %s to Discord channel %s",
+                         sent_discord_messages[0].id, discord_channel_id)
+
             logger.debug("Saving mapping data for forwarder %s",
                          forwarder_name)
             main_sent_discord_message = sent_discord_messages[0]
@@ -205,6 +205,9 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
                                                     main_sent_discord_message.id)
             logger.info("Forwarded TG message %s to Discord message %s",
                         event.message.id, main_sent_discord_message.id)
+        else:
+            logger.error("Failed to forward TG message %s to Discord",
+                         event.message.id)
 
 
 def get_matching_forwarders(tg_channel_id, config: Config):
