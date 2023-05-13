@@ -1,7 +1,6 @@
 """Utility functions."""
 from typing import List
 
-from discord import Embed, utils
 from telethon.tl.types import (MessageEntityBold, MessageEntityCode,
                                MessageEntityItalic, MessageEntityPre,
                                MessageEntityStrike, MessageEntityTextUrl)
