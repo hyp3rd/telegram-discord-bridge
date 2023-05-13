@@ -40,7 +40,7 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
             # set the internet connectivity status to True
             config.status["internet_connected"] = True
         else:
-            logger.error("Unable to reach the internet.")
+            logger.warning("Unable to reach the internet.")
             # set the internet connectivity status to False
             config.status["internet_connected"] = False
             await asyncio.sleep(interval)
@@ -76,7 +76,7 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
             # set the Discord availability status to True
             config.status["discord_available"] = True
         else:
-            logger.error(discord_status)
+            logger.warning(discord_status)
             # set the Discord availability status to False
             config.status["discord_available"] = False
     except Exception as ex:  # pylint: disable=broad-except

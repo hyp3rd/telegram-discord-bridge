@@ -1,6 +1,7 @@
 """Utility functions."""
 from typing import List
 
+from discord import utils
 from telethon.tl.types import (MessageEntityBold, MessageEntityCode,
                                MessageEntityItalic, MessageEntityPre,
                                MessageEntityStrike, MessageEntityTextUrl)
@@ -68,17 +69,15 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list) -> 
     # Sort entities by start offset in ascending order, and by end offset in descending order.
     sorted_entities = sorted(entities, key=lambda e: (e[0], -e[1]))
 
-    markdown_text = message_text
-    # markdown_text = utils.remove_markdown(message_text, ignore_links=True)
+    markdown_text = message_text.encode('utf-16')
+
+    markdown_text = utils.remove_markdown(
+        markdown_text.decode('utf-16'), ignore_links=False)
     offset_correction = 0
 
-    # Convert Telegram UTF-16 offset and length to Python string index
-    for start, end, entity_type, url in sorted_entities:
-        start = len(message_text.encode('utf-16-le')
-                    [:start * 2].decode('utf-16-le'))
-        end = len(message_text.encode('utf-16-le')
-                  [:end * 2].decode('utf-16-le'))
+    links = []  # To hold link text and URLs
 
+    for start, end, entity_type, url in sorted_entities:
         start += offset_correction
         end += offset_correction
         markdown_delimiters = markdown_map.get(entity_type)
@@ -89,19 +88,16 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list) -> 
             )
             offset_correction += correction
         elif url:  # This is a MessageEntityTextUrl.
+            logger.debug("processing url: %s", url)
 
-            logger.debug("url: %s", url)
+            # link_text = markdown_text[start-1:end+1].strip()
+            # links.append(f"{link_text}: <{url}>")
+            links.append(f"<{url}>")
 
-            markdown_text = (
-                markdown_text[:start]
-                + " ["
-                + markdown_text[start:end]
-                + "]("
-                + url
-                + ") "
-                + markdown_text[end:]
-            )
+            # No need for offset correction here as we're only replacing the text with itself.
 
-            offset_correction += len(url) + 4
+    # Append the links at the end of the message
+    if links:
+        markdown_text += "\n\n" + "\n".join(links)
 
     return markdown_text
