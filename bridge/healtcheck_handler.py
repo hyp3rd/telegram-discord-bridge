@@ -77,11 +77,8 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
             config.status["discord_available"] = True
         else:
             logger.error(discord_status)
-        # if dcl.is_ready():
-        #     # await dcl.fetch_user(dcl.user.id)
-        #     logger.debug("Discord API is healthy.")
-        #     # set the Discord availability status to True
-        #     config.status["discord_available"] = True
+            # set the Discord availability status to False
+            config.status["discord_available"] = False
     except Exception as ex:  # pylint: disable=broad-except
         logger.error(
             "An error occurred while connecting to the Discord API: %s", ex)

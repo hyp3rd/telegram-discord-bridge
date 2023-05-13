@@ -1,7 +1,6 @@
 """Utility functions."""
 from typing import List
 
-from discord import utils
 from telethon.tl.types import (MessageEntityBold, MessageEntityCode,
                                MessageEntityItalic, MessageEntityPre,
                                MessageEntityStrike, MessageEntityTextUrl)
@@ -33,19 +32,6 @@ def split_message(message: str, max_length: int = 2000) -> List[str]:
     return message_parts
 
 
-# def apply_markdown(markdown_text, start, end, markdown_delimiters):
-#     """Apply Markdown delimiters to a text range."""
-#     delimiter_length = len(
-#         markdown_delimiters[0]) + len(markdown_delimiters[1])
-#     return (
-#         markdown_text[:start]
-#         + markdown_delimiters[0]
-#         + markdown_text[start:end]
-#         + markdown_delimiters[1]
-#         + markdown_text[end:],
-#         delimiter_length,
-#     )
-
 def apply_markdown(markdown_text, start, end, markdown_delimiters):
     """Apply Markdown delimiters to a text range."""
     return (
@@ -57,47 +43,6 @@ def apply_markdown(markdown_text, start, end, markdown_delimiters):
         # return added length
         len(markdown_delimiters[0]) + len(markdown_delimiters[1]),
     )
-
-
-# def telegram_entities_to_markdown(message_text: str, message_entities: list) -> str:
-#     """Convert Telegram entities to Markdown."""
-#     if not message_entities:
-#         return message_text
-
-#     markdown_text = message_text
-#     offset_correction = 0
-
-#     markdown_map = {
-#         MessageEntityBold: ("**", "**"),
-#         MessageEntityItalic: ("*", "*"),
-#         MessageEntityStrike: ("~~", "~~"),
-#         MessageEntityCode: ("`", "`"),
-#         MessageEntityPre: ("```", "```"),
-#     }
-
-#     for entity in message_entities:
-#         start = entity.offset + offset_correction
-#         end = start + entity.length
-#         markdown_delimiters = markdown_map.get(type(entity))
-
-#         if markdown_delimiters:
-#             markdown_text, correction = apply_markdown(
-#                 markdown_text, start, end, markdown_delimiters
-#             )
-#             offset_correction += correction
-#         elif isinstance(entity, MessageEntityTextUrl):
-#             markdown_text = (
-#                 markdown_text[:start]
-#                 + "["
-#                 + markdown_text[start:end]
-#                 + "]("
-#                 + entity.url
-#                 + ")"
-#                 + markdown_text[end:]
-#             )
-#             offset_correction += len(entity.url) + 4
-
-#     return markdown_text
 
 
 def telegram_entities_to_markdown(message_text: str, message_entities: list) -> str:
@@ -126,11 +71,17 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list) -> 
     # Sort entities by start offset in ascending order, and by end offset in descending order.
     sorted_entities = sorted(entities, key=lambda e: (e[0], -e[1]))
 
-    # markdown_text = message_text
-    markdown_text = utils.remove_markdown(message_text, ignore_links=True)
+    markdown_text = message_text
+    # markdown_text = utils.remove_markdown(message_text, ignore_links=True)
     offset_correction = 0
 
+    # Convert Telegram UTF-16 offset and length to Python string index
     for start, end, entity_type, url in sorted_entities:
+        start = len(message_text.encode('utf-16-le')
+                    [:start * 2].decode('utf-16-le'))
+        end = len(message_text.encode('utf-16-le')
+                  [:end * 2].decode('utf-16-le'))
+
         start += offset_correction
         end += offset_correction
         markdown_delimiters = markdown_map.get(entity_type)
@@ -141,16 +92,18 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list) -> 
             )
             offset_correction += correction
         elif url:  # This is a MessageEntityTextUrl.
+
+            logger.debug("url: %s", url)
+
             markdown_text = (
                 markdown_text[:start]
-                + "["
+                + " ["
                 + markdown_text[start:end]
                 + "]("
                 + url
-                + ")"
+                + ") "
                 + markdown_text[end:]
             )
-            # markdown_text = f'{markdown_text[:start]}[{markdown_text[start:end]}]({url}){markdown_text[end:]}'
 
             offset_correction += len(url) + 4
 
