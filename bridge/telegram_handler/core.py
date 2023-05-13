@@ -122,7 +122,7 @@ async def handle_message_media(telegram_client: TelegramClient, event, discord_c
                                                             message_text,
                                                             discord_reference)
 
-        return sent_discord_messages
+    return sent_discord_messages
 
 
 async def process_url_message(discord_channel, message_text, discord_reference):
