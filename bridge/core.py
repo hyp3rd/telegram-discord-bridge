@@ -76,19 +76,19 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
         logger.error("No input channels found, exiting")
         sys.exit(1)
 
-    # async def dispatch_queued_events():
-    #     """Dispatch queued events to Discord."""
-    #     while not queued_events.empty():
-    #         event = await queued_events.get()
-    #         event_id = event.message.id
-    #         logger.info("Dispatching queued TG message")
-    #         await handle_new_message(event, config, telegram_client, discord_client)
-    #         # Remove the event ID from the set
-    #         queued_event_ids.remove(event_id)
-    #         queued_events.task_done()
+    async def dispatch_queued_events():
+        """Dispatch queued events to Discord."""
+        while not queued_events.empty():
+            event = await queued_events.get()
+            event_id = event.message.id
+            logger.info("Dispatching queued TG message")
+            await handle_new_message(event, config, telegram_client, discord_client)
+            # Remove the event ID from the set
+            queued_event_ids.remove(event_id)
+            queued_events.task_done()
 
     # Create tasks for dispatch_queued_events and handle_restored_internet_connectivity
-    # dispatch_task = asyncio.create_task(dispatch_queued_events())
+    dispatch_task = asyncio.create_task(dispatch_queued_events())
 
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
@@ -102,7 +102,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
             # If the event was previously queued but Discord is now available, remove it from the set
             queued_event_ids.remove(event_id)
 
-        await asyncio.gather(handle_new_message(event, config, telegram_client, discord_client))
+        await asyncio.gather(dispatch_task, handle_new_message(event, config, telegram_client, discord_client))
 
 
 async def handle_new_message(event, config: Config, telegram_client: TelegramClient, discord_client: discord.Client):  # pylint: disable=too-many-locals
@@ -194,7 +194,12 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
                                                              message_text,
                                                              reference=discord_reference)
 
+        logger.debug("Forwarded TG message %s to Discord channel %s",
+                     sent_discord_messages[0].id, discord_channel_id)
+
         if sent_discord_messages:
+            logger.debug("Saving mapping data for forwarder %s",
+                         forwarder_name)
             main_sent_discord_message = sent_discord_messages[0]
             await history_manager.save_mapping_data(forwarder_name, event.message.id,
                                                     main_sent_discord_message.id)
@@ -242,6 +247,7 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
                         if config.status["discord_available"] is False:
                             logger.warning("Discord is not available despite the connectivty is restored, queing TG message %s",
                                            event.message.id)
+                            await add_to_queue(event)
                             continue
                         # delay the message delivery to avoid rate limit and flood
                         await asyncio.sleep(config.app.recoverer_delay)
