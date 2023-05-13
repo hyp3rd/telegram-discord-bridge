@@ -1,7 +1,8 @@
 """Telegram handler."""
 import os
-from typing import List
+from typing import Any, List
 
+from discord import Message
 from telethon import TelegramClient
 from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
                                MessageEntityUrl)
@@ -108,7 +109,7 @@ async def process_media_message(telegram_client: TelegramClient,
     return sent_discord_messages
 
 
-async def handle_message_media(telegram_client: TelegramClient, event, discord_channel, message_text, discord_reference):
+async def handle_message_media(telegram_client: TelegramClient, event, discord_channel, message_text, discord_reference) -> List[Message] | None:
     """Handle a message that contains media."""
     contains_url = any(isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl))
                        for entity in event.message.entities or [])
