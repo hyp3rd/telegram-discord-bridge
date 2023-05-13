@@ -29,6 +29,7 @@ class MessageHistoryHandler:
     async def load_mapping_data(self) -> dict:
         """Load the mapping data from the mapping file."""
         async with self._lock:
+            logger.debug("Loading mapping data...")
             if self._mapping_data_cache is None:
                 try:
                     async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "r", encoding="utf-8") as messages_mapping:
@@ -42,30 +43,28 @@ class MessageHistoryHandler:
 
     async def save_mapping_data(self, forwarder_name: str, tg_message_id: int, discord_message_id: int) -> None:
         """Save the mapping data to the mapping file."""
-        async with self._lock:
-            mapping_data = await self.load_mapping_data()
+        # async with self._lock:
+        mapping_data = await self.load_mapping_data()
 
-            logger.debug("Saving mapping data: %s, %s, %s", forwarder_name,
-                         tg_message_id, discord_message_id)
+        logger.debug("Saving mapping data: %s, %s, %s", forwarder_name,
+                     tg_message_id, discord_message_id)
 
-            if forwarder_name not in mapping_data:
-                mapping_data[forwarder_name] = {}
+        if forwarder_name not in mapping_data:
+            mapping_data[forwarder_name] = {}
 
-            mapping_data[forwarder_name][tg_message_id] = discord_message_id
-            try:
-                async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
-                    await messages_mapping.write(json.dumps(mapping_data, indent=4))
+        mapping_data[forwarder_name][tg_message_id] = discord_message_id
+        try:
+            async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
+                await messages_mapping.write(json.dumps(mapping_data, indent=4))
 
-                self._mapping_data_cache = mapping_data
+            self._mapping_data_cache = mapping_data
 
-                logger.debug("Mapping data saved successfully.")
-                logger.debug("In Memory Mapping Data: %s", mapping_data)
-                mapping_data = await self.load_mapping_data()
-                logger.debug("Saved Mapping Data: %s", mapping_data)
+            logger.debug("Mapping data saved successfully.")
+            logger.debug("Current mapping data: %s", mapping_data)
 
-            except Exception as ex:  # pylint: disable=broad-except
-                logger.error(
-                    "An error occurred while saving mapping data: %s", ex)
+        except Exception as ex:  # pylint: disable=broad-except
+            logger.error(
+                "An error occurred while saving mapping data: %s", ex)
 
     async def get_discord_message_id(self, forwarder_name: str, tg_message_id: int) -> Optional[int]:
         """Get the Discord message ID associated with the given TG message ID for the specified forwarder."""
