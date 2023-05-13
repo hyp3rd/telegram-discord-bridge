@@ -76,19 +76,19 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
         logger.error("No input channels found, exiting")
         sys.exit(1)
 
-    async def dispatch_queued_events():
-        """Dispatch queued events to Discord."""
-        while not queued_events.empty():
-            event = await queued_events.get()
-            event_id = event.message.id
-            logger.info("Dispatching queued TG message")
-            await handle_new_message(event, config, telegram_client, discord_client)
-            # Remove the event ID from the set
-            queued_event_ids.remove(event_id)
-            queued_events.task_done()
+    # async def dispatch_queued_events():
+    #     """Dispatch queued events to Discord."""
+    #     while not queued_events.empty():
+    #         event = await queued_events.get()
+    #         event_id = event.message.id
+    #         logger.info("Dispatching queued TG message")
+    #         await handle_new_message(event, config, telegram_client, discord_client)
+    #         # Remove the event ID from the set
+    #         queued_event_ids.remove(event_id)
+    #         queued_events.task_done()
 
     # Create tasks for dispatch_queued_events and handle_restored_internet_connectivity
-    dispatch_task = asyncio.create_task(dispatch_queued_events())
+    # dispatch_task = asyncio.create_task(dispatch_queued_events())
 
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
@@ -102,7 +102,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
             # If the event was previously queued but Discord is now available, remove it from the set
             queued_event_ids.remove(event_id)
 
-        await asyncio.gather(dispatch_task, handle_new_message(event, config, telegram_client, discord_client))
+        await asyncio.gather(handle_new_message(event, config, telegram_client, discord_client))
 
 
 async def handle_new_message(event, config: Config, telegram_client: TelegramClient, discord_client: discord.Client):  # pylint: disable=too-many-locals
