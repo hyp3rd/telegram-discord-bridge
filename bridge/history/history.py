@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import aiofiles
 from telethon import TelegramClient
@@ -13,7 +13,8 @@ from bridge.logger import Logger
 config = Config()
 logger = Logger.get_logger(config.app.name)
 
-MESSAGES_MAPPING_HISTORY_FILE = "messages_mapping_history.json"
+MESSAGES_HISTORY_FILE = "messages_history.json"
+MISSED_MESSAGES_HISTORY_FILE = "missed_messages_history.json"
 
 
 class MessageHistoryHandler:
@@ -33,7 +34,7 @@ class MessageHistoryHandler:
             logger.debug("Loading mapping data...")
             if self._mapping_data_cache is None:
                 try:
-                    async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "r", encoding="utf-8") as messages_mapping:
+                    async with aiofiles.open(MESSAGES_HISTORY_FILE, "r", encoding="utf-8") as messages_mapping:
                         data = json.loads(await messages_mapping.read())
                         logger.debug("Loaded mapping data: %s", data)
                         self._mapping_data_cache = data
@@ -55,7 +56,7 @@ class MessageHistoryHandler:
 
         mapping_data[forwarder_name][tg_message_id] = discord_message_id
         try:
-            async with aiofiles.open(MESSAGES_MAPPING_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
+            async with aiofiles.open(MESSAGES_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
                 await messages_mapping.write(json.dumps(mapping_data, indent=4))
 
             self._mapping_data_cache = mapping_data
@@ -68,6 +69,30 @@ class MessageHistoryHandler:
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
                 "An error occurred while saving mapping data: %s", ex, exc_info=config.app.debug)
+
+    async def save_missed_message(self, forwarder_name: str, tg_message_id: int, discord_message_id: int, exception: Any) -> None:
+        """Save the missed message to the missed messages file."""
+        mapping_data = await self.load_mapping_data()
+
+        logger.debug("Saving missed message: %s, %s, %s, %s", forwarder_name,
+                     tg_message_id, discord_message_id, exception)
+
+        if forwarder_name not in mapping_data:
+            mapping_data[forwarder_name] = {}
+
+        mapping_data[forwarder_name][tg_message_id] = discord_message_id, exception
+        try:
+            async with aiofiles.open(MISSED_MESSAGES_HISTORY_FILE, "w", encoding="utf-8") as missed_messages_mapping:
+                await missed_messages_mapping.write(json.dumps(mapping_data, indent=4))
+
+            logger.debug("Missed message saved successfully.")
+
+            if config.app.debug:
+                logger.debug("Current missed messages data: %s", mapping_data)
+
+        except Exception as ex:  # pylint: disable=broad-except
+            logger.error(
+                "An error occurred while saving missed message: %s", ex, exc_info=config.app.debug)
 
     async def get_discord_message_id(self, forwarder_name: str, tg_message_id: int) -> Optional[int]:
         """Get the Discord message ID associated with the given TG message ID for the specified forwarder."""

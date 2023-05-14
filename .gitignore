@@ -253,4 +253,6 @@ tags
 config.yml
 config.yaml
 messages_mapping_history.json
+messages_history.json
+missed_messages_history.json
 *.pid
