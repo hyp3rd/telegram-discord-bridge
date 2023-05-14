@@ -18,6 +18,9 @@ from bridge.healtcheck_handler import healthcheck
 from bridge.logger import Logger
 from bridge.telegram_handler import start_telegram_client
 
+config = Config()
+logger = Logger.init_logger(config.app.name, config.logger)
+
 
 def create_pid_file() -> str:
     """Create a PID file."""
@@ -262,29 +265,8 @@ async def main():
                 clients = ()
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Process handler for the bridge.")
-    parser.add_argument("--start", action="store_true",
-                        help="Start the bridge.")
-
-    parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
-
-    parser.add_argument("--background", action="store_true",
-                        help="Run the bridge in the background (forked).")
-
-    parser.add_argument("--version", action="store_true",
-                        help="Get the Bridge version.")
-
-    args = parser.parse_args()
-
-    config = Config()
-    logger = Logger.init_logger(config.app.name, config.logger)
-
-    if args.version:
-        print(f'The Bridge\nv{config.app.version}')
-        sys.exit(0)
-
+def init(args):
+    """Init the bridge."""
     if args.start:
         logger.info("%s is starting", config.app.name)
         logger.info("Version: %s", config.app.version)
@@ -313,3 +295,26 @@ if __name__ == "__main__":
         stop_bridge()
     else:
         print("Please use --start or --stop flags to start or stop the bridge.")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Process handler for the bridge.")
+    parser.add_argument("--start", action="store_true",
+                        help="Start the bridge.")
+
+    parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
+
+    parser.add_argument("--background", action="store_true",
+                        help="Run the bridge in the background (forked).")
+
+    parser.add_argument("--version", action="store_true",
+                        help="Get the Bridge version.")
+
+    cmd_args = parser.parse_args()
+
+    if cmd_args.version:
+        print(f'The Bridge\nv{config.app.version}')
+        sys.exit(0)
+
+    init(cmd_args)
