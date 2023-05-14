@@ -108,7 +108,9 @@ async def on_shutdown(telegram_client, discord_client):
 
     for running_task in all_tasks:
         if running_task is not task:
-            task.cancel()
+            if task is not None:
+                logger.info("Cancelling task %s...", {running_task})
+                task.cancel()
 
     logger.info("Shutdown process completed.")
 

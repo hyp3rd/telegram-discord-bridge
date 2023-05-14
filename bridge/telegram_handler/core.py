@@ -53,7 +53,7 @@ async def start_telegram_client(config: Config) -> TelegramClient:
 
     bot_identity = await telegram_client.get_me(input_peer=False)
     logger.info("Telegram client started the session: %s, with identity: %s",
-                config.app.name, bot_identity.id)
+                config.app.name, bot_identity.id)  # type: ignore
 
     return telegram_client
 
@@ -94,7 +94,7 @@ async def process_media_message(telegram_client: TelegramClient,
     """Process a message that contains media."""
     file_path = await telegram_client.download_media(event.message)
     try:
-        with open(file_path, "rb") as image_file:
+        with open(file_path, "rb") as image_file:  # type: ignore
             sent_discord_messages = await forward_to_discord(discord_channel,
                                                              message_text,
                                                              image_file=image_file,
@@ -104,7 +104,7 @@ async def process_media_message(telegram_client: TelegramClient,
             "An error occurred while opening the file %s: %s",  file_path, ex)
         return
     finally:
-        os.remove(file_path)
+        os.remove(file_path)  # type: ignore
 
     return sent_discord_messages
 
