@@ -94,6 +94,7 @@ telegram_forwarders:
   - forwarder_name: "<forwarder_name>"
     tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
+    strip_off_links: False # whether to strip off links from the message
     mention_everyone: True
     forward_everything: False # whether forwarding everything regardless the hashtag
     forward_hashtags:
@@ -104,6 +105,7 @@ telegram_forwarders:
   - forwarder_name: "<forwarder_name>"
     tg_channel_id: <tg channel id>
     discord_channel_id: <discord channel id>
+    strip_off_links: False # whether to strip off links from the message
     mention_everyone: False
     forward_everything: False # whether forwarding everything regardless the hashtag
     mention_override:

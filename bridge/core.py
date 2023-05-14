@@ -57,6 +57,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
             discord_channel_config = {
                 "discord_channel_id": channel_mapping["discord_channel_id"],
+                "strip_off_links": channel_mapping["strip_off_links"],
                 "mention_everyone": channel_mapping["mention_everyone"],
                 "forward_everything": channel_mapping.get("forward_everything", False),
                 "forward_hashtags": channel_mapping.get("forward_hashtags", []),
@@ -125,13 +126,14 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
 
         if not discord_channel_config:
             logger.error(
-                "Discord channel not found for Telegram channel %s", tg_channel_id)
+                "Discord channel not found for Telegram channel %s", tg_channel_id, exc_info=True)
             continue
 
         discord_channel_id = discord_channel_config["discord_channel_id"]
 
-        config_data = {
+        forwarder_config = {
             "mention_everyone": discord_channel_config["mention_everyone"],
+            "strip_off_links": discord_channel_config["strip_off_links"],
             "forward_everything": discord_channel_config["forward_everything"],
             "allowed_forward_hashtags": discord_channel_config["forward_hashtags"],
             "disallowed_hashtags": discord_channel_config["excluded_hashtags"],
@@ -139,29 +141,32 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
             "roles": discord_channel_config["roles"],
         }
 
-        should_forward_message = config_data["forward_everything"]
-        mention_everyone = config_data["mention_everyone"]
+        should_forward_message = forwarder_config["forward_everything"]
+        mention_everyone = forwarder_config["mention_everyone"]
+        strip_off_links = forwarder_config["strip_off_links"]
         mention_roles = []
         message_forward_hashtags = []
 
-        if config_data["allowed_forward_hashtags"] or config_data["mention_override"]:
+        logger.debug("strip_off_links: %s", strip_off_links)
+
+        if forwarder_config["allowed_forward_hashtags"] or forwarder_config["mention_override"]:
             message_forward_hashtags = get_message_forward_hashtags(
                 event.message)
 
             matching_forward_hashtags = [
-                tag for tag in config_data["allowed_forward_hashtags"] if tag["name"].lower() in message_forward_hashtags]
+                tag for tag in forwarder_config["allowed_forward_hashtags"] if tag["name"].lower() in message_forward_hashtags]
 
             if len(matching_forward_hashtags) > 0:
                 should_forward_message = True
                 mention_everyone = any(tag.get("override_mention_everyone", False)
                                        for tag in matching_forward_hashtags)
 
-        if config_data["disallowed_hashtags"]:
+        if forwarder_config["disallowed_hashtags"]:
             message_forward_hashtags = get_message_forward_hashtags(
                 event.message)
 
             matching_forward_hashtags = [
-                tag for tag in config_data["disallowed_hashtags"] if tag["name"].lower() in message_forward_hashtags]
+                tag for tag in forwarder_config["disallowed_hashtags"] if tag["name"].lower() in message_forward_hashtags]
 
             if len(matching_forward_hashtags) > 0:
                 should_forward_message = False
@@ -178,7 +183,7 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
                                           server_roles)
 
         message_text = await process_message_text(
-            event, mention_everyone, False, mention_roles, config=config)
+            event, forwarder_config, mention_everyone, mention_roles, config.openai.enabled)
 
         discord_reference = await fetch_discord_reference(event,
                                                           forwarder_name,
@@ -207,7 +212,7 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
                         event.message.id, main_sent_discord_message.id)
         else:
             logger.error("Failed to forward TG message %s to Discord",
-                         event.message.id)
+                         event.message.id, exc_info=config.app.debug)
 
 
 def get_matching_forwarders(tg_channel_id, config: Config):
@@ -262,7 +267,7 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
 
         except Exception as exception:  # pylint: disable=broad-except
             logger.error(
-                "Failed to fetch missed messages: %s", exception)
+                "Failed to fetch missed messages: %s", exception, exc_info=config.app.debug)
 
     logger.debug("on_restored_connectivity will trigger again in for %s seconds",
                  config.app.healthcheck_interval)

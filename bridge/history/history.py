@@ -10,7 +10,8 @@ from telethon import TelegramClient
 from bridge.config import Config
 from bridge.logger import Logger
 
-logger = Logger.get_logger(Config().app.name)
+config = Config()
+logger = Logger.get_logger(config.app.name)
 
 MESSAGES_MAPPING_HISTORY_FILE = "messages_mapping_history.json"
 
@@ -60,11 +61,13 @@ class MessageHistoryHandler:
             self._mapping_data_cache = mapping_data
 
             logger.debug("Mapping data saved successfully.")
-            logger.debug("Current mapping data: %s", mapping_data)
+
+            if config.app.debug:
+                logger.debug("Current mapping data: %s", mapping_data)
 
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
-                "An error occurred while saving mapping data: %s", ex)
+                "An error occurred while saving mapping data: %s", ex, exc_info=config.app.debug)
 
     async def get_discord_message_id(self, forwarder_name: str, tg_message_id: int) -> Optional[int]:
         """Get the Discord message ID associated with the given TG message ID for the specified forwarder."""

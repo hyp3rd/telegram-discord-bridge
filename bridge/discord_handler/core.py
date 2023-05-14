@@ -68,10 +68,10 @@ async def forward_to_discord(discord_channel: TextChannel, message_text: str,
             sent_messages.append(sent_message)
     except discord.Forbidden:
         logger.error("Discord client doesn't have permission to send messages to channel %s",
-                     discord_channel.id)
+                     discord_channel.id, exc_info=Config().app.debug)
     except discord.HTTPException as http_exception:
         logger.error("Error while sending message to Discord: %s",
-                     http_exception)
+                     http_exception, exc_info=Config().app.debug)
 
     return sent_messages
 
