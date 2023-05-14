@@ -18,3 +18,7 @@ Telethon==1.28.5
 yarl==1.9.2
 openai==0.27.6
 aiofiles==23.1.0
+python-magic==0.4.27
+requests==2.28.2
+uvicorn==0.22.0
+fastapi==0.95.1

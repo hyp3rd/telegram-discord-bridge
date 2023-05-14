@@ -125,17 +125,17 @@ telegram_forwarders:
 Finally, start the bridge and watch the magic happen:
 
 ```bash
-python app.py --start  # it will start the bridge in the foreground
+python forwarder.py --start  # it will start the bridge in the foreground
 ```
 
 ```bash
-python app.py --start --background  # it will start the bridge in background, requires the `Logger` console set to False
+python forwarder.py --start --background  # it will start the bridge in background, requires the `Logger` console set to False
 ```
 
 You can control the process with a stop command:
 
 ```bash
-python app.py --stop
+python forwarder.py --stop
 ```
 
 ## Usage
