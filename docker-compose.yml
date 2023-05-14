@@ -23,11 +23,11 @@ services:
     networks:
       thebridge-net: null
     volumes:
-      - type: bind
-        source: ./config.yml
-        target: /app/config.yml
-        bind:
-          create_host_path: true
+      # - type: bind
+      #   source: ./config.yml
+      #   target: /app/config.yml
+      #   bind:
+      #     create_host_path: true
       - type: bind
         source: ./hyp3rbridg3.log
         target: /app/hyp3rbridg3.log
