@@ -48,7 +48,7 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
 
     except Exception as ex:  # pylint: disable=broad-except
         logger.error(
-            "An error occurred while checking internet connectivity: %s", ex)
+            "An error occurred while checking internet connectivity: %s", ex, exc_info=config.app.debug)
 
     # Check Telegram API status
     try:
@@ -63,7 +63,7 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
         config.status["telegram_available"] = False
     except Exception as ex:  # pylint: disable=broad-except
         logger.error(
-            "An error occurred while connecting to the Telegram API: %s", ex)
+            "An error occurred while connecting to the Telegram API: %s", ex, exc_info=config.app.debug)
         # set the Telegram availability status to False
         config.status["telegram_available"] = False
 
@@ -81,7 +81,7 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
             config.status["discord_available"] = False
     except Exception as ex:  # pylint: disable=broad-except
         logger.error(
-            "An error occurred while connecting to the Discord API: %s", ex)
+            "An error occurred while connecting to the Discord API: %s", ex, exc_info=config.app.debug)
         # set the Discord availability status to False
         config.status["discord_available"] = False
 

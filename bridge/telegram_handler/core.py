@@ -1,6 +1,6 @@
 """Telegram handler."""
 import os
-from typing import List
+from typing import Any, List
 
 from discord import Message
 from telethon import TelegramClient
@@ -67,25 +67,25 @@ def get_message_forward_hashtags(message):
     return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
 
 
-async def process_message_text(event, mention_everyone: bool,
-                               override_mention_everyone: bool,
+async def process_message_text(event, forwarder_config: dict[str, Any],
+                               mention_everyone: bool,
                                mention_roles: List[str],
-                               config: Config) -> str:
+                               openai_enabled: bool) -> str:  # pylint: disable=too-many-arguments
     """Process the message text and return the processed text."""
     message_text = event.message.message
 
-    if config.openai.enabled:
+    if openai_enabled:
         suggestions = await analyze_message_sentiment(message_text)
         message_text = f'{message_text}\n{suggestions}'
 
-    if mention_everyone or override_mention_everyone:
+    if mention_everyone:
         message_text += '\n' + '@everyone'
 
     if mention_roles:
         mention_text = ", ".join(role for role in mention_roles)
         message_text = f"{mention_text}\n{message_text}"
 
-    return telegram_entities_to_markdown(message_text, event.message.entities)
+    return telegram_entities_to_markdown(message_text, event.message.entities, forwarder_config["strip_off_links"])
 
 
 async def process_media_message(telegram_client: TelegramClient,
