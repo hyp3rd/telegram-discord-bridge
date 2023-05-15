@@ -1,0 +1,2 @@
+[tool.pylint.'MESSAGES CONTROL']
+extension-pkg-whitelist = "pydantic"
