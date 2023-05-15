@@ -1,4 +1,6 @@
 """Telegram handler."""
+import asyncio
+import json
 import os
 from typing import Any, List
 
@@ -27,6 +29,23 @@ def get_telegram_password(config: Config) -> str:
     return telegram_password
 
 
+async def get_telegram_code(is_api_call: bool) -> str | int:
+    """Get the Telegram code from the environment variable or from the config file."""
+    if is_api_call:
+        # Wait for the file to be created with a timeout
+        for _ in range(120):
+            if os.path.isfile('mfa.json'):
+                with open('mfa.json', 'r', encoding="utf-8") as mfa_file:
+                    code = json.load(mfa_file).get('code')
+                    os.remove('mfa.json')
+                    if code:
+                        return code
+            await asyncio.sleep(1)
+        raise TimeoutError("Timeout waiting for 2FA code")
+
+    return input("Enter the Telegram 2FA code: ")
+
+
 async def start_telegram_client(config: Config) -> TelegramClient:
     """Start the Telegram client."""
     logger.info("Starting Telegram client...")
@@ -44,12 +63,20 @@ async def start_telegram_client(config: Config) -> TelegramClient:
         retry_delay=4,
         base_logger=telethon_logger,
         lang_code="en",
-        system_lang_code="en")
+        system_lang_code="en",)
+
+    telegram_client.parse_mode = "markdown"
+    await telegram_client.connect()
+
+    logger.info("Signing in to Telegram...")
+
+    def code_callback():
+        return get_telegram_code(config.app.api_login_enabled)
 
     await telegram_client.start(
         phone=config.telegram.phone,
-        password=lambda: get_telegram_password(config))  # type: ignore
-    # password=config.telegram.password)
+        password=lambda: get_telegram_password(config),
+        code_callback=code_callback)
 
     bot_identity = await telegram_client.get_me(input_peer=False)
     logger.info("Telegram client started the session: %s, with identity: %s",

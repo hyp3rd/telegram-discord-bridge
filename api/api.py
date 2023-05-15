@@ -1,15 +1,16 @@
 """API for the bridge."""
+import json
 import os
 from datetime import datetime
 from multiprocessing import Process
 
 import magic
 import yaml
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware import Middleware
 from pydantic import ValidationError
 
-from api.models import ConfigSchema
+from api.models import ConfigSchema, MFACodePayload
 from api.rate_limiter import RateLimitMiddleware
 from bridge.config import Config
 from bridge.logger import Logger
@@ -28,6 +29,7 @@ class BridgeAPI:
             RateLimitMiddleware, limit=20, interval=60)])
         self.app.get("/")(self.index)
         self.app.get("/health")(self.health)
+        self.app.post("/mfa")(self.receive_code)
         self.app.post("/start")(self.start)
         self.app.post("/stop")(self.stop)
         self.app.post("/upload")(self.upload_config)
@@ -41,7 +43,8 @@ class BridgeAPI:
             "description": config.app.description,
             "healthcheck_interval": config.app.healthcheck_interval,
             "recoverer_delay": config.app.recoverer_delay,
-            "debug": config.app.debug is True,
+            "debug": config.app.debug,
+            "api_login_enabled": config.app.api_login_enabled,
         }
 
     async def health(self):
@@ -56,6 +59,12 @@ class BridgeAPI:
             }
 
         return {"process_status": "not running"}
+
+    async def receive_code(self, payload: MFACodePayload = Body(...)):
+        """Receive the MFA code."""
+        with open('mfa.json', 'w', encoding="utf-8") as mfa_file:
+            json.dump({'code': payload.code}, mfa_file)
+        return {"operation_status": "code received successfully"}
 
     async def start(self):
         """start the bridge."""
@@ -102,7 +111,7 @@ class BridgeAPI:
             _ = ConfigSchema(**new_config_file_content)
         except ValidationError as exc:
             raise HTTPException(
-                status_code=400, detail=f'Invalid configuration: {exc.json}') from exc
+                status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
 
         # validate here
         valid, errors = config.validate_config(new_config_file_content)

@@ -58,6 +58,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     debug: bool
     healthcheck_interval: int
     recoverer_delay: int
+    api_login_enabled: bool
 
 
 class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods

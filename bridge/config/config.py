@@ -15,6 +15,7 @@ class AppConfig:  # pylint: disable=too-few-public-methods
         self.debug = config_data["debug"]
         self.healthcheck_interval = config_data["healthcheck_interval"]
         self.recoverer_delay = config_data["recoverer_delay"]
+        self.api_login_enabled = config_data["api_login_enabled"]
 
 
 class LoggerConfig:  # pylint: disable=too-few-public-methods
