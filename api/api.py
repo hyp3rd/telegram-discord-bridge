@@ -59,13 +59,16 @@ class BridgeAPI:
 
     async def start(self):
         """start the bridge."""
-        if self.bridge_process is None or not self.bridge_process.is_alive():
+        pid_file = f'{config.app.name}.pid'
+        process_state, pid = determine_process_state(pid_file)
+
+        if pid == 0 and self.bridge_process is None or not self.bridge_process.is_alive():
             self.bridge_process = Process(
                 target=controller, args=(True, True, False,))
             self.bridge_process.start()
-            return {"message": "Bridge started"}
+            return {"operation_status": f"starting the bridge {config.app.name}, version {config.app.version}"}
 
-        return {"message": "Bridge already running"}
+        return {"operation_status": f"the bridge {config.app.name}, version {config.app.version} is {process_state} (PID: {pid})"}
 
     async def stop(self):
         """stop the bridge."""
@@ -73,9 +76,9 @@ class BridgeAPI:
             controller(boot=False, background=False, stop=True)
             self.bridge_process.join()
             self.bridge_process = None
-            return {"message": "Bridge stopped"}
+            return {"operation_status": f"stopping the bridge {config.app.name}"}
 
-        return {"message": "Bridge not running"}
+        return {"operation_status": f"the bridge {config.app.name} is not running"}
 
     async def upload_config(self, file: UploadFile = File(...)):
         """upload the config file."""
@@ -99,10 +102,13 @@ class BridgeAPI:
             _ = ConfigSchema(**new_config_file_content)
         except ValidationError as exc:
             raise HTTPException(
-                status_code=400, detail=f'Invalid configuration: {exc}') from exc
+                status_code=400, detail=f'Invalid configuration: {exc.json}') from exc
 
         # validate here
-        config.validate_config(new_config_file_content)
+        valid, errors = config.validate_config(new_config_file_content)
+        if not valid:
+            raise HTTPException(
+                status_code=400, detail=f'{errors}')
 
         if os.path.exists("config.yml"):
             backup_filename = f"config_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.yml"
@@ -111,7 +117,7 @@ class BridgeAPI:
         with open("config.yml", "w", encoding="utf-8") as new_config_file:
             yaml.dump(new_config_file_content, new_config_file)
 
-        return {"message": "Configuration file uploaded successfully"}
+        return {"operation_status": "Configuration file uploaded successfully"}
 
 
 app = BridgeAPI().app

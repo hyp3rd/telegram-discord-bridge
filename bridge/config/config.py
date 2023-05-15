@@ -1,6 +1,6 @@
 """Configuration handler."""
 import sys
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import yaml
 
@@ -106,7 +106,13 @@ class Config:  # pylint: disable=too-many-instance-attributes
                     "Error: Key %s not found in the configuration file.", key)
                 sys.exit(1)
 
-        Config.validate_config(config_data)
+        valid, errors = Config.validate_config(config_data)
+
+        if not valid:
+            print("Error: Invalid configuration file.")
+            for error in errors:
+                print(f"\n{error}\n")
+            sys.exit(1)
 
         self.app = AppConfig(config_data["application"])
         self.logger = LoggerConfig(config_data["logger"])
@@ -126,59 +132,54 @@ class Config:  # pylint: disable=too-many-instance-attributes
         return config_data
 
     @ staticmethod
-    def validate_openai_enabled(config: OpenAIConfig):
+    def validate_openai_enabled(config: OpenAIConfig) -> Tuple[bool, str]:
         """Check for valid types"""
         if config["enabled"]:
             if config["api_key"] == "" or config["organization"] == "" or config["sentiment_analysis_prompt"] is None:
-                print(
-                    "Invalid configuration: `api_key`, `organization`, and `sentiment_analysis_prompt` must be set when `enabled` is True.")  # pylint: disable=line-too-long
-                sys.exit(1)
+                return False,  "Invalid configuration: `api_key`, `organization`, and `sentiment_analysis_prompt` must be set when `enabled` is True."  # pylint: disable=line-too-long
+
+        return True, ""
 
     @ staticmethod
-    def validate_forwarder_types(forwarder):
+    def validate_forwarder_types(forwarder) -> Tuple[bool, str]:
         """Check for valid types"""
         tg_channel_id = forwarder["tg_channel_id"]
         discord_channel_id = forwarder["discord_channel_id"]
 
         if not isinstance(tg_channel_id, int):
-            print(
-                "Invalid configuration: `tg_channel_id` must be an integer: forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
-                tg_channel_id)
-            sys.exit(1)
+            return False, f"Invalid configuration: `tg_channel_id` must be an integer: forwarder with `tg_channel_id` {tg_channel_id}"  # pylint: disable=line-too-long
 
         if not isinstance(discord_channel_id, int):
-            print(
-                "Invalid configuration: `discord_channel_id` must be an integer: forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
-                tg_channel_id)
-            sys.exit(1)
+            return False, f"Invalid configuration: `discord_channel_id` must be an integer: forwarder with `tg_channel_id` {tg_channel_id}"  # pylint: disable=line-too-long
+
+        return True, ""
 
     @ staticmethod
-    def validate_forwarder_combinations(forwarder, forwarder_combinations):
+    def validate_forwarder_combinations(forwarder, forwarder_combinations) -> Tuple[bool, str]:
         """Check for unique combination of tg_channel_id and discord_channel_id"""
         tg_channel_id = forwarder["tg_channel_id"]
         discord_channel_id = forwarder["discord_channel_id"]
 
         combination = (tg_channel_id, discord_channel_id)
         if combination in forwarder_combinations:
-            print(
-                "Invalid configuration: duplicate forwarder with combination %s", combination)
-            sys.exit(1)
+            return False, f"Invalid configuration: duplicate forwarder with combination {combination}"
+
         forwarder_combinations.add(combination)
+        return True, ""
 
     @ staticmethod
-    def validate_mention_everyone_and_override(forwarder, forward_hashtags):
+    def validate_mention_everyone_and_override(forwarder, forward_hashtags) -> Tuple[bool, str]:
         """Check for mention_everyone and override_mention_everyone conflict"""
         tg_channel_id = forwarder["tg_channel_id"]
         mention_everyone = forwarder["mention_everyone"]
 
         if mention_everyone and any(tag.get("override_mention_everyone", False) for tag in forward_hashtags):
-            print(
-                "Invalid configuration: `override_mention_everyone` has no effect when `mention_everyone` set to True: forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
-                tg_channel_id)
-            sys.exit(1)
+            return False, f"Invalid configuration: `override_mention_everyone` has no effect when `mention_everyone` set to True: forwarder with `tg_channel_id` {tg_channel_id}"  # pylint: disable=line-too-long
+
+        return True, ""
 
     @ staticmethod
-    def validate_shared_hashtags(forwarders):
+    def validate_shared_hashtags(forwarders) -> Tuple[bool, str]:
         """Check for shared hashtags in forwarders with the same tg_channel_id"""
         tg_channel_hashtags = {}
         for forwarder in forwarders:
@@ -194,13 +195,14 @@ class Config:  # pylint: disable=too-many-instance-attributes
                         shared_hashtags = existing_hashtags.intersection(
                             forward_hashtags)
                         if shared_hashtags:
-                            print(
-                                "Shared hashtags %s found for forwarders with tg_channel_id %s. The same message will be forwarded multiple times.",
-                                shared_hashtags, tg_channel_id)
+                            return False, f"Shared hashtags {shared_hashtags} found for forwarders with tg_channel_id {tg_channel_id}. The same message will be forwarded multiple times."  # pylint: disable=line-too-long
+
                     tg_channel_hashtags[tg_channel_id].append(forward_hashtags)
 
+        return True, ""
+
     @staticmethod
-    def validate_hashtags_overlap(forwarder, forward_hashtags, excluded_hashtags):
+    def validate_hashtags_overlap(forwarder, forward_hashtags, excluded_hashtags) -> Tuple[bool, str]:
         """Check for overlapping hashtags between forward_hashtags and excluded_hashtags"""
         tg_channel_id = forwarder["tg_channel_id"]
         forward_hashtags_names = {tag["name"].lower()
@@ -210,55 +212,61 @@ class Config:  # pylint: disable=too-many-instance-attributes
         common_hashtags = forward_hashtags_names.intersection(
             excluded_hashtags_names)
         if common_hashtags:
-            print(
-                "Invalid configuration: overlapping hashtags %s found in forward_hashtags and excluded_hashtags for forwarder with `tg_channel_id` %s",  # pylint: disable=line-too-long
-                common_hashtags,
-                tg_channel_id)
-            sys.exit(1)
+            return False, f"Invalid configuration: overlapping hashtags {common_hashtags} found in forward_hashtags and excluded_hashtags for forwarder with `tg_channel_id` {tg_channel_id}"  # pylint: disable=line-too-long
+
+        return True, ""
 
     @ staticmethod
-    def get_forward_hashtags(forwarder):
-        """Get forward_hashtags from forwarder or set an empty list."""
-        if "forward_hashtags" in forwarder:
-            forward_hashtags = forwarder["forward_hashtags"]
-        else:
-            tg_channel_id = forwarder["tg_channel_id"]
-            # print(
-            #     "No hashtags found for forwarder with `tg_channel_id` %s", tg_channel_id)
-            if not forwarder["forward_everything"]:
-                print(
-                    "Invalid configuration: forwarder with `tg_channel_id` %s must either forward everything or forward hashtags",  # pylint: disable=line-too-long
-                    tg_channel_id)
-                sys.exit(1)
-
-            forward_hashtags = []
-
-        return forward_hashtags
-
-    @ staticmethod
-    def validate_config(config):
+    def validate_config(config) -> Tuple[bool, List[str]]:
         """Validate the configuration."""
         forwarders = config["telegram_forwarders"]
         forwarder_combinations = set()
 
-        Config.validate_openai_enabled(config["openai"])
+        valid = True
+        errors: List[str] = []
 
+        valid, error = Config.validate_openai_enabled(config["openai"])
+        if not valid:
+            errors.append(error)
+
+        forwarder_error_string = "Invalid forwarder configuration:"
         for forwarder in forwarders:
+            forwarder_error_string = f"{forwarder_error_string} forwarder name: {forwarder['forwarder_name']}"
+
             forward_hashtags = Config.get_forward_hashtags(forwarder)
+
+            if len(forward_hashtags) <= 0 and forwarder["forward_everything"] is False:
+                valid = False
+                errors.append(
+                    f'{forwarder_error_string} `forward_hashtags` must be set when `forward_everything` is False')  # pylint: disable=line-too-long
+
             excluded_hashtags = Config.get_excluded_hashtags(forwarder)
 
-            Config.validate_forwarder_types(forwarder)
+            valid, error = Config.validate_forwarder_types(forwarder)
+            if not valid:
+                errors.append(f"{forwarder_error_string} {error}")
 
-            Config.validate_forwarder_combinations(
+            valid, error = Config.validate_forwarder_combinations(
                 forwarder, forwarder_combinations)
+            if not valid:
+                errors.append(f"{forwarder_error_string} {error}")
 
-            Config.validate_mention_everyone_and_override(
+            valid, error = Config.validate_mention_everyone_and_override(
                 forwarder, forward_hashtags)
+            if not valid:
+                errors.append(f"{forwarder_error_string} {error}")
 
-            Config.validate_hashtags_overlap(
+            valid, error = Config.validate_hashtags_overlap(
                 forwarder, forward_hashtags, excluded_hashtags)
+            if not valid:
+                errors.append(f"{forwarder_error_string} {error}")
 
-        Config.validate_shared_hashtags(forwarders)
+        valid, error = Config.validate_shared_hashtags(forwarders)
+        if not valid:
+            errors.append(error)
+
+        valid = not errors
+        return valid, errors
 
     @staticmethod
     def get_excluded_hashtags(forwarder):
@@ -266,11 +274,19 @@ class Config:  # pylint: disable=too-many-instance-attributes
         if "excluded_hashtags" in forwarder:
             excluded_hashtags = forwarder["excluded_hashtags"]
         else:
-            # print(
-            #     "No excluded hashtags found for forwarder with `tg_channel_id` %s", forwarder["tg_channel_id"])
             excluded_hashtags = []
 
         return excluded_hashtags
+
+    @ staticmethod
+    def get_forward_hashtags(forwarder):
+        """Get forward_hashtags from forwarder or set an empty list."""
+        if "forward_hashtags" in forwarder:
+            forward_hashtags = forwarder["forward_hashtags"]
+        else:
+            forward_hashtags = []
+
+        return forward_hashtags
 
     def get_telegram_channel_by_forwarder_name(self, forwarder_name: str):
         """Get the Telegram channel ID associated with a given forwarder ID."""
