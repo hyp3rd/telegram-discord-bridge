@@ -8,7 +8,7 @@ import magic
 import yaml
 from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware import Middleware
-from pydantic import ValidationError
+from pydantic import ValidationError  # pylint: disable=import-error
 
 from api.models import ConfigSchema, MFACodePayload
 from api.rate_limiter import RateLimitMiddleware

@@ -1,5 +1,6 @@
 """Telegram MFA payload."""
-from pydantic import BaseModel, Field, validator
+from pydantic import (BaseModel, Field,  # pylint: disable=import-error
+                      validator)
 
 
 class MFACodePayload(BaseModel):  # pylint: disable=too-few-public-methods

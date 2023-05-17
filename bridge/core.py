@@ -46,7 +46,13 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
     async for dialog in telegram_client.iter_dialogs():
         if not isinstance(dialog.entity, Channel) and not isinstance(dialog.entity, InputChannel):
+            if config.app.debug:
+                logger.warning("Excluded dialog name: %s, id: %s",
+                               dialog.name, dialog.entity.id)
             continue
+
+        logger.debug("Available channel: %s, id: %s",
+                     dialog.name, dialog.entity.id)
 
         for channel_mapping in config.telegram_forwarders:
             forwarder_name = channel_mapping["forwarder_name"]

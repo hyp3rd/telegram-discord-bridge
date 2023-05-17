@@ -1,7 +1,7 @@
 """config schema validation model."""
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel  # pylint: disable=import-error
 
 
 class Forwarder(BaseModel):  # pylint: disable=too-few-public-methods
