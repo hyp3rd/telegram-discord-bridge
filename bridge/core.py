@@ -46,7 +46,13 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
     async for dialog in telegram_client.iter_dialogs():
         if not isinstance(dialog.entity, Channel) and not isinstance(dialog.entity, InputChannel):
+            if config.app.debug:
+                logger.warning("Excluded dialog name: %s, id: %s",
+                               dialog.name, dialog.entity.id)
             continue
+
+        logger.debug("Available channel: %s, id: %s",
+                     dialog.name, dialog.entity.id)
 
         for channel_mapping in config.telegram_forwarders:
             forwarder_name = channel_mapping["forwarder_name"]
@@ -175,7 +181,7 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
             continue
 
         discord_channel = discord_client.get_channel(discord_channel_id)
-        server_roles = discord_channel.guild.roles
+        server_roles = discord_channel.guild.roles  # type: ignore
 
         mention_roles = get_mention_roles(message_forward_hashtags,
                                           discord_channel_config["mention_override"],
@@ -195,9 +201,9 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
                                                                message_text,
                                                                discord_reference)
         else:
-            sent_discord_messages = await forward_to_discord(discord_channel,
+            sent_discord_messages = await forward_to_discord(discord_channel,  # type: ignore
                                                              message_text,
-                                                             reference=discord_reference)
+                                                             reference=discord_reference)  # type: ignore
 
         if sent_discord_messages:
             logger.debug("Forwarded TG message %s to Discord channel %s",
@@ -211,6 +217,10 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
             logger.info("Forwarded TG message %s to Discord message %s",
                         event.message.id, main_sent_discord_message.id)
         else:
+            await history_manager.save_missed_message(forwarder_name,
+                                                      event.message.id,
+                                                      discord_channel_id,
+                                                      None)
             logger.error("Failed to forward TG message %s to Discord",
                          event.message.id, exc_info=config.app.debug)
 

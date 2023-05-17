@@ -108,7 +108,9 @@ async def on_shutdown(telegram_client, discord_client):
 
     for running_task in all_tasks:
         if running_task is not task:
-            task.cancel()
+            if task is not None:
+                logger.info("Cancelling task %s...", {running_task})
+                task.cancel()
 
     logger.info("Shutdown process completed.")
 
@@ -265,15 +267,15 @@ async def main():
                 clients = ()
 
 
-def init(args):
+def controller(boot: bool, stop: bool, background: bool):
     """Init the bridge."""
-    if args.start:
+    if boot:
         logger.info("%s is starting", config.app.name)
         logger.info("Version: %s", config.app.version)
         logger.info("Description: %s", config.app.description)
         logger.info("Log level: %s", config.logger.level)
         logger.info("Debug enabled: %s", config.app.debug)
-        if args.background:
+        if background:
             logger.info("Running %s in the background", config.app.name)
             if os.name != "posix":
                 logger.error(
@@ -291,7 +293,7 @@ def init(args):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         start_bridge(loop)
-    elif args.stop:
+    elif stop:
         stop_bridge()
     else:
         print("Please use --start or --stop flags to start or stop the bridge.")
@@ -317,4 +319,8 @@ if __name__ == "__main__":
         print(f'The Bridge\nv{config.app.version}')
         sys.exit(0)
 
-    init(cmd_args)
+    __start: bool = cmd_args.start
+    __stop: bool = cmd_args.stop
+    __background: bool = cmd_args.background
+
+    controller(__start, __stop, __background)

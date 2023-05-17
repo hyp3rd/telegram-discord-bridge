@@ -70,17 +70,17 @@ class MessageHistoryHandler:
             logger.error(
                 "An error occurred while saving mapping data: %s", ex, exc_info=config.app.debug)
 
-    async def save_missed_message(self, forwarder_name: str, tg_message_id: int, discord_message_id: int, exception: Any) -> None:
+    async def save_missed_message(self, forwarder_name: str, tg_message_id: int, discord_channel_id: int, exception: Any) -> None:
         """Save the missed message to the missed messages file."""
         mapping_data = await self.load_mapping_data()
 
         logger.debug("Saving missed message: %s, %s, %s, %s", forwarder_name,
-                     tg_message_id, discord_message_id, exception)
+                     tg_message_id, discord_channel_id, exception)
 
         if forwarder_name not in mapping_data:
             mapping_data[forwarder_name] = {}
 
-        mapping_data[forwarder_name][tg_message_id] = discord_message_id, exception
+        mapping_data[forwarder_name][tg_message_id] = discord_channel_id, exception
         try:
             async with aiofiles.open(MISSED_MESSAGES_HISTORY_FILE, "w", encoding="utf-8") as missed_messages_mapping:
                 await missed_messages_mapping.write(json.dumps(mapping_data, indent=4))

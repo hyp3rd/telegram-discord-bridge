@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  #######################################
+  # The Bridge Service.
+  # At the first run include the flag --build to build the image.
+  #######################################
+  thebridge:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+
+    image: hyp3rd/bridge:v1.1.7-alpha
+    container_name: "thebridge"
+    hostname: "thebridge"
+    expose:
+      - "8000"
+    ports:
+      - mode: ingress
+        target: 8000
+        published: 8000
+        protocol: tcp
+    networks:
+      thebridge-net: null
+    volumes:
+      # - type: bind
+      #   source: ./config.yml
+      #   target: /app/config.yml
+      #   bind:
+      #     create_host_path: true
+      - type: bind
+        source: ./hyp3rbridg3.log
+        target: /app/hyp3rbridg3.log
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./hyp3rbridg3_discord.log
+        target: /app/hyp3rbridg3_discord.log
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./hyp3rbridg3_telegram.log
+        target: /app/hyp3rbridg3_telegram.log
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./messages_history.json
+        target: /app/messages_history.json
+        bind:
+          create_host_path: true
+# Networks section
+networks:
+  thebridge-net:
+    name: thebridge-net
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.20.0.0/16"
+    attachable: true
