@@ -100,7 +100,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
         """Handle new messages in the specified Telegram channels."""
-        if config.status["discord_available"] is False and config.status["internet_available"] is True:
+        if config.status["discord_available"] is False and config.status["internet_connected"] is True:
             await add_to_queue(event)
             return
 

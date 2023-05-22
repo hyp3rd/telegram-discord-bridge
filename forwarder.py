@@ -9,6 +9,7 @@ from asyncio import AbstractEventLoop
 from typing import Tuple
 
 import discord
+import psutil
 from telethon import TelegramClient
 
 from bridge.config import Config
@@ -24,46 +25,85 @@ logger = Logger.init_logger(config.app.name, config.logger)
 
 def create_pid_file() -> str:
     """Create a PID file."""
-    pid = os.getpid()
-    bot_pid_file = f'{config.app.name}.pid'
 
+    # Get the process ID.
+    pid = os.getpid()
+
+    # Create the PID file.
+    bot_pid_file = f'{config.app.name}.pid'
     process_state, _ = determine_process_state(bot_pid_file)
 
     if process_state == "running":
         sys.exit(1)
 
-    with open(bot_pid_file, "w", encoding="utf-8") as pid_file:
-        pid_file.write(str(pid))
+    try:
+        with open(bot_pid_file, "w", encoding="utf-8") as pid_file:
+            pid_file.write(str(pid))
+    except OSError as err:
+        sys.exit(f"Unable to create PID file: {err}")
 
     return bot_pid_file
 
 
 def remove_pid_file(pid_file: str):
     """Remove a PID file."""
-    if os.path.isfile(pid_file):
+    try:
         os.remove(pid_file)
-    else:
+    except FileNotFoundError:
         logger.error("PID file '%s' not found.", pid_file)
+    except Exception as ex:  # pylint: disable=broad-except
+        logger.exception(ex)
+        logger.error("Failed to remove PID file '%s'.", pid_file)
 
 
 def determine_process_state(pid_file: str) -> Tuple[str, int]:
-    """Determine the state of the process."""
+    """
+    Determine the state of the process.
+
+    The state of the process is determined by looking for the PID file. If the
+    PID file does not exist, the process is considered stopped. If the PID file
+    does exist, the process is considered running.
+
+    If the PID file exists and the PID of the process that created it is not
+    running, the process is considered stopped. If the PID file exists and the
+    PID of the process that created it is running, the process is considered
+    running.
+
+    :param pid_file: The path to the PID file.
+    :type pid_file: str
+    :return: A tuple containing the process state and the PID of the process
+    that created the PID file.
+    :rtype: Tuple[str, int]
+    """
 
     if not os.path.isfile(pid_file):
+        # The PID file does not exist, so the process is considered stopped.
         return "stopped", 0
 
     pid = 0
     try:
+        # Read the PID from the PID file.
         with open(pid_file, "r", encoding="utf-8") as bot_pid_file:
             pid = int(bot_pid_file.read().strip())
-            logger.warning(
-                "%s is already be running with PID %s. PID file: %s", config.app.name, pid, pid_file)
+
+            # If the PID file exists and the PID of the process that created it
+            # is not running, the process is considered stopped.
+            if not psutil.pid_exists(pid):
+                return "stopped", 0
+
+            # If the PID file exists and the PID of the process that created it
+            # is running, the process is considered running.
             return "running", pid
     except ProcessLookupError:
+        # If the PID file exists and the PID of the process that created it is
+        # not running, the process is considered stopped.
         return "stopped", 0
     except PermissionError:
+        # If the PID file exists and the PID of the process that created it is
+        # running, the process is considered running.
         return "running", pid
     except FileNotFoundError:
+        # The PID file does not exist, so the process is considered stopped.
         return "stopped", 0
 
 
@@ -109,9 +149,11 @@ async def on_shutdown(telegram_client, discord_client):
     for running_task in all_tasks:
         if running_task is not task:
             if task is not None:
-                logger.info("Cancelling task %s...", {running_task})
+                logger.debug("Cancelling task %s...", {running_task})
                 task.cancel()
 
+    logger.debug("Stopping event loop...")
+    asyncio.get_event_loop().stop()
     logger.info("Shutdown process completed.")
 
 
@@ -159,10 +201,12 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
 
     event_loop = asyncio.get_event_loop()
 
-    # Set signal handlers
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        event_loop.add_signal_handler(
-            sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
+    # Set signal handlers for graceful shutdown on received signal (except on Windows)
+    # NOTE: This is not supported on Windows
+    if os.name != 'nt':
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            event_loop.add_signal_handler(
+                sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
 
     try:
         # Create tasks for starting the main logic and waiting for clients to disconnect
@@ -204,38 +248,59 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
 
 def start_bridge(event_loop: AbstractEventLoop):
     """Start the bridge."""
+
+    # Set the exception handler.
     event_loop.set_exception_handler(event_loop_exception_handler)
 
+    # Create a PID file.
     pid_file = create_pid_file()
 
+    # Create a task for the main coroutine.
+    main_task = event_loop.create_task(main())
+
     try:
-        event_loop.run_until_complete(main())
+        # Run the event loop.
+        event_loop.run_forever()
+    except KeyboardInterrupt:
+        # Cancel the main task.
+        main_task.cancel()
     except asyncio.CancelledError:
         pass
-    except ConnectionError as ex:
+    except Exception as ex:  # pylint: disable=broad-except
         logger.error("Error while running the bridge: %s", ex)
     finally:
+        # Remove the PID file.
         remove_pid_file(pid_file)
 
 
 def event_loop_exception_handler(event_loop: AbstractEventLoop, context):
     """Asyncio Event loop exception handler."""
-    exception = context.get("exception")
-    if not isinstance(exception, asyncio.CancelledError):
-        event_loop.default_exception_handler(context)
-    else:
-        logger.warning("CancelledError caught during shutdown")
+    try:
+        exception = context.get("exception")
+        if not isinstance(exception, asyncio.CancelledError):
+            event_loop.default_exception_handler(context)
+        else:
+            # This error is expected during shutdown.
+            logger.warning("CancelledError caught during shutdown")
+    except Exception as ex:  # pylint: disable=broad-except
+        logger.error(
+            "Event loop exception handler failed: %s",
+            ex,
+            exc_info=True,
+        )
 
 
 def daemonize_process():
     """Daemonize the process by forking and redirecting standard file descriptors."""
+    # Fork the process and exit if we're the parent
     pid = os.fork()
     if pid > 0:
         sys.exit()
 
+    # Start a new session
     os.setsid()
 
-    # Fork again to avoid re-acquiring a controlling terminal
+    # Fork again and exit if we're the parent
     pid = os.fork()
     if pid > 0:
         sys.exit()
@@ -275,6 +340,7 @@ def controller(boot: bool, stop: bool, background: bool):
         logger.info("Description: %s", config.app.description)
         logger.info("Log level: %s", config.logger.level)
         logger.info("Debug enabled: %s", config.app.debug)
+
         if background:
             logger.info("Running %s in the background", config.app.name)
             if os.name != "posix":
