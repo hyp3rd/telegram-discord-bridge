@@ -109,9 +109,11 @@ async def on_shutdown(telegram_client, discord_client):
     for running_task in all_tasks:
         if running_task is not task:
             if task is not None:
-                logger.info("Cancelling task %s...", {running_task})
+                logger.debug("Cancelling task %s...", {running_task})
                 task.cancel()
 
+    logger.debug("Stopping event loop...")
+    asyncio.get_event_loop().stop()
     logger.info("Shutdown process completed.")
 
 
@@ -159,10 +161,12 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
 
     event_loop = asyncio.get_event_loop()
 
-    # Set signal handlers
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        event_loop.add_signal_handler(
-            sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
+    # Set signal handlers for graceful shutdown on received signal (except on Windows)
+    # NOTE: This is not supported on Windows
+    if os.name != 'nt':
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            event_loop.add_signal_handler(
+                sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
 
     try:
         # Create tasks for starting the main logic and waiting for clients to disconnect
@@ -204,17 +208,23 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
 
 def start_bridge(event_loop: AbstractEventLoop):
     """Start the bridge."""
+
+    # Set the exception handler.
     event_loop.set_exception_handler(event_loop_exception_handler)
 
+    # Create a PID file.
     pid_file = create_pid_file()
 
     try:
+        # Start the bridge.
         event_loop.run_until_complete(main())
+        # event_loop.run_forever()
     except asyncio.CancelledError:
         pass
-    except ConnectionError as ex:
+    except Exception as ex:  # pylint: disable=broad-except
         logger.error("Error while running the bridge: %s", ex)
     finally:
+        # Remove the PID file.
         remove_pid_file(pid_file)
 
 
@@ -275,6 +285,7 @@ def controller(boot: bool, stop: bool, background: bool):
         logger.info("Description: %s", config.app.description)
         logger.info("Log level: %s", config.logger.level)
         logger.info("Debug enabled: %s", config.app.debug)
+
         if background:
             logger.info("Running %s in the background", config.app.name)
             if os.name != "posix":
