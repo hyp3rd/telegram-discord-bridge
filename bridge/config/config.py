@@ -1,4 +1,5 @@
 """Configuration handler."""
+import os
 import sys
 from typing import Any, List, Tuple
 
@@ -61,14 +62,22 @@ class OpenAIConfig:  # pylint: disable=too-few-public-methods
 
 class Config:  # pylint: disable=too-many-instance-attributes
     """Configuration handler."""
+
     _instance = None
+    _max_instances = 1
+    _file_path = os.path.join(
+        os.path.curdir,
+        "config.yml",
+    )
 
     def __new__(cls):
+        """Creates a new Config instance."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
+        """Initializes a new Config instance."""
         if not hasattr(self, "_initialized"):
             self._initialized = True
 
@@ -84,7 +93,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
     def load(self) -> Any:
         """Load configuration from the 'config.yml' file."""
         try:
-            with open('config.yml', 'rb') as config_file:
+            with open(self._file_path, 'rb') as config_file:
                 config_data = yaml.safe_load(config_file)
         except FileNotFoundError:
             print("Error: Configuration file 'config.yml' not found.")
@@ -131,6 +140,10 @@ class Config:  # pylint: disable=too-many-instance-attributes
         }
 
         return config_data
+
+    def reload(self) -> None:
+        """Reload configuration from the 'config.yml' file."""
+        self.load()
 
     @ staticmethod
     def validate_openai_enabled(config: OpenAIConfig) -> Tuple[bool, str]:
@@ -292,6 +305,24 @@ class Config:  # pylint: disable=too-many-instance-attributes
     def get_telegram_channel_by_forwarder_name(self, forwarder_name: str):
         """Get the Telegram channel ID associated with a given forwarder ID."""
         for forwarder in self.telegram_forwarders:
-            if forwarder["forwarder_name"] == forwarder_name:
-                return forwarder["tg_channel_id"]
+            if forwarder.get("forwarder_name") == forwarder_name:
+                return forwarder.get("tg_channel_id")
         return None
+
+    @staticmethod
+    def set_status(key: str, value: bool) -> None:
+        """Set status."""
+        if not isinstance(key, str):
+            raise TypeError(f"key must be a string, not {type(key)}")
+        if not isinstance(value, bool):
+            raise TypeError(f"value must be a bool, not {type(value)}")
+        Config().status[key] = value
+
+    @staticmethod
+    def get_status(key: str | None) -> bool | dict[str, bool]:
+        """Get status."""
+        if key is None:
+            return Config().status
+        if key not in Config().status:
+            raise KeyError(f'Key {key} not found in Config().status')
+        return Config().status[key]

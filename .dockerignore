@@ -258,3 +258,5 @@ messages_history.json
 missed_messages_history.json
 mfa.json
 *.pid
+the_bridge.postman_collection.json
+./tools/ssh-dev-srv

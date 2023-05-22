@@ -8,6 +8,7 @@ import magic
 import yaml
 from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware import Middleware
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError  # pylint: disable=import-error
 
 from api.models import ConfigSchema, MFACodePayload
@@ -19,22 +20,50 @@ from forwarder import controller, determine_process_state
 config = Config()
 logger = Logger.init_logger(config.app.name, config.logger)
 
+origins = [
+    "https://develop.d3b2ymfde2iupy.amplifyapp.com",
+    "http://localhost",
+    "http://localhost:8080",
+    "http://localhost:8000",
+    "http://localhost:5000",
+    "http:s//hyperd.io",
+]
+
 
 class BridgeAPI:
     """Bridge API."""
 
+    # This is the main function that starts the application
     def __init__(self):
+        # The bridge_process variable is used to store the bridge process
         self.bridge_process = None
-        self.app = FastAPI(middleware=[Middleware(
-            RateLimitMiddleware, limit=20, interval=60)])
+        # The app variable is the main FastAPI instance
+        self.app = FastAPI(
+            # The RateLimitMiddleware is used to limit the number of requests to 20 per minute
+            middleware=[
+                Middleware(RateLimitMiddleware, limit=20, interval=60),
+                # The CORSMiddleware is used to allow requests from the web interface
+                Middleware(CORSMiddleware,
+                           allow_origins=origins,
+                           allow_credentials=True,
+                           allow_methods=["*"],
+                           allow_headers=["*"])
+            ]
+        )
+        # The index function is used to return the index page
         self.app.get("/")(self.index)
+        # The health function is used to return the health check page
         self.app.get("/health")(self.health)
+        # The receive_code function is used to receive the code sent by the user
         self.app.post("/mfa")(self.receive_code)
+        # The start function is used to start the bridge
         self.app.post("/start")(self.start)
+        # The stop function is used to stop the bridge
         self.app.post("/stop")(self.stop)
+        # The upload_config function is used to upload the configuration file to the bridge
         self.app.post("/upload")(self.upload_config)
 
-    async def index(self):
+    def index(self):
         """index."""
 
         return {
@@ -47,7 +76,7 @@ class BridgeAPI:
             "api_login_enabled": config.app.api_login_enabled,
         }
 
-    async def health(self):
+    def health(self):
         """health."""
         if self.bridge_process and self.bridge_process.is_alive():
             pid_file = f'{config.app.name}.pid'
@@ -55,28 +84,29 @@ class BridgeAPI:
 
             return {
                 "process_status": f"{process_state} (PID: {pid})",
-                "status": config.status,
+                "status": config.get_status(key=None),
             }
-
-        return {"process_status": "not running"}
+        return {"process_status": "not running", "status": config.get_status(key=None)}
 
     async def receive_code(self, payload: MFACodePayload = Body(...)):
         """Receive the MFA code."""
+        # Write the code to a file.
         with open('mfa.json', 'w', encoding="utf-8") as mfa_file:
             json.dump({'code': payload.code}, mfa_file)
+        # Return a response.
         return {"operation_status": "code received successfully"}
 
     async def start(self):
         """start the bridge."""
         pid_file = f'{config.app.name}.pid'
         process_state, pid = determine_process_state(pid_file)
-
         if pid == 0 and self.bridge_process is None or not self.bridge_process.is_alive():
             self.bridge_process = Process(
                 target=controller, args=(True, True, False,))
             self.bridge_process.start()
             return {"operation_status": f"starting the bridge {config.app.name}, version {config.app.version}"}
-
+        if pid == 0 and self.bridge_process is not None and self.bridge_process.is_alive():
+            return {"operation_status": f"the bridge {config.app.name}, version {config.app.version} is starting"}
         return {"operation_status": f"the bridge {config.app.name}, version {config.app.version} is {process_state} (PID: {pid})"}
 
     async def stop(self):
@@ -96,7 +126,7 @@ class BridgeAPI:
         mime_type = mime.from_buffer(content)
 
         logger.debug("Uploaded file type: %s", mime_type)
-        # if mime_type != 'application/x-yaml' or mime_type != 'text/yaml' or mime_type != 'text/plain':
+
         if mime_type != 'text/plain':
             raise HTTPException(
                 status_code=400, detail="Invalid file type. Only YAML file is accepted.")
