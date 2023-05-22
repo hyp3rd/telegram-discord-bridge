@@ -248,9 +248,10 @@ tags
 .dccache
 
 ### Project ###
-# *.session
+*.session
 *.session-journal
 config.yaml
+config.yml
 config_backup_*yml
 messages_mapping_history.json
 messages_history.json
