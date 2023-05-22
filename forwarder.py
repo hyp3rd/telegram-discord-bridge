@@ -255,10 +255,15 @@ def start_bridge(event_loop: AbstractEventLoop):
     # Create a PID file.
     pid_file = create_pid_file()
 
+    # Create a task for the main coroutine.
+    main_task = event_loop.create_task(main())
+
     try:
-        # Start the bridge.
-        event_loop.run_until_complete(main())
-        # event_loop.run_forever()
+        # Run the event loop.
+        event_loop.run_forever()
+    except KeyboardInterrupt:
+        # Cancel the main task.
+        main_task.cancel()
     except asyncio.CancelledError:
         pass
     except Exception as ex:  # pylint: disable=broad-except
