@@ -146,6 +146,14 @@ Once the script gets going, it will eavesdrop on new messages in the specified T
 
 In addition to text messages, the bridge can forward media files such as photos, videos, and documents from Telegram to Discord. The bridge also handles replies to messages and embeds them as Discord replies, maintaining a mapping of forwarded messages for easier correspondence tracking between the two platforms.
 
+## Run it in Docker
+
+You can run the bridge in a Docker container. The Docker image is available on [Docker Hub](https://hub.docker.com/r/hyp3rbridg3/hyp3rbridg3).
+
+```bash
+docker run -d --name hyp3rbridg3 -v /path/to/config.yml:/hyp3rbridg3/config.yml hyp3rbridg3/hyp3rbridg3:latest
+```
+
 ### Limitations
 
 A local `JSON` file is the sole storage supported to maintain the correspondence between Telegram and Discord. It implies that you figure out how to rotate the file, or it will grow out of proportion. **I'm working on a solution to store the history in databases, Redis, and KV storage, but it still needs to be prepared.**
