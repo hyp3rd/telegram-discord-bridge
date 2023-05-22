@@ -148,10 +148,10 @@ In addition to text messages, the bridge can forward media files such as photos,
 
 ## Run it in Docker
 
-You can run the bridge in a Docker container. The Docker image is available on [Docker Hub](https://hub.docker.com/r/hyp3rbridg3/hyp3rbridg3).
+You can run the bridge in a Docker container. The Docker image is available on [GitHub Packages](https://github.com/hyp3rd/telegram-discord-bridge/pkgs/container/bridge).
 
 ```bash
-docker run -d --name hyp3rbridg3 -v /path/to/config.yml:/hyp3rbridg3/config.yml hyp3rbridg3/hyp3rbridg3:latest
+docker run -p:8000:8000 -v $(pwd)/config.yml:/app/config.yml:ro -it ghcr.io/hyp3rd/bridge:v1.1.7-alpha
 ```
 
 ### Limitations
