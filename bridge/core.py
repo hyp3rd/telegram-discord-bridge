@@ -49,10 +49,10 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
             if config.app.debug:
                 logger.warning("Excluded dialog name: %s, id: %s",
                                dialog.name, dialog.entity.id)
-            continue
 
-        logger.debug("Available channel: %s, id: %s",
-                     dialog.name, dialog.entity.id)
+                logger.debug("Available channel: %s, id: %s",
+                             dialog.name, dialog.entity.id)
+            continue
 
         for channel_mapping in config.telegram_forwarders:
             forwarder_name = channel_mapping["forwarder_name"]
@@ -233,53 +233,53 @@ def get_matching_forwarders(tg_channel_id, config: Config):
 async def on_restored_connectivity(config: Config, telegram_client: TelegramClient, discord_client: discord.Client):
     """Check and restore internet connectivity."""
     logger.debug("Checking for internet connectivity")
+    while True:
 
-    if config.status["internet_connected"] and config.status["telegram_available"] is True:
-        logger.debug(
-            "Internet connection active and Telegram is connected, checking for missed messages")
-        try:
-            last_messages = await history_manager.get_last_messages_for_all_forwarders()
+        if config.status["internet_connected"] and config.status["telegram_available"] is True:
+            logger.debug(
+                "Internet connection active and Telegram is connected, checking for missed messages")
+            try:
+                last_messages = await history_manager.get_last_messages_for_all_forwarders()
 
-            logger.debug("Last forwarded messages: %s", last_messages)
+                logger.debug("Last forwarded messages: %s", last_messages)
 
-            for last_message in last_messages:
-                forwarder_name = last_message["forwarder_name"]
-                last_tg_message_id = last_message["telegram_id"]
+                for last_message in last_messages:
+                    forwarder_name = last_message["forwarder_name"]
+                    last_tg_message_id = last_message["telegram_id"]
 
-                channel_id = config.get_telegram_channel_by_forwarder_name(
-                    forwarder_name)
+                    channel_id = config.get_telegram_channel_by_forwarder_name(
+                        forwarder_name)
 
-                if channel_id:
-                    fetched_messages = await history_manager.fetch_messages_after(last_tg_message_id,
-                                                                                  channel_id,
-                                                                                  telegram_client)
-                    for fetched_message in fetched_messages:
+                    if channel_id:
+                        fetched_messages = await history_manager.fetch_messages_after(last_tg_message_id,
+                                                                                      channel_id,
+                                                                                      telegram_client)
+                        for fetched_message in fetched_messages:
 
-                        logger.debug(
-                            "Recovered message %s from channel %s", fetched_message.id, channel_id)
-                        event = events.NewMessage.Event(
-                            message=fetched_message)
-                        event.peer = await telegram_client.get_input_entity(
-                            channel_id)
+                            logger.debug(
+                                "Recovered message %s from channel %s", fetched_message.id, channel_id)
+                            event = events.NewMessage.Event(
+                                message=fetched_message)
+                            event.peer = await telegram_client.get_input_entity(
+                                channel_id)
 
-                        if config.status["discord_available"] is False:
-                            logger.warning("Discord is not available despite the connectivty is restored, queing TG message %s",
-                                           event.message.id)
-                            await add_to_queue(event)
-                            continue
-                        # delay the message delivery to avoid rate limit and flood
-                        await asyncio.sleep(config.app.recoverer_delay)
-                        logger.debug(
-                            "Forwarding recovered Telegram message %s", event.message.id)
-                        await handle_new_message(event, config,
-                                                 telegram_client,
-                                                 discord_client)
+                            if config.status["discord_available"] is False:
+                                logger.warning("Discord is not available despite the connectivty is restored, queing TG message %s",
+                                               event.message.id)
+                                await add_to_queue(event)
+                                continue
+                            # delay the message delivery to avoid rate limit and flood
+                            await asyncio.sleep(config.app.recoverer_delay)
+                            logger.debug(
+                                "Forwarding recovered Telegram message %s", event.message.id)
+                            await handle_new_message(event, config,
+                                                     telegram_client,
+                                                     discord_client)
 
-        except Exception as exception:  # pylint: disable=broad-except
-            logger.error(
-                "Failed to fetch missed messages: %s", exception, exc_info=config.app.debug)
+            except Exception as exception:  # pylint: disable=broad-except
+                logger.error(
+                    "Failed to fetch missed messages: %s", exception, exc_info=config.app.debug)
 
-    logger.debug("on_restored_connectivity will trigger again in for %s seconds",
-                 config.app.healthcheck_interval)
-    await asyncio.sleep(config.app.healthcheck_interval)
-    await on_restored_connectivity(config, telegram_client, discord_client)
+        logger.debug("on_restored_connectivity will trigger again in for %s seconds",
+                     config.app.healthcheck_interval)
+        await asyncio.sleep(config.app.healthcheck_interval)

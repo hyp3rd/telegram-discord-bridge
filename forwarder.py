@@ -209,6 +209,13 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
                 sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
 
     try:
+        # def stop():
+        #     """Stop the bridge healthchecks."""
+        #     on_restored_connectivity_task.cancel()
+        #     api_healthcheck_task.cancel()
+
+        # event_loop.call_later(50, stop)
+
         # Create tasks for starting the main logic and waiting for clients to disconnect
         start_task = asyncio.create_task(
             start(telegram_client_instance, discord_client_instance, config)
@@ -219,27 +226,37 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
         discord_wait_task = asyncio.create_task(
             discord_client_instance.wait_until_ready()
         )
-        api_healthcheck_task = asyncio.create_task(
+        api_healthcheck_task = event_loop.create_task(
             healthcheck(telegram_client_instance,
                         discord_client_instance, config.app.healthcheck_interval)
         )
-        on_restored_connectivity_task = asyncio.create_task(
+        on_restored_connectivity_task = event_loop.create_task(
             on_restored_connectivity(
                 config=config,
                 telegram_client=telegram_client_instance,
                 discord_client=discord_client_instance)
         )
-
         await asyncio.gather(start_task,
                              telegram_wait_task,
                              discord_wait_task,
                              api_healthcheck_task,
                              on_restored_connectivity_task)
+        # try:
+        # event_loop.run_until_complete(
+        #     on_restored_connectivity_task)
+
+        # event_loop.run_until_complete(
+        #     asyncio.gather(start_task, telegram_wait_task, discord_wait_task, api_healthcheck_task), return_exceptions=True)
+
+        # except asyncio.CancelledError as ex:
+        #     logger.warning(
+        #         "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=config.app.debug)
 
     except asyncio.CancelledError:
         logger.warning("CancelledError caught, shutting down...")
     except Exception as ex:  # pylint: disable=broad-except
-        logger.error("Error while running the bridge: %s", ex)
+        logger.error("Error while running the bridge: %s",
+                     ex, exc_info=config.app.debug)
     finally:
         await on_shutdown(telegram_client_instance, discord_client_instance)
 
@@ -266,8 +283,13 @@ def start_bridge(event_loop: AbstractEventLoop):
         main_task.cancel()
     except asyncio.CancelledError:
         pass
+    except asyncio.LimitOverrunError as ex:
+        logger.error(
+            "The event loop has exceeded the configured limit of pending tasks: %s",
+            ex, exc_info=config.app.debug)
     except Exception as ex:  # pylint: disable=broad-except
-        logger.error("Error while running the bridge: %s", ex)
+        logger.error("Error while running the bridge: %s",
+                     ex, exc_info=config.app.debug)
     finally:
         # Remove the PID file.
         remove_pid_file(pid_file)
