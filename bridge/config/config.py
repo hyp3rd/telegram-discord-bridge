@@ -11,12 +11,13 @@ class AppConfig:  # pylint: disable=too-few-public-methods
 
     def __init__(self, config_data):
         self.name: str = config_data["name"]
-        self.version = config_data["version"]
-        self.description = config_data["description"]
-        self.debug = config_data["debug"]
+        self.version: str = config_data["version"]
+        self.description: str = config_data["description"]
+        self.debug: bool = config_data["debug"]
         self.healthcheck_interval = config_data["healthcheck_interval"]
-        self.recoverer_delay = config_data["recoverer_delay"]
-        self.api_login_enabled = config_data["api_login_enabled"]
+        self.recoverer_delay: float = config_data["recoverer_delay"]
+        self.api_login_enabled: bool = config_data["api_login_enabled"]
+        self.cors_origins: List[str] = config_data["cors_origins"]
 
 
 class LoggerConfig:  # pylint: disable=too-few-public-methods
@@ -309,20 +310,18 @@ class Config:  # pylint: disable=too-many-instance-attributes
                 return forwarder.get("tg_channel_id")
         return None
 
-    @staticmethod
-    def set_status(key: str, value: bool) -> None:
+    def set_status(self, key: str, value: bool) -> None:
         """Set status."""
         if not isinstance(key, str):
             raise TypeError(f"key must be a string, not {type(key)}")
         if not isinstance(value, bool):
             raise TypeError(f"value must be a bool, not {type(value)}")
-        Config().status[key] = value
+        self.status[key] = value
 
-    @staticmethod
-    def get_status(key: str | None) -> bool | dict[str, bool]:
+    def get_status(self, key: str | None) -> bool | dict[str, bool]:
         """Get status."""
         if key is None:
-            return Config().status
-        if key not in Config().status:
+            return self.status
+        if key not in self.status:
             raise KeyError(f'Key {key} not found in Config().status')
-        return Config().status[key]
+        return self.status[key]

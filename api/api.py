@@ -20,15 +20,6 @@ from forwarder import controller, determine_process_state
 config = Config()
 logger = Logger.init_logger(config.app.name, config.logger)
 
-origins = [
-    "https://develop.d3b2ymfde2iupy.amplifyapp.com",
-    "http://localhost",
-    "http://localhost:8080",
-    "http://localhost:8000",
-    "http://localhost:5000",
-    "http:s//hyperd.io",
-]
-
 
 class BridgeAPI:
     """Bridge API."""
@@ -39,17 +30,23 @@ class BridgeAPI:
         self.bridge_process = None
         # The app variable is the main FastAPI instance
         self.app = FastAPI(
+            title=config.app.name,
+            description=config.app.description,
+            version=config.app.version,
+            debug=config.app.debug,
+            root_path="/api/v1",
             # The RateLimitMiddleware is used to limit the number of requests to 20 per minute
             middleware=[
                 Middleware(RateLimitMiddleware, limit=20, interval=60),
                 # The CORSMiddleware is used to allow requests from the web interface
                 Middleware(CORSMiddleware,
-                           allow_origins=origins,
+                           allow_origins=config.app.cors_origins,
                            allow_credentials=True,
                            allow_methods=["*"],
                            allow_headers=["*"])
             ]
         )
+
         # The index function is used to return the index page
         self.app.get("/")(self.index)
         # The health function is used to return the health check page
@@ -84,7 +81,7 @@ class BridgeAPI:
 
             return {
                 "process_status": f"{process_state} (PID: {pid})",
-                "status": config.get_status(key=None),
+                "status": Config().get_status(key=None),
             }
         return {"process_status": "not running", "status": config.get_status(key=None)}
 

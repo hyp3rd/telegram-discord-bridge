@@ -10,7 +10,9 @@ application:
   # The time in seconds to wait before forwarding each missed message
   recoverer_delay: 60
   # Whether to enable the Telegram MFA login via the management API
-  api_login_enabled: False
+  api_login_enabled: True
+  # Allow CORS requests from these origins
+  cors_origins: ["*"]
 
 # logger setup
 logger:
