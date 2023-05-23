@@ -6,7 +6,7 @@ from typing import Any, List, Tuple
 import yaml
 
 
-class AppConfig:  # pylint: disable=too-few-public-methods # pylint: disable=too-many-instance-attributes
+class AppConfig:  # pylint: disable=too-few-public-methods,disable=too-many-instance-attributes
     """Application configuration handler."""
 
     def __init__(self, config_data):
