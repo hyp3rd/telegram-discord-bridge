@@ -236,21 +236,16 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
                 telegram_client=telegram_client_instance,
                 discord_client=discord_client_instance)
         )
-        await asyncio.gather(start_task,
-                             telegram_wait_task,
-                             discord_wait_task,
-                             api_healthcheck_task,
-                             on_restored_connectivity_task)
-        # try:
-        # event_loop.run_until_complete(
-        #     on_restored_connectivity_task)
 
-        # event_loop.run_until_complete(
-        #     asyncio.gather(start_task, telegram_wait_task, discord_wait_task, api_healthcheck_task), return_exceptions=True)
-
-        # except asyncio.CancelledError as ex:
-        #     logger.warning(
-        #         "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=config.app.debug)
+        try:
+            await asyncio.gather(start_task,
+                                 telegram_wait_task,
+                                 discord_wait_task,
+                                 api_healthcheck_task,
+                                 on_restored_connectivity_task)
+        except asyncio.CancelledError as ex:
+            logger.warning(
+                "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=config.app.debug)
 
     except asyncio.CancelledError:
         logger.warning("CancelledError caught, shutting down...")
