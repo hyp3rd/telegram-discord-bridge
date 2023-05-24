@@ -157,24 +157,28 @@ async def on_shutdown(telegram_client, discord_client):
     logger.info("Shutdown process completed.")
 
 
-async def shutdown(sig, tasks_loop: None):
+async def shutdown(sig, tasks_loop: asyncio.AbstractEventLoop):
     """Shutdown the application gracefully."""
     logger.warning("shutdown received signal %s, shutting down...", {sig})
 
+    # Cancel all tasks
     tasks = [task for task in asyncio.all_tasks(
     ) if task is not asyncio.current_task()]
 
     for task in tasks:
         task.cancel()
 
+    # Wait for all tasks to be cancelled
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
+    # Check for errors
     for result in results:
         if isinstance(result, asyncio.CancelledError):
             continue
         if isinstance(result, Exception):
             logger.error("Error during shutdown: %s", result)
 
+    # Stop the loop
     if tasks_loop is not None:
         tasks_loop.stop()
 
@@ -209,13 +213,6 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
                 sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
 
     try:
-        # def stop():
-        #     """Stop the bridge healthchecks."""
-        #     on_restored_connectivity_task.cancel()
-        #     api_healthcheck_task.cancel()
-
-        # event_loop.call_later(50, stop)
-
         # Create tasks for starting the main logic and waiting for clients to disconnect
         start_task = asyncio.create_task(
             start(telegram_client_instance, discord_client_instance, config)
@@ -237,18 +234,15 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
                 discord_client=discord_client_instance)
         )
 
-        try:
-            await asyncio.gather(start_task,
-                                 telegram_wait_task,
-                                 discord_wait_task,
-                                 api_healthcheck_task,
-                                 on_restored_connectivity_task)
-        except asyncio.CancelledError as ex:
-            logger.warning(
-                "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=config.app.debug)
+        await asyncio.gather(start_task,
+                             telegram_wait_task,
+                             discord_wait_task,
+                             api_healthcheck_task,
+                             on_restored_connectivity_task, return_exceptions=config.app.debug)
 
-    except asyncio.CancelledError:
-        logger.warning("CancelledError caught, shutting down...")
+    except asyncio.CancelledError as ex:
+        logger.warning(
+            "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=config.app.debug)
     except Exception as ex:  # pylint: disable=broad-except
         logger.error("Error while running the bridge: %s",
                      ex, exc_info=config.app.debug)
