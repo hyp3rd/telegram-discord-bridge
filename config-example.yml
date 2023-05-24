@@ -2,7 +2,7 @@
 # Basic application configuration
 application:
   name: "hyp3rbridg3"
-  version: "1.1.5"
+  version: "1.1.9"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   debug: True
   # healtcheck interval in seconds
