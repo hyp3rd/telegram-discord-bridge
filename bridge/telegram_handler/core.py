@@ -2,10 +2,12 @@
 import asyncio
 import json
 import os
-from typing import Any, List, Tuple
+from typing import Any, List
 
 from discord import Message
 from telethon import TelegramClient
+from telethon.errors.rpcerrorlist import \
+    FloodWaitError  # , SessionPasswordNeededError, SessionPasswordWrongError, SessionRevokedError
 from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
                                MessageEntityUrl)
 
@@ -20,6 +22,65 @@ logger = Logger.get_logger(Config().app.name)
 tg_to_discord_message_ids = {}
 
 
+# async def get_telegram_password(api_auth: bool) -> str:
+#     """Get the Telegram password from the API payload, the `TELEGRAM_PASSWORD` environment variable, or the config file."""
+#     telegram_password = os.getenv("TELEGRAM_PASSWORD", None)
+#     logger.debug("Attempting to get the Telegram password")
+#     if telegram_password is not None:
+#         return telegram_password
+#     config = Config.get_config_instance()
+#     if not api_auth:
+#         return config.telegram.password
+#     # Wait for the auth file to be created with a timeout of 120 seconds
+#     for _ in range(config.api.telegram_auth_request_expiration):
+#         logger.debug("Waiting for the Telegram password")
+#         if os.path.isfile(config.api.telegram_auth_file):
+#             with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
+#                 telegram_password = json.load(auth_file).get('password')
+#             if telegram_password:
+#                 logger.debug("Got the Telegram password")
+#                 return telegram_password
+#         await asyncio.sleep(1)
+#     raise TimeoutError("Timeout waiting for the Telegram password")
+
+
+# async def get_telegram_auth_code(api_auth: bool) -> str | int:
+#     """Get the Telegram auth code from the API payload, or the user's input."""
+#     logger.debug("Attempting to get the Telegram auth code")
+#     config = Config.get_config_instance()
+#     if api_auth:
+#         # Wait for the auth file to be created with a timeout of 120 seconds
+#         for _ in range(config.api.telegram_auth_request_expiration):
+#             if os.path.isfile(config.api.telegram_auth_file):
+#                 with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
+#                     code = json.load(auth_file).get('code')
+#                 if code:
+#                     logger.debug("Got the Telegram auth code")
+#                     return code
+#             await asyncio.sleep(1)
+#         raise TimeoutError("Timeout waiting for 2FA code")
+
+#     code = input("Enter the Telegram 2FA code: ")
+#     if not code:
+#         raise ValueError("No code was entered.")
+
+#     return code
+
+async def get_auth_value_from_file(key: str) -> str | int:
+    """Wait for the auth file to be created and then read a value from it."""
+    config = Config.get_config_instance()
+    # Wait for the auth file to be created with a timeout of 120 seconds
+    for _ in range(config.api.telegram_auth_request_expiration):
+        if os.path.isfile(config.api.telegram_auth_file):
+            with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
+                value = json.load(auth_file).get(key)
+            if value:
+                logger.debug("Got the Telegram %s", key)
+                return value
+        await asyncio.sleep(1)
+    raise TimeoutError(f"Timeout waiting for {key}")
+
+
 async def get_telegram_password(api_auth: bool) -> str:
     """Get the Telegram password from the API payload, the `TELEGRAM_PASSWORD` environment variable, or the config file."""
     telegram_password = os.getenv("TELEGRAM_PASSWORD", None)
@@ -29,34 +90,16 @@ async def get_telegram_password(api_auth: bool) -> str:
     config = Config.get_config_instance()
     if not api_auth:
         return config.telegram.password
-    # Wait for the auth file to be created with a timeout of 120 seconds
-    for _ in range(120):
-        logger.debug("Waiting for the Telegram password")
-        if os.path.isfile(config.api.telegram_auth_file):
-            with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
-                telegram_password = json.load(auth_file).get('password')
-            if telegram_password:
-                logger.debug("Got the Telegram password")
-                return telegram_password
-        await asyncio.sleep(1)
-    raise TimeoutError("Timeout waiting for the Telegram password")
+
+    telegram_password = await get_auth_value_from_file('password')
+    return str(telegram_password)
 
 
 async def get_telegram_auth_code(api_auth: bool) -> str | int:
     """Get the Telegram auth code from the API payload, or the user's input."""
     logger.debug("Attempting to get the Telegram auth code")
-    config = Config.get_config_instance()
     if api_auth:
-        # Wait for the auth file to be created with a timeout of 120 seconds
-        for _ in range(120):
-            if os.path.isfile(config.api.telegram_auth_file):
-                with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
-                    code = json.load(auth_file).get('code')
-                if code:
-                    logger.debug("Got the Telegram auth code")
-                    return code
-            await asyncio.sleep(1)
-        raise TimeoutError("Timeout waiting for 2FA code")
+        return await get_auth_value_from_file('code')
 
     code = input("Enter the Telegram 2FA code: ")
     if not code:
@@ -92,10 +135,22 @@ async def start_telegram_client(config: Config) -> TelegramClient:
     def code_callback():
         return get_telegram_auth_code(config.api.telegram_login_enabled)
 
-    await telegram_client.start(
-        phone=config.telegram.phone,
-        code_callback=code_callback,  # type: ignore
-        password=lambda: get_telegram_password(config.api.telegram_login_enabled))  # type: ignore
+    try:
+        await telegram_client.start(
+            phone=config.telegram.phone,
+            code_callback=code_callback,  # type: ignore
+            password=lambda: get_telegram_password(config.api.telegram_login_enabled))  # type: ignore
+    except FloodWaitError as ex:
+        logger.error("Telegram client failed to start: %s",
+                     ex, exc_info=config.app.debug)
+
+        logger.warning(
+            "Retrying Telegram client start in %s seconds", ex.seconds)
+        await asyncio.sleep(ex.seconds)
+        await telegram_client.start(
+            phone=config.telegram.phone,
+            code_callback=code_callback,  # type: ignore
+            password=lambda: get_telegram_password(config.api.telegram_login_enabled))  # type: ignore
 
     # os.remove(config.telegram.auth_file)
 

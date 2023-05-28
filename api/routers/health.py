@@ -87,4 +87,4 @@ async def websocket_endpoint(websocket: WebSocket):
             _ = await websocket.receive_text()
     except WebSocketDisconnect:
         task.cancel()
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)

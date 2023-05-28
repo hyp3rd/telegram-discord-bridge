@@ -9,6 +9,13 @@ class TelegramAuthSchema(BaseModel):
     code: str | int = 0
 
 
+class TelegramAuthResponse(BaseModel):
+    """Telegram Auth Response Schema."""
+    status: str
+    message: str
+    error: str = ""
+
+
 class TelegramAuthResponseSchema(BaseModel):
     """Telegram Auth Response Schema."""
-    operation_status: str
+    auth: TelegramAuthResponse = TelegramAuthResponse

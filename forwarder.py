@@ -6,11 +6,10 @@ import os
 import signal
 import sys
 from asyncio import AbstractEventLoop
-from enum import Enum
 from typing import Tuple
 
 import discord
-import psutil
+import psutil  # pylint: disable=import-error
 from telethon import TelegramClient
 
 from bridge.config import Config

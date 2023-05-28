@@ -1,7 +1,7 @@
 """the bridge config schema."""
 
 try:
-    from .auth_schema import TelegramAuthSchema
+    from .auth_schema import TelegramAuthResponseSchema, TelegramAuthSchema
     from .config_schema import (APIConfig, ApplicationConfig, ConfigSchema,
                                 ConfigSummary, DiscordConfig, LoggerConfig,
                                 OpenAIConfig, TelegramConfig)

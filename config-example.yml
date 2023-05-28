@@ -4,13 +4,21 @@ application:
   name: "hyp3rbridg3"
   version: "1.1.9"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
+  # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
   # healtcheck interval in seconds
   healthcheck_interval: 60
   # The time in seconds to wait before forwarding each missed message
   recoverer_delay: 60
-  # Whether to enable the Telegram MFA login via the management API
-  api_login_enabled: True
+
+# Management API configuration
+api:
+  # Enable the Telegram MFA login via the management API
+  telegram_login_enabled: True
+  # The file to store the Telegram code and MFA password
+  telegram_auth_file: "telegram_auth.json"
+  # The Telegram auth request expiration in seconds
+  telegram_auth_request_expiration: 300
   # Allow CORS requests from these origins
   cors_origins: ["*"]
 
@@ -45,10 +53,10 @@ discord:
 
 # OpenAI configuration
 openai:
+  enabled: False
   # OpenAI API Key and Organization. Read more [here](https://beta.openai.com/docs/api-reference)
   api_key: "<your openai api key>"
   organization: "<your openai organization>"
-  enabled: False
   # The prompt to use for OpenAI, the #text_to_parse will be appended to this prompt
   sentiment_analysis_prompt:
     - "Analyze the following text to determine its sentiment: #text_to_parse.\n\n"

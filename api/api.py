@@ -1,13 +1,11 @@
 """API for the bridge."""
-import json
 import os
 from datetime import datetime
 from enum import Enum
-from multiprocessing import Process
 
 import magic
 import yaml
-from fastapi import Body, FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError  # pylint: disable=import-error
@@ -15,10 +13,9 @@ from pydantic import ValidationError  # pylint: disable=import-error
 from api.models import (APIConfig, ApplicationConfig, ConfigSchema,
                         ConfigSummary)
 from api.rate_limiter import RateLimitMiddleware
-from api.routers import auth, health
+from api.routers import auth, bridge, health
 from bridge.config import Config
 from bridge.logger import Logger
-from forwarder import controller, determine_process_state
 
 logger = Logger.init_logger(Config().app.name, Config().logger)
 
@@ -67,14 +64,19 @@ class BridgeAPI:
         self.app.include_router(router=health.router,
                                 prefix=APIVersion.V1.value)
 
+        # auth router `api/v1/auth` is used to authenticate the user
         self.app.include_router(router=auth.router,
                                 prefix=APIVersion.V1.value)
 
-        # The start function is used to start the bridge
-        self.app.post("/start")(self.start)
-        # The stop function is used to stop the bridge
-        self.app.post("/stop")(self.stop)
-        # The upload_config function is used to upload the configuration file to the bridge
+        # The bridge router is used to control the bridge
+        self.app.include_router(router=bridge.router,
+                                prefix=APIVersion.V1.value)
+
+        # # The start function is used to start the bridge
+        # self.app.post("/start")(self.start)
+        # # The stop function is used to stop the bridge
+        # self.app.post("/stop")(self.stop)
+        # # The upload_config function is used to upload the configuration file to the bridge
         self.app.post("/upload")(self.upload_config)
 
     def index(self):
@@ -109,30 +111,30 @@ class BridgeAPI:
     #         }
     #     return {"process_state": "not running", "status": config.get_status(key=None)}
 
-    async def start(self):
-        """start the bridge."""
-        config = Config.get_config_instance()
-        pid_file = f'{config.app.name}.pid'
-        process_state, pid = determine_process_state(pid_file)
-        if pid == 0 and self.bridge_process is None or not self.bridge_process.is_alive():
-            self.bridge_process = Process(
-                target=controller, args=(True, True, False,))
-            self.bridge_process.start()
-            return {"operation_status": f"starting the bridge {config.app.name}, version {config.app.version}"}
-        if pid == 0 and self.bridge_process is not None and self.bridge_process.is_alive():
-            return {"operation_status": f"the bridge {config.app.name}, version {config.app.version} is starting"}
-        return {"operation_status": f"the bridge {config.app.name}, version {config.app.version} is {process_state} (PID: {pid})"}
+    # async def start(self):
+    #     """start the bridge."""
+    #     config = Config.get_config_instance()
+    #     pid_file = f'{config.app.name}.pid'
+    #     process_state, pid = determine_process_state(pid_file)
+    #     if pid == 0 and self.bridge_process is None or not self.bridge_process.is_alive():
+    #         self.bridge_process = Process(
+    #             target=controller, args=(True, True, False,))
+    #         self.bridge_process.start()
+    #         return {"operation_status": f"starting the bridge {config.app.name}, version {config.app.version}"}
+    #     if pid == 0 and self.bridge_process is not None and self.bridge_process.is_alive():
+    #         return {"operation_status": f"the bridge {config.app.name}, version {config.app.version} is starting"}
+    #     return {"operation_status": f"the bridge {config.app.name}, version {config.app.version} is {process_state} (PID: {pid})"}
 
-    async def stop(self):
-        """stop the bridge."""
-        config = Config.get_config_instance()
-        if self.bridge_process and self.bridge_process.is_alive():
-            controller(boot=False, background=False, stop=True)
-            self.bridge_process.join()
-            self.bridge_process = None
-            return {"operation_status": f"stopping the bridge {config.app.name}"}
+    # async def stop(self):
+    #     """stop the bridge."""
+    #     config = Config.get_config_instance()
+    #     if self.bridge_process and self.bridge_process.is_alive():
+    #         controller(boot=False, background=False, stop=True)
+    #         self.bridge_process.join()
+    #         self.bridge_process = None
+    #         return {"operation_status": f"stopping the bridge {config.app.name}"}
 
-        return {"operation_status": f"the bridge {config.app.name} is not running"}
+    #     return {"operation_status": f"the bridge {config.app.name} is not running"}
 
     async def upload_config(self, file: UploadFile = File(...)):
         """upload the config file."""
