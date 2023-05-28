@@ -1,7 +1,10 @@
 """the bridge config schema."""
 
 try:
-    from .config_schema import ConfigSchema
-    from .telagram_mfa_payload import MFACodePayload
+    from .auth_schema import TelegramAuthSchema
+    from .config_schema import (APIConfig, ApplicationConfig, ConfigSchema,
+                                ConfigSummary, DiscordConfig, LoggerConfig,
+                                OpenAIConfig, TelegramConfig)
+    from .health_schema import HealthSchema
 except ImportError as ex:
     raise ex

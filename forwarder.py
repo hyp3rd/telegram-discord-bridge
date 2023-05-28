@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 from asyncio import AbstractEventLoop
+from enum import Enum
 from typing import Tuple
 
 import discord
@@ -15,6 +16,7 @@ from telethon import TelegramClient
 from bridge.config import Config
 from bridge.core import on_restored_connectivity, start
 from bridge.discord_handler import start_discord
+from bridge.enums import ProcessStateEnum
 from bridge.healtcheck_handler import healthcheck
 from bridge.logger import Logger
 from bridge.telegram_handler import start_telegram_client
@@ -78,7 +80,7 @@ def determine_process_state(pid_file: str) -> Tuple[str, int]:
 
     if not os.path.isfile(pid_file):
         # The PID file does not exist, so the process is considered stopped.
-        return "stopped", 0
+        return ProcessStateEnum.STOPPED, 0
 
     pid = 0
     try:
@@ -89,22 +91,22 @@ def determine_process_state(pid_file: str) -> Tuple[str, int]:
             # If the PID file exists and the PID of the process that created it
             # is not running, the process is considered stopped.
             if not psutil.pid_exists(pid):
-                return "stopped", 0
+                return ProcessStateEnum.STOPPED, 0
 
             # If the PID file exists and the PID of the process that created it
             # is running, the process is considered running.
-            return "running", pid
+            return ProcessStateEnum.RUNNING, pid
     except ProcessLookupError:
         # If the PID file exists and the PID of the process that created it is
         # not running, the process is considered stopped.
-        return "stopped", 0
+        return ProcessStateEnum.ORPHANED, 0
     except PermissionError:
         # If the PID file exists and the PID of the process that created it is
         # running, the process is considered running.
-        return "running", pid
+        return ProcessStateEnum.RUNNING, pid
     except FileNotFoundError:
         # The PID file does not exist, so the process is considered stopped.
-        return "stopped", 0
+        return ProcessStateEnum.STOPPED, 0
 
 
 def stop_bridge():
@@ -112,7 +114,7 @@ def stop_bridge():
     pid_file = f'{config.app.name}.pid'
 
     process_state, pid = determine_process_state(pid_file)
-    if process_state == "stopped":
+    if process_state == ProcessStateEnum.STOPPED:
         logger.warning(
             "PID file '%s' not found. The %s may not be running.", pid_file, config.app.name)
         return
@@ -169,7 +171,7 @@ async def shutdown(sig, tasks_loop: asyncio.AbstractEventLoop):
         task.cancel()
 
     # Wait for all tasks to be cancelled
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=config.app.debug)
 
     # Check for errors
     for result in results:
@@ -189,13 +191,12 @@ async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
 
     # Disconnect clients
     if tgc.is_connected():
-        # await tgc.disconnect()
         tgc.disconnect()
     if dcl.is_ready():
         await dcl.close()
 
     # Cancel all tasks
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(*tasks, return_exceptions=config.app.debug)
 
 
 async def init_clients() -> Tuple[TelegramClient, discord.Client]:
@@ -242,7 +243,7 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
 
     except asyncio.CancelledError as ex:
         logger.warning(
-            "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=config.app.debug)
+            "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=False)
     except Exception as ex:  # pylint: disable=broad-except
         logger.error("Error while running the bridge: %s",
                      ex, exc_info=config.app.debug)
@@ -346,11 +347,13 @@ async def main():
 def controller(boot: bool, stop: bool, background: bool):
     """Init the bridge."""
     if boot:
-        logger.info("%s is starting", config.app.name)
+        logger.info("Booting %s...", config.app.name)
         logger.info("Version: %s", config.app.version)
         logger.info("Description: %s", config.app.description)
         logger.info("Log level: %s", config.logger.level)
         logger.info("Debug enabled: %s", config.app.debug)
+        logger.info("Login through API enabled: %s",
+                    config.api.telegram_login_enabled)
 
         if background:
             logger.info("Running %s in the background", config.app.name)

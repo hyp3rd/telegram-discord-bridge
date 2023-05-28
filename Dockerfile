@@ -2,6 +2,7 @@
 FROM docker.io/bitnami/python:3.11
 
 LABEL org.opencontainers.image.authors="F." \
+    org.opencontainers.image.vendor="hyp3rd" \
     org.opencontainers.image.description="Telegram - Discord Bridge" \
     org.opencontainers.image.source="https://github.com/hyp3rd/telegram-discord-bridge/" \
     org.opencontainers.image.title="The Bridge"

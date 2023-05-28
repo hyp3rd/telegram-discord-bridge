@@ -49,9 +49,6 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
             if config.app.debug:
                 logger.warning("Excluded dialog name: %s, id: %s, type: %s",
                                dialog.name, dialog.entity.id, type(dialog.entity))
-
-                # logger.debug("Available channel: %s, id: %s",
-                #              dialog.name, dialog.entity.id)
             continue
 
         for channel_mapping in config.telegram_forwarders:

@@ -19,9 +19,9 @@ class Forwarder(BaseModel):  # pylint: disable=too-few-public-methods
 
 class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """OpenAI config."""
+    enabled: bool
     api_key: str
     organization: str
-    enabled: bool
     sentiment_analysis_prompt: List[str]
 
 
@@ -57,8 +57,21 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     description: str
     debug: bool
     healthcheck_interval: int
-    recoverer_delay: int
-    api_login_enabled: bool
+    recoverer_delay: float
+
+
+class APIConfig(BaseModel):  # pylint: disable=too-few-public-methods
+    """API config."""
+    cors_origins: List[str]
+    telegram_login_enabled: bool
+    telegram_auth_file: str
+    telegram_auth_request_expiration: int
+
+
+class ConfigSummary(BaseModel):  # pylint: disable=too-few-public-methods
+    """Config summary."""
+    application: ApplicationConfig
+    api: APIConfig
 
 
 class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods

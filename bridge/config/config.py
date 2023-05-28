@@ -1,12 +1,14 @@
 """Configuration handler."""
+from __future__ import annotations
+
 import os
 import sys
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import yaml
 
 
-class AppConfig:  # pylint: disable=too-few-public-methods,disable=too-many-instance-attributes
+class AppConfig:  # pylint: disable=too-few-public-methods
     """Application configuration handler."""
 
     def __init__(self, config_data):
@@ -16,8 +18,16 @@ class AppConfig:  # pylint: disable=too-few-public-methods,disable=too-many-inst
         self.debug: bool = config_data["debug"]
         self.healthcheck_interval = config_data["healthcheck_interval"]
         self.recoverer_delay: float = config_data["recoverer_delay"]
-        self.api_login_enabled: bool = config_data["api_login_enabled"]
+
+
+class APIConfig:  # pylint: disable=too-few-public-methods
+    """API configuration handler."""
+
+    def __init__(self, config_data):
         self.cors_origins: List[str] = config_data["cors_origins"]
+        self.telegram_login_enabled: bool = config_data["telegram_login_enabled"]
+        self.telegram_auth_file: str = config_data["telegram_auth_file"]
+        self.telegram_auth_request_expiration: int = config_data["telegram_auth_request_expiration"]
 
 
 class LoggerConfig:  # pylint: disable=too-few-public-methods
@@ -54,6 +64,9 @@ class DiscordConfig:  # pylint: disable=too-few-public-methods
 class OpenAIConfig:  # pylint: disable=too-few-public-methods
     """OpenAI configuration handler."""
 
+    def __getitem__(self, key: str) -> str:
+        return getattr(self, key)
+
     def __init__(self, config_data):
         self.api_key: str = config_data["api_key"]
         self.organization: str = config_data["organization"]
@@ -64,8 +77,7 @@ class OpenAIConfig:  # pylint: disable=too-few-public-methods
 class Config:  # pylint: disable=too-many-instance-attributes
     """Configuration handler."""
 
-    _instance = None
-    _max_instances = 1
+    _instances: Dict[str, 'Config'] = {}
     _file_path = os.path.join(
         os.path.curdir,
         "config.yml",
@@ -73,16 +85,19 @@ class Config:  # pylint: disable=too-many-instance-attributes
 
     def __new__(cls):
         """Creates a new Config instance."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        if None not in cls._instances:
+            instance = super().__new__(cls)
+            instance._initialized = False
+            cls._instances[""] = instance
+        return cls._instances[""]
 
     def __init__(self):
         """Initializes a new Config instance."""
-        if not hasattr(self, "_initialized"):
+        if not self._initialized:
             self._initialized = True
 
             self.app: AppConfig
+            self.api: APIConfig
             self.logger: LoggerConfig
             self.telegram: TelegramConfig
             self.discord: DiscordConfig
@@ -91,13 +106,41 @@ class Config:  # pylint: disable=too-many-instance-attributes
 
             self.load()
 
+    def set_file_path(self, version: str):
+        """Set the file path based on the version."""
+        if version:
+            self._file_path = os.path.join(
+                os.path.curdir,
+                f"config-{version}.yml",
+            )
+        else:
+            self._file_path = os.path.join(
+                os.path.curdir,
+                "config.yml",
+            )
+
+    def set_version(self, version: str):
+        """Set the version of the configuration."""
+        if version not in Config._instances:
+            Config._instances[version] = Config()
+        Config._instances[version].set_file_path(version)
+        Config._instances[version].load()
+        return Config._instances[version]
+
+    @staticmethod
+    def get_config_instance(version: str | None = None) -> 'Config':
+        """Get the configuration instance based on the version."""
+        if version:
+            return Config._instances[version]
+        return Config._instances[""]
+
     def load(self) -> Any:
-        """Load configuration from the 'config.yml' file."""
+        """Load configuration from the 'config-{version}.yml' file."""
         try:
             with open(self._file_path, 'rb') as config_file:
                 config_data = yaml.safe_load(config_file)
         except FileNotFoundError:
-            print("Error: Configuration file 'config.yml' not found.")
+            print("Error: Configuration file not found.")
             sys.exit(1)
         except yaml.YAMLError as ex:
             print("Error parsing configuration file: %s", ex)
@@ -126,6 +169,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
             sys.exit(1)
 
         self.app = AppConfig(config_data["application"])
+        self.api = APIConfig(config_data["api"])
         self.logger = LoggerConfig(config_data["logger"])
         self.telegram = TelegramConfig(config_data["telegram"])
         self.discord = DiscordConfig(config_data["discord"])
@@ -141,10 +185,6 @@ class Config:  # pylint: disable=too-many-instance-attributes
         }
 
         return config_data
-
-    def reload(self) -> None:
-        """Reload configuration from the 'config.yml' file."""
-        self.load()
 
     @ staticmethod
     def validate_openai_enabled(config: OpenAIConfig) -> Tuple[bool, str]:

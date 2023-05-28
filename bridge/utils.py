@@ -47,7 +47,17 @@ def apply_markdown(markdown_text, start, end, markdown_delimiters):
 
 
 def telegram_entities_to_markdown(message_text: str, message_entities: list, strip_off_links: bool) -> str:
-    """Convert Telegram entities to Markdown."""
+    """Convert Telegram entities to Markdown.
+
+    Args:
+        message_text: The text of the message.
+        message_entities: The entities of the message.
+        strip_off_links: Whether to strip off links.
+
+    Returns:
+        The message text in Markdown format.
+    """
+
     if not message_entities:
         return message_text
 
@@ -69,13 +79,9 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list, str
     # Sort entities by start offset in ascending order, and by end offset in descending order.
     sorted_entities = sorted(entities, key=lambda e: (e[0], -e[1]))
 
-    # markdown_text = message_text.encode('utf-16')
-    # markdown_text = message_text
-
-    # markdown_text = utils.remove_markdown(
-    #     markdown_text.decode('utf-16'), ignore_links=False)
     message_text = utils.remove_markdown(
         message_text, ignore_links=False)
+
     offset_correction = 0
 
     links = []  # To hold link text and URLs
@@ -92,15 +98,11 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list, str
             offset_correction += correction
         elif url:  # This is a MessageEntityTextUrl.
             logger.debug("processing url: %s", url)
-
-            # link_text = markdown_text[start-1:end+1].strip()
-            # links.append(f"{link_text}: <{url}>")
             links.append(f"<{url}>")
-
-            # No need for offset correction here as we're only replacing the text with itself.
+            # No need to do anything here as we're only replacing the text with itself.
 
     # Append the links at the end of the message
     if links and not strip_off_links:
-        message_text += "\n\n" + "\n".join(links)
+        message_text += "\n\n**Links**\n" + "\n".join(links)
 
     return message_text
