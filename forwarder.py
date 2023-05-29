@@ -57,7 +57,7 @@ def remove_pid_file(pid_file: str):
         logger.error("Failed to remove PID file '%s'.", pid_file)
 
 
-def determine_process_state(pid_file: str) -> Tuple[str, int]:
+def determine_process_state(pid_file: str) -> Tuple[ProcessStateEnum, int]:
     """
     Determine the state of the process.
 

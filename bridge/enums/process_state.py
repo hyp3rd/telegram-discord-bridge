@@ -5,7 +5,9 @@ from enum import Enum
 
 class ProcessStateEnum(str, Enum):
     """Process State Enum."""
-    STOPPED = "stopped"
     RUNNING = "running"
+    STARTING = "starting"
+    STOPPED = "stopped"
+    STOPPING = "stopping"
     PAUSED = "paused"
     ORPHANED = "orphaned"

@@ -5,7 +5,7 @@ from typing import List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from api.models import HealthSchema
+from api.models import Health, HealthSchema
 from bridge.config import Config
 from forwarder import determine_process_state
 
@@ -28,11 +28,11 @@ async def health():
     process_state, pid = determine_process_state(pid_file)
 
     return HealthSchema(
-        health={
-            "process_state": process_state,
-            "process_id": pid,
-            "status": config.get_status(key=None),
-        }
+        health=Health(
+            process_state=process_state,
+            process_id=pid,
+            status=config.get_status(key=None),
+        )
     )
 
 
@@ -57,11 +57,11 @@ class ConnectionManager:
         pid_file = f'{config.app.name}.pid'
         process_state, pid = determine_process_state(pid_file)
         health_data = HealthSchema(
-            health={
-                "process_state": process_state,
-                "process_id": pid,
-                "status": config.get_status(key=None),
-            }
+            health=Health(
+                process_state=process_state,
+                process_id=pid,
+                status=config.get_status(key=None),
+            )
         )
         if websocket in self.active_connections:
             await websocket.send_json(health_data.dict())

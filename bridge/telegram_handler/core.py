@@ -7,7 +7,8 @@ from typing import Any, List
 from discord import Message
 from telethon import TelegramClient
 from telethon.errors.rpcerrorlist import \
-    FloodWaitError  # , SessionPasswordNeededError, SessionPasswordWrongError, SessionRevokedError
+    (FloodWaitError, SessionPasswordNeededError,
+     SessionRevokedError, PhoneCodeInvalidError)
 from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
                                MessageEntityUrl)
 
@@ -22,49 +23,15 @@ logger = Logger.get_logger(Config().app.name)
 tg_to_discord_message_ids = {}
 
 
-# async def get_telegram_password(api_auth: bool) -> str:
-#     """Get the Telegram password from the API payload, the `TELEGRAM_PASSWORD` environment variable, or the config file."""
-#     telegram_password = os.getenv("TELEGRAM_PASSWORD", None)
-#     logger.debug("Attempting to get the Telegram password")
-#     if telegram_password is not None:
-#         return telegram_password
-#     config = Config.get_config_instance()
-#     if not api_auth:
-#         return config.telegram.password
-#     # Wait for the auth file to be created with a timeout of 120 seconds
-#     for _ in range(config.api.telegram_auth_request_expiration):
-#         logger.debug("Waiting for the Telegram password")
-#         if os.path.isfile(config.api.telegram_auth_file):
-#             with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
-#                 telegram_password = json.load(auth_file).get('password')
-#             if telegram_password:
-#                 logger.debug("Got the Telegram password")
-#                 return telegram_password
-#         await asyncio.sleep(1)
-#     raise TimeoutError("Timeout waiting for the Telegram password")
+# Check if the session file and the auth file exist
+# to estabils the user has an active session
+def check_telegram_session() -> bool:
+    """Check if the Telegram session file exists."""
+    config = Config.get_config_instance()
+    if os.path.isfile(f"{config.app.name}.session") and os.path.isfile(config.api.telegram_auth_file):
+        return True
+    return False
 
-
-# async def get_telegram_auth_code(api_auth: bool) -> str | int:
-#     """Get the Telegram auth code from the API payload, or the user's input."""
-#     logger.debug("Attempting to get the Telegram auth code")
-#     config = Config.get_config_instance()
-#     if api_auth:
-#         # Wait for the auth file to be created with a timeout of 120 seconds
-#         for _ in range(config.api.telegram_auth_request_expiration):
-#             if os.path.isfile(config.api.telegram_auth_file):
-#                 with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
-#                     code = json.load(auth_file).get('code')
-#                 if code:
-#                     logger.debug("Got the Telegram auth code")
-#                     return code
-#             await asyncio.sleep(1)
-#         raise TimeoutError("Timeout waiting for 2FA code")
-
-#     code = input("Enter the Telegram 2FA code: ")
-#     if not code:
-#         raise ValueError("No code was entered.")
-
-#     return code
 
 async def get_auth_value_from_file(key: str) -> str | int:
     """Wait for the auth file to be created and then read a value from it."""
@@ -82,7 +49,8 @@ async def get_auth_value_from_file(key: str) -> str | int:
 
 
 async def get_telegram_password(api_auth: bool) -> str:
-    """Get the Telegram password from the API payload, the `TELEGRAM_PASSWORD` environment variable, or the config file."""
+    """Get the Telegram password from the API payload,
+    the `TELEGRAM_PASSWORD` environment variable, or the config file."""
     telegram_password = os.getenv("TELEGRAM_PASSWORD", None)
     logger.debug("Attempting to get the Telegram password")
     if telegram_password is not None:
@@ -152,6 +120,47 @@ async def start_telegram_client(config: Config) -> TelegramClient:
             code_callback=code_callback,  # type: ignore
             password=lambda: get_telegram_password(config.api.telegram_login_enabled))  # type: ignore
 
+    except SessionPasswordNeededError:
+        logger.error("Telegram client failed to start: %s",
+                     "2FA is enabled but no password was provided",
+                     exc_info=config.app.debug)
+        # append to the json file that 2FA is enabled
+        if os.path.isfile(config.api.telegram_auth_file) and config.api.telegram_login_enabled:
+            with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
+                auth_data = json.load(auth_file)
+            auth_data["mfa_required"] = True
+            auth_data["error"] = "2FA is enabled but no password was provided"
+            with open(config.api.telegram_auth_file, 'w', encoding="utf-8") as auth_file:
+                json.dump(auth_data, auth_file)
+        raise
+
+    except SessionRevokedError:
+        logger.error("Telegram client failed to start: %s",
+                     "The current session was revoked",
+                     exc_info=config.app.debug)
+        if os.path.isfile(config.api.telegram_auth_file) and config.api.telegram_login_enabled:
+            # append to the json file that the session was revoked
+            with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
+                auth_data = json.load(auth_file)
+            auth_data["session_revoked"] = True
+            auth_data["error"] = "The current session was revoked"
+            with open(config.api.telegram_auth_file, 'w', encoding="utf-8") as auth_file:
+                json.dump(auth_data, auth_file)
+        raise
+    except PhoneCodeInvalidError:
+        logger.error("Telegram client failed to start: %s",
+                     "The phone code is invalid",
+                     exc_info=config.app.debug)
+        if os.path.isfile(config.api.telegram_auth_file) and config.api.telegram_login_enabled:
+            # append to the json file that the phone code is invalid
+            with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
+                auth_data = json.load(auth_file)
+            auth_data["phone_code_invalid"] = True
+            auth_data["error"] = "The phone code is invalid"
+            with open(config.api.telegram_auth_file, 'w', encoding="utf-8") as auth_file:
+                json.dump(auth_data, auth_file)
+        raise
+                        
     # os.remove(config.telegram.auth_file)
 
     bot_identity = await telegram_client.get_me(input_peer=False)
@@ -188,7 +197,8 @@ async def process_message_text(event, forwarder_config: dict[str, Any],
         mention_text = ", ".join(role for role in mention_roles)
         message_text = f"{mention_text}\n{message_text}"
 
-    return telegram_entities_to_markdown(message_text, event.message.entities, forwarder_config["strip_off_links"])
+    return telegram_entities_to_markdown(message_text, event.message.entities,
+                                         forwarder_config["strip_off_links"])
 
 
 async def process_media_message(telegram_client: TelegramClient,
@@ -212,9 +222,12 @@ async def process_media_message(telegram_client: TelegramClient,
     return sent_discord_messages
 
 
-async def handle_message_media(telegram_client: TelegramClient, event, discord_channel, message_text, discord_reference) -> List[Message] | None:
+async def handle_message_media(telegram_client: TelegramClient, event,
+                               discord_channel, message_text, 
+                               discord_reference) -> List[Message] | None:
     """Handle a message that contains media."""
-    contains_url = any(isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl))
+    contains_url = any(isinstance(entity, (MessageEntityTextUrl,
+                                           MessageEntityUrl))
                        for entity in event.message.entities or [])
 
     if contains_url:
@@ -222,7 +235,9 @@ async def handle_message_media(telegram_client: TelegramClient, event, discord_c
                                                           message_text,
                                                           discord_reference)
     else:
-        sent_discord_messages = await process_media_message(telegram_client, event, discord_channel,
+        sent_discord_messages = await process_media_message(telegram_client, 
+                                                            event,
+                                                            discord_channel,
                                                             message_text,
                                                             discord_reference)
 
