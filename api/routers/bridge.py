@@ -7,7 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from api.models import (BridgeResponse, BridgeResponseSchema, Health,
                         HealthHistory, HealtHistoryManager, HealthSchema)
-from api.routers.health import ConnectionManager, HealthcheckSubscriber
+from api.routers.health import HealthcheckSubscriber, WSConnectionManager
 from bridge.config import Config
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
@@ -31,7 +31,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         self.health_history_manager_instance.start()
         self.health_history: HealthHistory = self.health_history_manager_instance.HealthHistory() # type: ignore # pylint: disable=no-member
 
-        self.ws_connection_manager = ConnectionManager(self.health_history)
+        self.ws_connection_manager = WSConnectionManager(self.health_history)
 
         self.bridge_router = APIRouter(
             prefix="/bridge",

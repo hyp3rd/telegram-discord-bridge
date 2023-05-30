@@ -100,4 +100,3 @@ class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
             event (str): The event string.
             data: The data object.
         """
-        pass

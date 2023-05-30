@@ -17,7 +17,7 @@ logger = Logger.get_logger(Config.get_config_instance().app.name)
 # Initialize a global Config object
 config = Config()
 
-class ConnectionManager:
+class WSConnectionManager:
     """WS Connection Manager."""
 
     def __init__(self, health_history: HealthHistory):
