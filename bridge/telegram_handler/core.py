@@ -6,9 +6,10 @@ from typing import Any, List
 
 from discord import Message
 from telethon import TelegramClient
-from telethon.errors.rpcerrorlist import \
-    (FloodWaitError, SessionPasswordNeededError,
-     SessionRevokedError, PhoneCodeInvalidError)
+from telethon.errors.rpcerrorlist import (FloodWaitError,
+                                          PhoneCodeInvalidError,
+                                          SessionPasswordNeededError,
+                                          SessionRevokedError)
 from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
                                MessageEntityUrl)
 
@@ -76,7 +77,7 @@ async def get_telegram_auth_code(api_auth: bool) -> str | int:
     return code
 
 
-async def start_telegram_client(config: Config) -> TelegramClient:
+async def start_telegram_client(config: Config) -> TelegramClient: # pylint: disable=too-many-statements
     """Start the Telegram client."""
     logger.info("Starting Telegram client...")
 
@@ -160,7 +161,7 @@ async def start_telegram_client(config: Config) -> TelegramClient:
             with open(config.api.telegram_auth_file, 'w', encoding="utf-8") as auth_file:
                 json.dump(auth_data, auth_file)
         raise
-                        
+
     # os.remove(config.telegram.auth_file)
 
     bot_identity = await telegram_client.get_me(input_peer=False)
@@ -223,7 +224,7 @@ async def process_media_message(telegram_client: TelegramClient,
 
 
 async def handle_message_media(telegram_client: TelegramClient, event,
-                               discord_channel, message_text, 
+                               discord_channel, message_text,
                                discord_reference) -> List[Message] | None:
     """Handle a message that contains media."""
     contains_url = any(isinstance(entity, (MessageEntityTextUrl,
@@ -235,7 +236,7 @@ async def handle_message_media(telegram_client: TelegramClient, event,
                                                           message_text,
                                                           discord_reference)
     else:
-        sent_discord_messages = await process_media_message(telegram_client, 
+        sent_discord_messages = await process_media_message(telegram_client,
                                                             event,
                                                             discord_channel,
                                                             message_text,

@@ -87,7 +87,7 @@ async def healthcheck(dispatcher: EventDispatcher, tgc: TelegramClient, dcl: dis
                 "An error occurred while connecting to the Discord API: %s", ex, exc_info=config.app.debug)
             # set the Discord availability status to False
             config.discord.is_healthy = False
-        
+
         dispatcher.notify("healthcheck", config)
         # Sleep for the given interval and retry
         await asyncio.sleep(interval)

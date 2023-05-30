@@ -2,8 +2,8 @@
 import json
 
 from fastapi import APIRouter
-from telethon.errors.rpcerrorlist import SessionPasswordNeededError, PhoneCodeInvalidError
-from api.models import (TelegramAuthResponseSchema, TelegramAuthResponse,
+
+from api.models import (TelegramAuthResponse, TelegramAuthResponseSchema,
                         TelegramAuthSchema)
 from bridge.config import Config
 

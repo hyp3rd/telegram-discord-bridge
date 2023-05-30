@@ -13,7 +13,7 @@ from pydantic import ValidationError  # pylint: disable=import-error
 from api.models import (APIConfig, ApplicationConfig, ConfigSchema,
                         ConfigSummary)
 from api.rate_limiter import RateLimitMiddleware
-from api.routers import auth, bridge, health
+from api.routers import auth, bridge
 from bridge.config import Config
 from bridge.logger import Logger
 

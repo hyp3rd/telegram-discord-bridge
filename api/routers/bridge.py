@@ -28,7 +28,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         HealtHistoryManager.register('HealthHistory', HealthHistory)
 
         self.health_history_manager_instance = HealtHistoryManager()
-        self.health_history_manager_instance.start()
+        self.health_history_manager_instance.start() # pylint: disable=consider-using-with # the server must stay alive as long as we want the shared object to be accessible
         self.health_history: HealthHistory = self.health_history_manager_instance.HealthHistory() # type: ignore # pylint: disable=no-member
 
         self.ws_connection_manager = WSConnectionManager(self.health_history)
@@ -49,13 +49,13 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                            summary="Removes the Bridge process.",
                            description="Suspends the Bridge forwarding messages from Telegram to Discord and stops the process.",
                            response_model=BridgeResponseSchema)(self.stop)
-        
+
         self.bridge_router.get("/health",
                         name="Get the health status of the Bridge.",
                         summary="Determines the Bridge process status, the Telegram, Discord, and OpenAI connections health and returns a summary.",
-                        description="Determines the Bridge process status, the Telegram, Discord, and OpenAI connections health and returns a summary.",
+                        description="Determines the Bridge process status, and the Telegram, Discord, and OpenAI connections health.",
                         response_model=HealthSchema)(self.health)
-        
+
         self.bridge_router.websocket("/health/ws",
                                 name="Get the health status of the Bridge.")(self.health_websocket_endpoint)
 
