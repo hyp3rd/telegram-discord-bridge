@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+from typing import Any, Dict
 
 import discord
 from telethon import TelegramClient, events
@@ -97,7 +98,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
     @telegram_client.on(events.NewMessage(chats=input_channels_entities))
     async def handler(event):
         """Handle new messages in the specified Telegram channels."""
-        if config.status["discord_available"] is False and config.status["internet_connected"] is True:
+        if config.discord.is_healthy is False and config.app.internet_connected is True:
             await add_to_queue(event)
             return
 
@@ -134,7 +135,7 @@ async def handle_new_message(event, config: Config, telegram_client: TelegramCli
 
         discord_channel_id = discord_channel_config["discord_channel_id"]
 
-        forwarder_config = {
+        forwarder_config: Dict[str, Any] = {
             "mention_everyone": discord_channel_config["mention_everyone"],
             "strip_off_links": discord_channel_config["strip_off_links"],
             "forward_everything": discord_channel_config["forward_everything"],
@@ -232,7 +233,7 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
     logger.debug("Checking for internet connectivity")
     while True:
 
-        if config.status["internet_connected"] and config.status["telegram_available"] is True:
+        if config.app.internet_connected and config.telegram.is_healthy is True:
             logger.debug(
                 "Internet connection active and Telegram is connected, checking for missed messages")
             try:
@@ -260,7 +261,7 @@ async def on_restored_connectivity(config: Config, telegram_client: TelegramClie
                             event.peer = await telegram_client.get_input_entity(
                                 channel_id)
 
-                            if config.status["discord_available"] is False:
+                            if config.discord.is_healthy is False:
                                 logger.warning("Discord is not available despite the connectivty is restored, queing TG message %s",
                                                event.message.id)
                                 await add_to_queue(event)

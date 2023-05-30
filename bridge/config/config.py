@@ -16,6 +16,7 @@ class AppConfig:  # pylint: disable=too-few-public-methods
         self.version: str = config_data["version"]
         self.description: str = config_data["description"]
         self.debug: bool = config_data["debug"]
+        self.internet_connected: bool = False
         self.healthcheck_interval = config_data["healthcheck_interval"]
         self.recoverer_delay: float = config_data["recoverer_delay"]
 
@@ -24,6 +25,7 @@ class APIConfig:  # pylint: disable=too-few-public-methods
     """API configuration handler."""
 
     def __init__(self, config_data):
+        self.enabled = config_data["enabled"]
         self.cors_origins: List[str] = config_data["cors_origins"]
         self.telegram_login_enabled: bool = config_data["telegram_login_enabled"]
         self.telegram_auth_file: str = config_data["telegram_auth_file"]
@@ -46,6 +48,7 @@ class TelegramConfig:  # pylint: disable=too-few-public-methods
     """Telegram configuration handler."""
 
     def __init__(self, config_data):
+        self.is_healthy: bool = False
         self.phone = config_data["phone"]
         self.password: str = config_data["password"]
         self.api_id: int = config_data["api_id"]
@@ -56,6 +59,7 @@ class DiscordConfig:  # pylint: disable=too-few-public-methods
     """Discord configuration handler."""
 
     def __init__(self, config_data):
+        self.is_healthy: bool = False
         self.bot_token: str = config_data["bot_token"]
         self.built_in_roles: List[str] = config_data["built_in_roles"]
         self.max_latency: float = config_data["max_latency"]
@@ -68,6 +72,7 @@ class OpenAIConfig:  # pylint: disable=too-few-public-methods
         return getattr(self, key)
 
     def __init__(self, config_data):
+        self.is_healthy: bool = True
         self.api_key: str = config_data["api_key"]
         self.organization: str = config_data["organization"]
         self.enabled: bool = config_data["enabled"]
@@ -128,11 +133,23 @@ class Config:  # pylint: disable=too-many-instance-attributes
         return Config._instances[version]
 
     @staticmethod
-    def get_config_instance(version: str | None = None) -> 'Config':
+    def get_config_instance(version: str | None = "") -> 'Config':
         """Get the configuration instance based on the version."""
-        if version:
-            return Config._instances[version]
-        return Config._instances[""]
+        try:
+            return Config._instances[version] if version and version in Config._instances else Config._instances[""]
+        except KeyError as ex:
+            raise ValueError(f'Invalid version: {version}') from ex
+
+    # Set the configuration instance based on the version.
+    @staticmethod
+    def set_config_instance(config: 'Config', version: str | None = "") -> Config:
+        """Set the configuration instance based on the version."""
+        if not version:
+            version = ""
+        if version not in Config._instances:
+            print("Setting config instance for version %s", version)
+            Config._instances[version] = config
+        return config
 
     def load(self) -> Any:
         """Load configuration from the 'config-{version}.yml' file."""
@@ -176,13 +193,6 @@ class Config:  # pylint: disable=too-many-instance-attributes
         self.openai = OpenAIConfig(config_data["openai"])
 
         self.telegram_forwarders = config_data["telegram_forwarders"]
-
-        self.status = {
-            "internet_connected": False,
-            "telegram_available": False,
-            "discord_available": False,
-            "openai_available": True,
-        }
 
         return config_data
 
@@ -349,19 +359,3 @@ class Config:  # pylint: disable=too-many-instance-attributes
             if forwarder.get("forwarder_name") == forwarder_name:
                 return forwarder.get("tg_channel_id")
         return None
-
-    def set_status(self, key: str, value: bool) -> None:
-        """Set status."""
-        if not isinstance(key, str):
-            raise TypeError(f"key must be a string, not {type(key)}")
-        if not isinstance(value, bool):
-            raise TypeError(f"value must be a bool, not {type(value)}")
-        self.status[key] = value
-
-    def get_status(self, key: str | None) -> bool | dict[str, bool]:
-        """Get status."""
-        if key is None:
-            return self.status
-        if key not in self.status:
-            raise KeyError(f'Key {key} not found in Config().status')
-        return self.status[key]

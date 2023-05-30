@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 from asyncio import AbstractEventLoop
+from sqlite3 import OperationalError
 from typing import Tuple
 
 import discord
@@ -16,6 +17,7 @@ from bridge.config import Config
 from bridge.core import on_restored_connectivity, start
 from bridge.discord_handler import start_discord
 from bridge.enums import ProcessStateEnum
+from bridge.events import EventDispatcher
 from bridge.healtcheck_handler import healthcheck
 from bridge.logger import Logger
 from bridge.telegram_handler import start_telegram_client
@@ -41,7 +43,8 @@ def create_pid_file() -> str:
         with open(bot_pid_file, "w", encoding="utf-8") as pid_file:
             pid_file.write(str(pid))
     except OSError as err:
-        sys.exit(f"Unable to create PID file: {err}")
+        print(f"Unable to create PID file: {err}", flush=True)
+        sys.exit(0)
 
     return bot_pid_file
 
@@ -198,7 +201,7 @@ async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
     await asyncio.gather(*tasks, return_exceptions=config.app.debug)
 
 
-async def init_clients() -> Tuple[TelegramClient, discord.Client]:
+async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, discord.Client]:
     """Handle the initialization of the bridge's clients."""
     telegram_client_instance = await start_telegram_client(config)
     discord_client_instance = await start_discord(config)
@@ -224,7 +227,8 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
             discord_client_instance.wait_until_ready()
         )
         api_healthcheck_task = event_loop.create_task(
-            healthcheck(telegram_client_instance,
+            healthcheck(dispatcher,
+                        telegram_client_instance,
                         discord_client_instance, config.app.healthcheck_interval)
         )
         on_restored_connectivity_task = event_loop.create_task(
@@ -252,7 +256,7 @@ async def init_clients() -> Tuple[TelegramClient, discord.Client]:
     return telegram_client_instance, discord_client_instance
 
 
-def start_bridge(event_loop: AbstractEventLoop):
+def start_bridge(dispatcher: EventDispatcher, event_loop: AbstractEventLoop):
     """Start the bridge."""
 
     # Set the exception handler.
@@ -262,7 +266,7 @@ def start_bridge(event_loop: AbstractEventLoop):
     pid_file = create_pid_file()
 
     # Create a task for the main coroutine.
-    main_task = event_loop.create_task(main())
+    main_task = event_loop.create_task(main(dispatcher=dispatcher))
 
     try:
         # Run the event loop.
@@ -324,26 +328,30 @@ def daemonize_process():
         os.dup2(devnull.fileno(), sys.stderr.fileno())
 
 
-async def main():
+async def main(dispatcher: EventDispatcher):
     """Run the bridge."""
     clients = ()
     try:
-        clients = await init_clients()
+        clients = await init_clients(dispatcher=dispatcher)
     except KeyboardInterrupt:
         logger.warning("Interrupted by user, shutting down...")
     except asyncio.CancelledError:
         logger.warning("CancelledError caught, shutting down...")
+    except RuntimeError as ex:
+        logger.error("RuntimeError caught: %s", ex, exc_info=config.app.debug)
+    except OperationalError as ex:
+        logger.error("OperationalError caught: %s", ex, exc_info=config.app.debug)
     finally:
         if clients:
             telegram_client, discord_client = clients[0], clients[1]
-            if not telegram_client.is_connected() and not discord_client.is_ready():
+            if telegram_client and not telegram_client.is_connected() and not discord_client.is_ready():
                 clients = ()
             else:
                 await on_shutdown(telegram_client, discord_client)
                 clients = ()
 
 
-def controller(boot: bool, stop: bool, background: bool):
+def controller(dispatcher: EventDispatcher | None, boot: bool, stop: bool, background: bool):
     """Init the bridge."""
     if boot:
         logger.info("Booting %s...", config.app.name)
@@ -371,7 +379,11 @@ def controller(boot: bool, stop: bool, background: bool):
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        start_bridge(loop)
+
+        if dispatcher is None:
+            dispatcher = EventDispatcher()
+
+        start_bridge(dispatcher=dispatcher, event_loop=loop)
     elif stop:
         stop_bridge()
     else:
@@ -402,4 +414,5 @@ if __name__ == "__main__":
     __stop: bool = cmd_args.stop
     __background: bool = cmd_args.background
 
-    controller(__start, __stop, __background)
+    event_dispatcher = EventDispatcher()
+    controller(dispatcher=event_dispatcher, boot=__start, stop=__stop, background=__background)

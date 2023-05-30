@@ -1,46 +1,28 @@
 """Bridge Health API Router."""
 
 import asyncio
-from typing import List
+from datetime import datetime
+from typing import Any, List
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 
-from api.models import Health, HealthSchema
+from api.models import Health, HealthHistory, HealthSchema
 from bridge.config import Config
+from bridge.enums import ProcessStateEnum
+from bridge.events import EventSubscriber
+from bridge.logger import Logger
 from forwarder import determine_process_state
 
-router = APIRouter(
-    prefix="/health",
-    tags=["health"],
-)
-
-
-@router.get("/",
-            name="health",
-            summary="Get the health status of the Bridge.",
-            description="Determines the Bridge process status, the Telegram, Discord, and OpenAI connections health and returns a summary.",
-            response_model=HealthSchema)
-async def health():
-    """Return the health status of the Bridge."""
-    config = Config.get_config_instance()
-
-    pid_file = f'{config.app.name}.pid'
-    process_state, pid = determine_process_state(pid_file)
-
-    return HealthSchema(
-        health=Health(
-            process_state=process_state,
-            process_id=pid,
-            status=config.get_status(key=None),
-        )
-    )
-
+logger = Logger.get_logger(Config.get_config_instance().app.name)
+# Initialize a global Config object
+config = Config()
 
 class ConnectionManager:
     """WS Connection Manager."""
 
-    def __init__(self):
+    def __init__(self, health_history: HealthHistory):
         self.active_connections: List[WebSocket] = []
+        self.health_history: HealthHistory = health_history
 
     async def connect(self, websocket: WebSocket):
         """Connect, handles the WS connections."""
@@ -53,38 +35,70 @@ class ConnectionManager:
 
     async def send_health_data(self, websocket: WebSocket):
         """Send health data to the WS client."""
-        config = Config.get_config_instance()
-        pid_file = f'{config.app.name}.pid'
+        current_config = config.get_config_instance()
+        pid_file = f'{current_config.app.name}.pid'
         process_state, pid = determine_process_state(pid_file)
-        health_data = HealthSchema(
-            health=Health(
-                process_state=process_state,
+
+        health_status = None
+
+        try:
+            health_status = self.health_history.get_health_data()
+        except ValueError:
+            logger.error("Unable to retrieve the last health status.")
+            health_data = HealthSchema(
+                health=Health(
+                timestamp=0,
+                process_state=ProcessStateEnum.UNKNOWN,
                 process_id=pid,
-                status=config.get_status(key=None),
+                status={},
             )
         )
+
+        health_data = HealthSchema(
+            health=Health(
+                timestamp=health_status.timestamp if health_status else 0,
+                process_state=process_state,
+                process_id=pid,
+                status=health_status.status if health_status else {},
+            )
+        )
+
         if websocket in self.active_connections:
             await websocket.send_json(health_data.dict())
             await asyncio.sleep(1)  # send health data every second
 
 
-manager = ConnectionManager()
+class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-methods
+    """Event subscriber class."""
 
+    def __init__(self, name, health_history: HealthHistory):
+        super().__init__(name)
+        self.health_history: HealthHistory = health_history
 
-async def health_data_sender(websocket: WebSocket):
-    """Send health data to the WS client."""
-    while True:
-        await manager.send_health_data(websocket)
+    def update(self, event:str, data:Any | None = None):
+        """
+        Update the event subscriber with a new event.
 
+        Args:
+            event (str): The event string.
+            data (Any): The config object.
 
-@router.websocket("/")
-async def websocket_endpoint(websocket: WebSocket):
-    """Websocket endpoint."""
-    await manager.connect(websocket)
-    task = asyncio.create_task(health_data_sender(websocket))
-    try:
-        while True:
-            _ = await websocket.receive_text()
-    except WebSocketDisconnect:
-        task.cancel()
-        await manager.disconnect(websocket)
+        Returns:
+            None
+        """
+        logger.debug("Subscriber %s received event: %s", self.name, event)
+
+        if data and isinstance(data, Config):
+            logger.debug("Subscriber %s received config: %s", self.name, data)
+            health_data = Health(
+                timestamp=datetime.timestamp(datetime.now()),
+                process_state=ProcessStateEnum.RUNNING,
+                process_id=0,
+                status={
+                    "telegram": data.telegram.is_healthy,
+                    "discord": data.discord.is_healthy,
+                    "openai": data.openai.is_healthy,
+                    "internet": data.app.internet_connected,
+                })
+
+            self.health_history.add_health_data(health_data)

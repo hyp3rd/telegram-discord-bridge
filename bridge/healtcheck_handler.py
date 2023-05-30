@@ -9,9 +9,10 @@ from telethon import TelegramClient
 
 from bridge.config import Config
 from bridge.discord_handler import DiscordClientHealth
+from bridge.events import EventDispatcher
 from bridge.logger import Logger
 
-config = Config()
+config = Config.get_config_instance()
 logger = Logger.get_logger(config.app.name)
 
 discord__client_health = DiscordClientHealth()
@@ -30,7 +31,7 @@ async def internet_connectivity_check() -> bool:
         return False
 
 
-async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 30):
+async def healthcheck(dispatcher: EventDispatcher, tgc: TelegramClient, dcl: discord.Client, interval: int = 30):
     """Check the health of the Discord and Telegram APIs periodically."""
     # Check for internet connectivity
     while True:
@@ -39,16 +40,14 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
             if has_connectivity:
                 logger.debug("The bridge is online.")
                 # set the internet connectivity status to True
-                # config.status["internet_connected"] = True
-                config.set_status("internet_connected", True)
+                config.app.internet_connected = True
             else:
                 logger.warning("Unable to reach the internet.")
                 # set the internet connectivity status to False
-                # config.status["internet_connected"] = False
-                config.set_status("internet_connected", False)
+                config.app.internet_connected = False
                 # wait for the specified interval
                 await asyncio.sleep(interval)
-                await healthcheck(tgc, dcl, interval)
+                await healthcheck(dispatcher, tgc, dcl, interval)
 
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
@@ -60,19 +59,16 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
                 await tgc.get_me()
                 logger.debug("Telegram API is healthy.")
                 # set the Telegram availability status to True
-                # config.status["telegram_available"] = True
-                config.set_status("telegram_available", True)
+                config.telegram.is_healthy = True
         except ConnectionError as ex:
             logger.error("Unable to reach the Telegram API: %s", ex)
             # set the Telegram availability status to False
-            # config.status["telegram_available"] = False
-            config.set_status("telegram_available", False)
+            config.telegram.is_healthy = False
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
                 "An error occurred while connecting to the Telegram API: %s", ex, exc_info=config.app.debug)
             # set the Telegram availability status to False
-            # config.status["telegram_available"] = False
-            config.set_status("telegram_available", False)
+            config.telegram.is_healthy = False
 
         # Check Discord API status
         try:
@@ -81,19 +77,17 @@ async def healthcheck(tgc: TelegramClient, dcl: discord.Client, interval: int = 
             if is_healthy:
                 logger.debug("Discord API is healthy.")
                 # set the Discord availability status to True
-                # config.status["discord_available"] = True
-                config.set_status("discord_available", True)
+                config.discord.is_healthy = True
             else:
                 logger.warning(discord_status)
                 # set the Discord availability status to False
-                # config.status["discord_available"] = False
-                config.set_status("discord_available", False)
+                config.discord.is_healthy = False
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
                 "An error occurred while connecting to the Discord API: %s", ex, exc_info=config.app.debug)
             # set the Discord availability status to False
-            # config.status["discord_available"] = False
-            config.set_status("discord_available", False)
-
+            config.discord.is_healthy = False
+        
+        dispatcher.notify("healthcheck", config)
         # Sleep for the given interval and retry
         await asyncio.sleep(interval)

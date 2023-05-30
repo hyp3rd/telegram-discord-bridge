@@ -1,4 +1,4 @@
-let socket = new WebSocket("ws://localhost:8000/api/v1/health/");
+let socket = new WebSocket("ws://localhost:8000/api/v1/bridge/health/ws");
 
 socket.onopen = function (e) {
     console.log("[open] Connection established");
