@@ -47,10 +47,7 @@ class WSConnectionManager:
             logger.error("Unable to retrieve the last health status.")
             health_data = HealthSchema(
                 health=Health(
-                timestamp=0,
-                process_state=ProcessStateEnum.UNKNOWN,
                 process_id=pid,
-                status={},
             )
         )
 
@@ -65,7 +62,7 @@ class WSConnectionManager:
 
         if websocket in self.active_connections:
             await websocket.send_json(health_data.dict())
-            await asyncio.sleep(1)  # send health data every second
+            await asyncio.sleep(config.app.healthcheck_interval)  # send health data every second
 
 
 class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-methods

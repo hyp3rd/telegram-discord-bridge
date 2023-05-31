@@ -172,10 +172,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
             logger.error("Unable to retrieve the last health status.")
             return HealthSchema(
                 health=Health(
-                timestamp=0,
-                process_state=ProcessStateEnum.UNKNOWN,
                 process_id=pid,
-                status={},
             )
         )
 

@@ -13,10 +13,10 @@ logger = Logger.get_logger(Config.get_config_instance().app.name)
 
 class Health(BaseModel):
     """Health."""
-    timestamp: float
-    process_state: ProcessStateEnum
-    process_id: int
-    status: dict[str, bool]
+    timestamp: float = 0
+    process_state: ProcessStateEnum = ProcessStateEnum.UNKNOWN
+    process_id: int = 0
+    status: dict[str, bool] = {}
 
 
 class HealthSchema(BaseModel):
