@@ -41,7 +41,7 @@ Now craft a new `config.yml` file in the root directory, starting from the `conf
 # Basic application configuration
 application:
   name: "hyp3rbridg3"
-  version: "1.1.9"
+  version: "1.1.10"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
@@ -52,6 +52,8 @@ application:
 
 # Management API configuration
 api:
+  # Enable the management API
+  enabled: True
   # Enable the Telegram MFA login via the management API
   telegram_login_enabled: True
   # The file to store the Telegram code and MFA password
@@ -162,7 +164,7 @@ In addition to text messages, the bridge can forward media files such as photos,
 You can run the bridge in a Docker container. The Docker image is available on [GitHub Packages](https://github.com/hyp3rd/telegram-discord-bridge/pkgs/container/bridge).
 
 ```bash
-docker run -p:8000:8000 -v $(pwd)/config.yml:/app/config.yml:ro -it ghcr.io/hyp3rd/bridge:v1.1.9
+docker run -p:8000:8000 -v $(pwd)/config.yml:/app/config.yml:ro -it ghcr.io/hyp3rd/bridge:v1.1.10
 ```
 
 ### Limitations

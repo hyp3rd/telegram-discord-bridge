@@ -2,7 +2,7 @@
 # Basic application configuration
 application:
   name: "hyp3rbridg3"
-  version: "1.1.9"
+  version: "1.1.10"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
@@ -13,6 +13,7 @@ application:
 
 # Management API configuration
 api:
+  enabled: True
   # Enable the Telegram MFA login via the management API
   telegram_login_enabled: True
   # The file to store the Telegram code and MFA password

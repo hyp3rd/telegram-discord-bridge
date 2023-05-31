@@ -20,7 +20,7 @@ RUN apt update && apt upgrade -y \
 EXPOSE 8000
 
 HEALTHCHECK --interval=15m --timeout=60s --retries=10 \
-    CMD wget --spider --no-verbose http://localhost:8000/health || exit 1
+    CMD wget --spider --no-verbose http://localhost:8000/api/v1/bridge/health || exit 1
 
 CMD ["uvicorn", "api.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
