@@ -38,6 +38,7 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     password: str
     api_id: int
     api_hash: str
+    log_unhandled_conversations: bool
 
 
 class LoggerConfig(BaseModel):  # pylint: disable=too-few-public-methods

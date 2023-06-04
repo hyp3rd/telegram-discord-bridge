@@ -40,7 +40,7 @@ async def analyze_message_and_generate_suggestions(text: str) -> str:
 
         response = await loop.run_in_executor(None, create_completion)
 
-        suggestion = response.choices[0].text.strip()
+        suggestion = response.choices[0].text.strip() # type: ignore # pylint: disable=no-member
         return suggestion
     except openai.error.InvalidRequestError as ex:
         logger.error("Invalid request error: %s", {ex})
@@ -64,7 +64,8 @@ async def analyze_message_sentiment(text: str) -> str:
         for prompt_line in config.openai.sentiment_analysis_prompt:
             prompt = f"{prompt} {prompt_line}\n"
 
-        prompt = prompt.replace("#text_to_parse", text)
+        if prompt is not None:
+            prompt = prompt.replace("#text_to_parse", text)
 
         logger.debug("openai_sentiment_analysis_prompt %s", prompt)
 
@@ -81,7 +82,7 @@ async def analyze_message_sentiment(text: str) -> str:
 
         response = await loop.run_in_executor(None, create_completion)
 
-        suggestion = response.choices[0].text.strip()
+        suggestion = response.choices[0].text.strip() # type: ignore # pylint: disable=no-member
         return suggestion
     except openai.error.InvalidRequestError as ex:
         logger.error("Invalid request error: %s", {ex})

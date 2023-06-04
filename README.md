@@ -41,18 +41,17 @@ Now craft a new `config.yml` file in the root directory, starting from the `conf
 # Basic application configuration
 application:
   name: "hyp3rbridg3"
-  version: "1.1.10"
+  version: "1.1.9"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
   # healtcheck interval in seconds
-  healthcheck_interval: 60
+  healthcheck_interval: 10
   # The time in seconds to wait before forwarding each missed message
   recoverer_delay: 60
 
 # Management API configuration
 api:
-  # Enable the management API
   enabled: True
   # Enable the Telegram MFA login via the management API
   telegram_login_enabled: True
@@ -68,7 +67,8 @@ logger:
   level: "DEBUG" # NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
   file_max_bytes: 10485760 # 10MB
   file_backup_count: 5
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  # format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  format: "%(asctime)s %(levelprefix)s %(message)s"
   date_format: "%Y-%m-%d %H:%M:%S"
   console: False # set to true to enable console logging and disable file based logging
 
@@ -82,6 +82,8 @@ telegram:
   api_id: <your api id>
   # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
   api_hash: "<your api hash>"
+  # Whether to log the conversations that aren't available for forwarding (private chats, etc.)
+  log_unhandled_conversations: False
 
 # Discord configuration
 discord:

@@ -53,6 +53,7 @@ class TelegramConfig:  # pylint: disable=too-few-public-methods
         self.password: str = config_data["password"]
         self.api_id: int = config_data["api_id"]
         self.api_hash: str = config_data["api_hash"]
+        self.log_unhandled_conversations: bool = config_data["log_unhandled_conversations"]
 
 
 class DiscordConfig:  # pylint: disable=too-few-public-methods

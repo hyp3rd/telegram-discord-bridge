@@ -4,6 +4,7 @@ from logging.handlers import RotatingFileHandler
 from logging import StreamHandler
 from bridge.config import LoggerConfig
 
+import bridge.logger.formatter as log_formatter
 
 class Logger(logging.Logger):
     """Singleton logger class. It allows to create only one instance of the logger."""
@@ -25,11 +26,11 @@ class Logger(logging.Logger):
         if level is None:
             level = logging.INFO
 
-        handler = Logger.generate_handler(self.name, logger_config)
-
         # Remove all handlers associated with the logger object.
         for logger_handler in self.handlers:
             self.removeHandler(logger_handler)
+
+        handler = Logger.generate_handler(self.name, logger_config)
 
         self.addHandler(handler)
 
@@ -44,8 +45,7 @@ class Logger(logging.Logger):
         if level is None:
             level = logging.INFO
 
-        formatter = logging.Formatter(
-            f'{logger_config.format}')
+        formatter = log_formatter.ColourizedFormatter(use_colors=logger_config.console, fmt=logger_config.format)
 
         if not logger_config.console:
             # The log files will rotate when they reach 10 MB in size.

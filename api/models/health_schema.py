@@ -57,7 +57,7 @@ class HealthHistory:
             raise ValueError('No health objects in history')
 
         # Get the last timestamp from the history
-        last_timestamp = max(self.health_history.keys())
+        last_timestamp = max(self.health_history.keys()) # type: ignore
 
         # Get the last health object from the history
         last_health = self.health_history[last_timestamp]

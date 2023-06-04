@@ -15,6 +15,10 @@ from bridge.logger import Logger
 from bridge.telegram_handler import check_telegram_session
 from forwarder import controller, determine_process_state
 
+# from typing import List
+
+
+
 logger = Logger.get_logger(Config.get_config_instance().app.name)
 
 
@@ -31,7 +35,8 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         self.health_history_manager_instance.start() # pylint: disable=consider-using-with # the server must stay alive as long as we want the shared object to be accessible
         self.health_history: HealthHistory = self.health_history_manager_instance.HealthHistory() # type: ignore # pylint: disable=no-member
 
-        self.ws_connection_manager = WSConnectionManager(self.health_history)
+        # self.ws_connection_manager = WSConnectionManager(self.health_history)
+        self.ws_connection_manager: WSConnectionManager
 
         self.bridge_router = APIRouter(
             prefix="/bridge",
@@ -65,23 +70,34 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         pid_file = f'{config.app.name}.pid'
         _, pid = determine_process_state(pid_file)
 
-
         try:
             # if the pid file is empty and the process is None,
             # then start the bridge
             if pid == 0 and self.bridge_process is not ProcessStateEnum.RUNNING:
-
+                # create a shared list of subscribers
                 manager = Manager()
-                # create a list of subscribers to pass to the event dispatcher and
-                sub: ListProxy[HealthcheckSubscriber] = manager.list()
+                # create a list of subscribers to pass to the event dispatcher and the healthcheck subscriber
+                healthcheck_subscribers: ListProxy[HealthcheckSubscriber] = manager.list()
+
+                self.ws_connection_manager = WSConnectionManager(self.health_history)
+
                 # create the event dispatcher
-                self.dispatcher = EventDispatcher(subscribers=sub)
-                healthcheck_subscriber = HealthcheckSubscriber('healthcheck_subscriber', self.health_history)
-                self.dispatcher.add_subscriber(healthcheck_subscriber)
+                self.dispatcher = EventDispatcher(subscribers=healthcheck_subscribers)
+                self.healthcheck_subscriber = HealthcheckSubscriber('healthcheck_subscriber',
+                                                               self.dispatcher,
+                                                               self.health_history,
+                                                               self.ws_connection_manager)
+                self.dispatcher.add_subscriber("healthcheck", self.healthcheck_subscriber)
+
+                self.on_update = self.healthcheck_subscriber.create_on_update_decorator()
 
                 self.bridge_process = Process(
                     target=controller, args=(self.dispatcher, True, False, False,))
+
+                # start the bridge process
                 self.bridge_process.start()
+                # self.bridge_process.join()
+
 
                 return BridgeResponseSchema(bridge=BridgeResponse(
                     name=config.app.name,
@@ -93,6 +109,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                     error="",
                 ))
         except Exception as ex: # pylint: disable=broad-except
+            logger.error("Error starting the bridge: %s", ex, exc_info=Config.get_config_instance().app.debug)
             return BridgeResponseSchema(bridge=BridgeResponse(
                 name=config.app.name,
                 status=ProcessStateEnum.STOPPED,
@@ -135,7 +152,6 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         if self.bridge_process and self.bridge_process.is_alive():
             if process_state == ProcessStateEnum.RUNNING and pid > 0:
                 controller(dispatcher=self.dispatcher, boot=False, background=False, stop=True)
-
 
             self.bridge_process.join()
             self.bridge_process.terminate()
@@ -187,17 +203,40 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
     async def health_data_sender(self, websocket: WebSocket):
         """Send health data to the WS client."""
-        while True:
-            await self.ws_connection_manager.send_health_data(websocket)
+        logger.debug("Starting health data sender.")
+
+        @self.on_update("healthcheck")
+        async def send_health_data():
+            """Send health data to the WS client."""
+            logger.debug("Sending health data to the WS client.")
+            try:
+                await self.ws_connection_manager.send_health_data(websocket)
+            # pylint: disable=broad-except
+            except Exception as exc:
+                logger.exception("Error while sending health data to the WS client: %s", exc, exc_info=Config.get_config_instance().app.debug)
+                raise exc
+
+        asyncio.run_coroutine_threadsafe(send_health_data(), asyncio.get_running_loop())
+
 
     async def health_websocket_endpoint(self, websocket: WebSocket):
         """Websocket endpoint."""
-        await self.ws_connection_manager.connect(websocket)
-        task = asyncio.create_task(self.health_data_sender(websocket))
+        logger.info("Connected to the websocket.")
+        task = None
         try:
+            # self.ws_connection_manager.websocket_subscribers.put(websocket)
+            await self.ws_connection_manager.connect(websocket)
+            task = asyncio.create_task(self.health_data_sender(websocket))
+
             while True:
+                logger.debug("Waiting for message from the client.")
                 _ = await websocket.receive_text()
         except WebSocketDisconnect:
+            logger.info("Disconnecting from the websocket.")
+            task.cancel()
+            await self.ws_connection_manager.disconnect(websocket)
+        except Exception as ex: # pylint: disable=broad-except
+            logger.error("Error in health_websocket_endpoint: %s", ex, exc_info=Config.get_config_instance().app.debug)
             task.cancel()
             await self.ws_connection_manager.disconnect(websocket)
 

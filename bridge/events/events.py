@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, List
+from typing import Any, Callable, Dict, List
 
 from bridge.config import Config
 from bridge.logger import Logger
@@ -16,31 +17,62 @@ class EventDispatcher:
 
     def __init__(self, subscribers=None):
         # a list of subscribers
-        self.subscribers: List[EventSubscriber] = subscribers or []
+        self.subscribers: Dict[str, List[EventSubscriber]] = subscribers or {}
 
-    def add_subscriber(self, subscriber):
-        """Add a subscriber to the event dispatcher."""
-        if subscriber not in self.subscribers:
-            self.subscribers.append(subscriber)
-        logger.info("Subscriber added: %s", subscriber)
+    def add_subscriber(self, event: str, subscriber):
+        """Add a subscriber to the event dispatcher.
+        
+        Args:
+            event: The event to subscribe to.
+            subscriber: The subscriber to add.
+        """
+        logger.debug("Adding subscriber: %s", subscriber)
+        if self.subscribers.get(event) is None:
+            self.subscribers[event] = []
 
-    def remove_subscriber(self, subscriber):
+        if subscriber not in self.subscribers[event]:
+            try:
+                self.subscribers[event].append(subscriber)
+                logger.info("Subscriber added: %s", subscriber)
+            except KeyError:
+                self.subscribers[event] = [subscriber]
+                logger.info("Subscriber added: %s", subscriber)
+        else:
+            logger.info("Subscriber already exists: %s", subscriber)
+
+    def remove_subscriber(self, event, subscriber):
         """Remove a subscriber from the event dispatcher."""
-        if subscriber in self.subscribers:
-            self.subscribers.remove(subscriber)
-        logger.info("Subscriber removed: %s", subscriber)
+        if event in self.subscribers and subscriber in self.subscribers[event]:
+            self.subscribers[event].remove(subscriber)
+            logger.info("Subscriber removed: %s", subscriber)
+        else:
+            logger.info("Subscriber not found: %s", subscriber)
 
     def notify(self, event, data=None):
         """Notify subscribers of an event."""
         logger.debug("Event dispatcher notified of event: %s - data: %s", event, data)
-        for subscriber in self.subscribers:
-            logger.debug("Event dispatcher notifying subscriber: %s", subscriber)
-            try:
-                subscriber.update(event, data)
-            except EventDispatcherException as ex:
-                message = "The event dispatcher failed to notify its subscribers"
-                logger.error("%s - event: %s",  message, event)
-                raise EventDispatcherException(message=message) from ex
+
+        if event in self.subscribers:
+            for subscriber in self.subscribers[event]:
+                logger.debug("Event dispatcher notifying subscriber: %s", subscriber)
+
+                try:
+                    subscriber.update(event, data)
+                except EventDispatcherException as ex:
+                    message = "The event dispatcher failed to notify its subscribers"
+                    logger.error("%s - event: %s",  message, event)
+                    raise EventDispatcherException(message=message) from ex
+                except Exception as ex: # pylint: disable=broad-except
+                    message = "The event dispatcher failed to notify its subscribers"
+                    logger.error("%s - event: %s",  message, event)
+                    raise EventDispatcherException(message=message) from ex
+                else:
+                    logger.debug("Event dispatcher successfully notified subscriber: %s", subscriber)
+                finally:
+                    logger.debug("Event dispatcher finished notifying subscriber: %s", subscriber)
+        else:
+            logger.info("Event dispatcher has no subscribers for event: %s", event)
+
 
 class EventDispatcherException(Exception):
     """Event dispatcher exception class."""
@@ -88,8 +120,11 @@ class EventDispatcherException(Exception):
 class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
     """Event subscriber abstract base class."""
 
-    def __init__(self, name):
+    def __init__(self, name, dispatcher: EventDispatcher, subscribers=None):
         self.name = name
+        self.dispatcher: EventDispatcher = dispatcher
+        # self.subscribers: Dict[str, List[EventSubscriber]] = subscribers or {}
+        self.subscribers: Dict[str, Dict[str, List[Callable]]] = subscribers or {}
 
     @abstractmethod
     def update(self, event:str, data:Any | None = None):
@@ -100,3 +135,35 @@ class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
             event (str): The event string.
             data: The data object.
         """
+        if event in self.subscribers:
+            for func in self.subscribers[event]:
+                try:
+                    func(data) # type: ignore
+                except EventDispatcherException as ex:
+                    message = "The event subscriber failed to update"
+                    logger.error("%s - event: %s",  message, event)
+                    raise EventDispatcherException(message=message) from ex
+
+    # Create an on_update decorator for the event subscriber.
+    def create_on_update_decorator(self):
+        """Create an on_update decorator for the event subscriber."""
+
+        def on_update(event: str):
+            def decorator(func):
+                def wrapper(*args, **kwargs):
+                    logger.debug(
+                        "Decorator %s called with args %s and kwargs %s", event, args, kwargs
+                    )
+                    result = func(*args, **kwargs)
+                    if asyncio.iscoroutine(result):
+                        result = asyncio.ensure_future(result)
+                    return result
+
+                # add the original function as a subscriber, not the wrapper
+                self.dispatcher.add_subscriber(event, wrapper)
+
+                return wrapper
+
+            return decorator
+
+        return on_update

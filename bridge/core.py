@@ -47,7 +47,7 @@ async def start(telegram_client: TelegramClient, discord_client: discord.Client,
 
     async for dialog in telegram_client.iter_dialogs():
         if not isinstance(dialog.entity, Channel) and not isinstance(dialog.entity, InputChannel):
-            if config.app.debug:
+            if config.telegram.log_unhandled_conversations:
                 logger.warning("Excluded dialog name: %s, id: %s, type: %s",
                                dialog.name, dialog.entity.id, type(dialog.entity))
             continue
