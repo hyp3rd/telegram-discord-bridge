@@ -157,7 +157,7 @@ async def on_shutdown(telegram_client, discord_client):
                 task.cancel()
 
     logger.debug("Stopping event loop...")
-    asyncio.get_event_loop().stop()
+    asyncio.get_running_loop().stop()
     logger.info("Shutdown process completed.")
 
 
@@ -256,9 +256,12 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
     return telegram_client_instance, discord_client_instance
 
 
-def start_bridge(dispatcher: EventDispatcher, event_loop: AbstractEventLoop):
+def start_bridge(dispatcher: EventDispatcher):
     """Start the bridge."""
 
+    event_loop = asyncio.get_event_loop()
+
+    event_loop.set_debug(config.app.debug)
     # Set the exception handler.
     event_loop.set_exception_handler(event_loop_exception_handler)
 
@@ -269,10 +272,18 @@ def start_bridge(dispatcher: EventDispatcher, event_loop: AbstractEventLoop):
     main_task = event_loop.create_task(main(dispatcher=dispatcher))
 
     try:
+        if event_loop.is_running():
+            logger.warning("Event loop is already running, not starting a new one.")
+            asyncio.run_coroutine_threadsafe(main(dispatcher=dispatcher), event_loop)
+        else:
         # Run the event loop.
-        event_loop.run_forever()
+            event_loop.run_forever()
+        # event_loop.run_in_executor(None, event_loop.run_forever)
+        # asyncio. .gather(main_task)
+        # main_task = event_loop.create_task(main(dispatcher=dispatcher))
     except KeyboardInterrupt:
         # Cancel the main task.
+        # asyncio.current_task(loop=event_loop).cancel()
         main_task.cancel()
     except asyncio.CancelledError:
         pass
@@ -288,8 +299,10 @@ def start_bridge(dispatcher: EventDispatcher, event_loop: AbstractEventLoop):
         remove_pid_file(pid_file)
 
 
-def event_loop_exception_handler(event_loop: AbstractEventLoop, context):
+def event_loop_exception_handler(event_loop: AbstractEventLoop | None, context):
     """Asyncio Event loop exception handler."""
+    if event_loop is None:
+        event_loop = asyncio.get_event_loop()
     try:
         exception = context.get("exception")
         if not isinstance(exception, asyncio.CancelledError):
@@ -351,7 +364,11 @@ async def main(dispatcher: EventDispatcher):
                 clients = ()
 
 
-def controller(dispatcher: EventDispatcher | None, boot: bool, stop: bool, background: bool):
+async def run_controller(dispatcher: EventDispatcher | None,
+                     event_loop: AbstractEventLoop | None = None,
+                     boot: bool = False,
+                     stop: bool = False,
+                     background: bool = False):
     """Init the bridge."""
     if boot:
         logger.info("Booting %s...", config.app.name)
@@ -377,13 +394,68 @@ def controller(dispatcher: EventDispatcher | None, boot: bool, stop: bool, backg
             logger.info("Starting %s in the background...", config.app.name)
             daemonize_process()
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        if event_loop is None:
+            try:
+                event_loop = asyncio.get_event_loop()
+            except RuntimeError:
+                logger.warning("No event loop found, creating a new one")
+                event_loop = asyncio.new_event_loop()
+
+        asyncio.set_event_loop(event_loop)
 
         if dispatcher is None:
             dispatcher = EventDispatcher()
 
-        start_bridge(dispatcher=dispatcher, event_loop=loop)
+        start_bridge(dispatcher=dispatcher)
+    elif stop:
+        stop_bridge()
+    else:
+        print("Please use --start or --stop flags to start or stop the bridge.")
+
+
+def controller(dispatcher: EventDispatcher | None, 
+                     event_loop: AbstractEventLoop | None = None,
+                     boot: bool = False,
+                     stop: bool = False,
+                     background: bool = False):
+    """Init the bridge."""
+    if boot:
+        logger.info("Booting %s...", config.app.name)
+        logger.info("Version: %s", config.app.version)
+        logger.info("Description: %s", config.app.description)
+        logger.info("Log level: %s", config.logger.level)
+        logger.info("Debug enabled: %s", config.app.debug)
+        logger.info("Login through API enabled: %s",
+                    config.api.telegram_login_enabled)
+
+        if background:
+            logger.info("Running %s in the background", config.app.name)
+            if os.name != "posix":
+                logger.error(
+                    "Background mode is only supported on POSIX systems")
+                sys.exit(1)
+
+            if config.logger.console is True:
+                logger.error(
+                    "Background mode requires console logging to be disabled")
+                sys.exit(1)
+
+            logger.info("Starting %s in the background...", config.app.name)
+            daemonize_process()
+
+        if event_loop is None:
+            try:
+                event_loop = asyncio.get_event_loop()
+            except RuntimeError:
+                logger.warning("No event loop found, creating a new one")
+                event_loop = asyncio.new_event_loop()
+
+        asyncio.set_event_loop(event_loop)
+
+        if dispatcher is None:
+            dispatcher = EventDispatcher()
+
+        start_bridge(dispatcher=dispatcher)
     elif stop:
         stop_bridge()
     else:
@@ -415,4 +487,7 @@ if __name__ == "__main__":
     __background: bool = cmd_args.background
 
     event_dispatcher = EventDispatcher()
-    controller(dispatcher=event_dispatcher, boot=__start, stop=__stop, background=__background)
+
+    loop = asyncio.new_event_loop()
+
+    controller(dispatcher=event_dispatcher, event_loop=loop ,boot=__start, stop=__stop, background=__background)

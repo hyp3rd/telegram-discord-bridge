@@ -102,10 +102,11 @@ def websocket_broadcast_when_healthcheck(func):
 class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-methods
     """Healthcheck subscriber class."""
 
-    def __init__(self, name, dispatcher, health_history: HealthHistory, ws_manager: WSConnectionManager):
+    def __init__(self, name, dispatcher, health_history: HealthHistory, ws_manager: WSConnectionManager, websocket_queue):
         super().__init__(name, dispatcher=dispatcher)
         self.health_history: HealthHistory = health_history
         self.ws_manager = ws_manager
+        self.websocket_queue = websocket_queue
 
     @websocket_broadcast_when_healthcheck
     def update(self, event:str, data: Any | None = None):
@@ -122,6 +123,12 @@ class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-m
         logger.debug("The healthcheck subscriber %s received event: %s", self.name, event)
 
         if data and isinstance(data, Config):
+            if not self.websocket_queue.empty():
+                logger.debug("The websocket queue is not empty")
+                # return
+                websocket = self.websocket_queue.get()
+                logger.debug("Adding websocket %s to the queue", websocket)
+
             logger.debug("The healthcheck subscriber %s received config: %s", self.name, data)
             health_data = Health(
                 timestamp=datetime.timestamp(datetime.now()),

@@ -73,6 +73,11 @@ class EventDispatcher:
         else:
             logger.info("Event dispatcher has no subscribers for event: %s", event)
 
+    def stop(self):
+        """Stop the event dispatcher."""
+        logger.debug("Stopping event dispatcher")
+        self.subscribers.clear()
+        logger.info("Event dispatcher stopped")
 
 class EventDispatcherException(Exception):
     """Event dispatcher exception class."""
