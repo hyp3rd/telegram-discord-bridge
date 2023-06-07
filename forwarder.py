@@ -488,6 +488,4 @@ if __name__ == "__main__":
 
     event_dispatcher = EventDispatcher()
 
-    loop = asyncio.new_event_loop()
-
-    controller(dispatcher=event_dispatcher, event_loop=loop ,boot=__start, stop=__stop, background=__background)
+    controller(dispatcher=event_dispatcher, event_loop=asyncio.new_event_loop() ,boot=__start, stop=__stop, background=__background)

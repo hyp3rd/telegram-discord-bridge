@@ -57,15 +57,17 @@ class EventDispatcher:
                 logger.debug("Event dispatcher notifying subscriber: %s", subscriber)
 
                 try:
-                    subscriber.update(event, data)
+                    if hasattr(subscriber, "update"):
+                        # asyncio.create_task(subscriber.update(event, data))
+                        subscriber.update(event, data)
                 except EventDispatcherException as ex:
                     message = "The event dispatcher failed to notify its subscribers"
-                    logger.error("%s - event: %s",  message, event)
-                    raise EventDispatcherException(message=message) from ex
+                    logger.error("%s - event: %s - error: %s",  message, event, ex, exc_info=Config.get_config_instance().app.debug)
+                    # raise EventDispatcherException(message=message) from ex
                 except Exception as ex: # pylint: disable=broad-except
                     message = "The event dispatcher failed to notify its subscribers"
-                    logger.error("%s - event: %s",  message, event)
-                    raise EventDispatcherException(message=message) from ex
+                    logger.error("%s - event: %s - error: %s",  message, event, ex, exc_info=Config.get_config_instance().app.debug)
+                    # raise EventDispatcherException(message=message) from ex
                 else:
                     logger.debug("Event dispatcher successfully notified subscriber: %s", subscriber)
                 finally:
@@ -143,7 +145,10 @@ class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
         if event in self.subscribers:
             for func in self.subscribers[event]:
                 try:
-                    func(data) # type: ignore
+                    if asyncio.iscoroutinefunction(func) and hasattr(func, "update"):
+                        logger.debug("Event subscriber %s updating with coroutine function %s", self.name, func)
+                        # asyncio.ensure_future(func(data))
+                        func(data) # type: ignore
                 except EventDispatcherException as ex:
                     message = "The event subscriber failed to update"
                     logger.error("%s - event: %s",  message, event)
@@ -166,7 +171,7 @@ class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
 
                 # add the original function as a subscriber, not the wrapper
                 self.dispatcher.add_subscriber(event, wrapper)
-
+ 
                 return wrapper
 
             return decorator
