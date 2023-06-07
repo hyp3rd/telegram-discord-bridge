@@ -450,7 +450,7 @@ def controller(dispatcher: EventDispatcher | None,
                 logger.warning("No event loop found, creating a new one")
                 event_loop = asyncio.new_event_loop()
 
-        asyncio.set_event_loop(event_loop)
+            asyncio.set_event_loop(event_loop)
 
         if dispatcher is None:
             dispatcher = EventDispatcher()
@@ -463,29 +463,36 @@ def controller(dispatcher: EventDispatcher | None,
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Process handler for the bridge.")
-    parser.add_argument("--start", action="store_true",
-                        help="Start the bridge.")
+    # extra precautions to prevent the bridge from running twice
+    if not config.api.enabled:
+        parser = argparse.ArgumentParser(
+            description="Process handler for the bridge.")
+        parser.add_argument("--start", action="store_true",
+                            help="Start the bridge.")
 
-    parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
+        parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
 
-    parser.add_argument("--background", action="store_true",
-                        help="Run the bridge in the background (forked).")
+        parser.add_argument("--background", action="store_true",
+                            help="Run the bridge in the background (forked).")
 
-    parser.add_argument("--version", action="store_true",
-                        help="Get the Bridge version.")
+        parser.add_argument("--version", action="store_true",
+                            help="Get the Bridge version.")
 
-    cmd_args = parser.parse_args()
+        cmd_args = parser.parse_args()
 
-    if cmd_args.version:
-        print(f'The Bridge\nv{config.app.version}')
-        sys.exit(0)
+        if cmd_args.version:
+            print(f'The Bridge\nv{config.app.version}')
+            sys.exit(0)
 
-    __start: bool = cmd_args.start
-    __stop: bool = cmd_args.stop
-    __background: bool = cmd_args.background
+        __start: bool = cmd_args.start
+        __stop: bool = cmd_args.stop
+        __background: bool = cmd_args.background
 
-    event_dispatcher = EventDispatcher()
+        event_dispatcher = EventDispatcher()
 
-    controller(dispatcher=event_dispatcher, event_loop=asyncio.new_event_loop() ,boot=__start, stop=__stop, background=__background)
+        controller(dispatcher=event_dispatcher, event_loop=asyncio.new_event_loop() ,boot=__start, stop=__stop, background=__background)
+    else:
+        logger.error("API mode is enabled, please use the API to start the bridge, or disable it to use the CLI.")
+        if not config.logger.console:
+            print("API mode is enabled, please use the API to start the bridge, or disable it to use the CLI.")
+        sys.exit(1)
