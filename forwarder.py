@@ -36,7 +36,7 @@ def create_pid_file() -> str:
     bot_pid_file = f'{config.app.name}.pid'
     process_state, _ = determine_process_state(bot_pid_file)
 
-    if process_state == "running":
+    if process_state == ProcessStateEnum.RUNNING:
         sys.exit(1)
 
     try:
@@ -203,10 +203,15 @@ async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
 
 async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, discord.Client]:
     """Handle the initialization of the bridge's clients."""
-    telegram_client_instance = await start_telegram_client(config)
+
+    lock = asyncio.Lock()
+    await lock.acquire()
+    event_loop = asyncio.get_event_loop()
+
+    telegram_client_instance = await start_telegram_client(config, event_loop)
     discord_client_instance = await start_discord(config)
 
-    event_loop = asyncio.get_event_loop()
+    lock.release()
 
     # Set signal handlers for graceful shutdown on received signal (except on Windows)
     # NOTE: This is not supported on Windows
@@ -216,14 +221,16 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
                 sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
 
     try:
+        lock = asyncio.Lock()
+        await lock.acquire()
         # Create tasks for starting the main logic and waiting for clients to disconnect
-        start_task = asyncio.create_task(
+        start_task = event_loop.create_task(
             start(telegram_client_instance, discord_client_instance, config)
         )
-        telegram_wait_task = asyncio.create_task(
+        telegram_wait_task = event_loop.create_task(
             telegram_client_instance.run_until_disconnected()  # type: ignore
         )
-        discord_wait_task = asyncio.create_task(
+        discord_wait_task = event_loop.create_task(
             discord_client_instance.wait_until_ready()
         )
         api_healthcheck_task = event_loop.create_task(
@@ -237,12 +244,14 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
                 telegram_client=telegram_client_instance,
                 discord_client=discord_client_instance)
         )
+        lock.release()
 
         await asyncio.gather(start_task,
                              telegram_wait_task,
                              discord_wait_task,
                              api_healthcheck_task,
                              on_restored_connectivity_task, return_exceptions=config.app.debug)
+
 
     except asyncio.CancelledError as ex:
         logger.warning(
@@ -274,16 +283,13 @@ def start_bridge(dispatcher: EventDispatcher):
     try:
         if event_loop.is_running():
             logger.warning("Event loop is already running, not starting a new one.")
-            asyncio.run_coroutine_threadsafe(main(dispatcher=dispatcher), event_loop)
+            # asyncio.run_coroutine_threadsafe(main(dispatcher=dispatcher), event_loop)
+            main_task.done()
         else:
-        # Run the event loop.
+            # Run the event loop.
             event_loop.run_forever()
-        # event_loop.run_in_executor(None, event_loop.run_forever)
-        # asyncio. .gather(main_task)
-        # main_task = event_loop.create_task(main(dispatcher=dispatcher))
     except KeyboardInterrupt:
         # Cancel the main task.
-        # asyncio.current_task(loop=event_loop).cancel()
         main_task.cancel()
     except asyncio.CancelledError:
         pass

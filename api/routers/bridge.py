@@ -101,8 +101,6 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
             if pid == 0 or process_state not in [ProcessStateEnum.RUNNING, ProcessStateEnum.STARTING]:
                 # create a shared list of subscribers
-                # with ThreadPoolExecutor(max_workers=10) as executor:
-                    # create a list of subscribers to pass to the event dispatcher and the healthcheck subscriber
                 healthcheck_subscribers: List[HealthcheckSubscriber] = []
 
                 self.ws_connection_manager = WSConnectionManager(self.health_history)
@@ -117,31 +115,14 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
                 self.on_update = self.healthcheck_subscriber.create_on_update_decorator()
 
-                event_loop = asyncio.get_event_loop()
+                event_loop = asyncio.get_running_loop()
 
-                controller_task = asyncio.ensure_future(run_controller(self.dispatcher, event_loop, True, False, False,))
+                # controller_task = asyncio.ensure_future(run_controller(self.dispatcher, event_loop, True, False, False,))
 
-                # if not event_loop.is_running():
-                #     event_loop.run_until_complete(controller_task)
-
-                # cont
-
-                # event_loop.create_task(run_controller(self.dispatcher, event_loop, True, False, False,))
-
-
-                # asyncio.run_coroutine_threadsafe(run_controller(self.dispatcher, asyncio.get_event_loop(), True, False, False,), asyncio.get_event_loop())
-
-                # bridge_task.running()
-                # executor.submit(controller, self.dispatcher, True, False, True,)
-
-                    # executor.map(controller, [(self.dispatcher, True, False, False,)])
-
-                    # self.bridge_process = Process(
-                    #     target=controller, args=(self.dispatcher, True, False, False,))
-
-                    # start the bridge process
-                    # self.bridge_process.start()
-                    # self.bridge_process.join()
+                locker = asyncio.Lock()
+                await locker.acquire()
+                event_loop.create_task(run_controller(self.dispatcher, event_loop, True, False, False))
+                locker.release()
 
                 return BridgeResponseSchema(bridge=BridgeResponse(
                     name=config.app.name,
@@ -260,13 +241,10 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                 logger.exception("Error while sending health data to the WS client: %s", exc, exc_info=Config.get_config_instance().app.debug)
                 raise exc
 
-        # asyncio.run_coroutine_threadsafe(send_health_data(), asyncio.get_running_loop())
-
 
     async def health_websocket_endpoint(self, websocket: WebSocket):
         """Websocket endpoint."""
         logger.info("Connected to the websocket.")
-        # self.websocket_queue.put(websocket)
         task = None
         try:
             await self.ws_connection_manager.connect(websocket)
