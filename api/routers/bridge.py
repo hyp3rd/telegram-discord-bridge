@@ -1,8 +1,6 @@
 """Bridge controller router."""
 import asyncio
-from multiprocessing import Manager, Process, Queue
-from multiprocessing.managers import ListProxy
-from typing import Any, List
+from typing import List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -27,8 +25,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
     """Bridge Router."""
 
     def __init__(self):
-        # The bridge_process variable is used to store the bridge process
-        self.bridge_process = None
+        """Initialize the Bridge Router."""
         self.dispatcher: EventDispatcher
         HealtHistoryManager.register('HealthHistory', HealthHistory)
 
@@ -45,7 +42,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
         self.bridge_router.post("/",
                          name="Start the Telegram to Discord Bridge",
-                         summary="Spawns the Bridge process.",
+                         summary="Initiate the forwarding.",
                          description="Starts the Bridge controller triggering the Telegram authentication process.",
                          response_model=BridgeResponseSchema)(self.start)
 
@@ -127,7 +124,6 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                 return BridgeResponseSchema(bridge=BridgeResponse(
                     name=config.app.name,
                     status=ProcessStateEnum.STARTING,
-                    parent_process_id=self.bridge_process.pid if self.bridge_process else 0,
                     bridge_process_id=pid,
                     config_version=config.app.version,
                     telegram_authenticated=check_telegram_session(),
@@ -138,7 +134,6 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
             return BridgeResponseSchema(bridge=BridgeResponse(
                 name=config.app.name,
                 status=ProcessStateEnum.STOPPED,
-                parent_process_id=self.bridge_process.pid if self.bridge_process else 0,
                 bridge_process_id=pid,
                 config_version=config.app.version,
                 telegram_authenticated=check_telegram_session(),
@@ -147,11 +142,10 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
         # if the pid file is empty and the process is not None and is alive,
         # then return that the bridge is starting
-        if pid == 0 and self.bridge_process is not None and self.bridge_process.is_alive():
+        if pid == 0 and process_state == ProcessStateEnum.RUNNING:
             return BridgeResponseSchema(bridge=BridgeResponse(
                 name=config.app.name,
                 status=ProcessStateEnum.ORPHANED,
-                parent_process_id=self.bridge_process.pid,
                 bridge_process_id=pid,
                 config_version=config.app.version,
                 telegram_authenticated=check_telegram_session(),
@@ -162,7 +156,6 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         return BridgeResponseSchema(bridge=BridgeResponse(
             name=config.app.name,
             status=ProcessStateEnum.RUNNING,
-            parent_process_id=self.bridge_process.pid if self.bridge_process else 0,
             bridge_process_id=pid,
             config_version=config.app.version,
             telegram_authenticated=check_telegram_session(),
@@ -174,17 +167,19 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         config = Config.get_config_instance()
         process_state, pid = determine_process_state(pid_file=f'{config.app.name}.pid')
 
-        if self.bridge_process and self.bridge_process.is_alive():
-            if process_state == ProcessStateEnum.RUNNING and pid > 0:
+        if process_state == ProcessStateEnum.RUNNING and pid > 0:
+            try:
                 await run_controller(dispatcher=self.dispatcher, boot=False, background=False, stop=True)
 
-            self.bridge_process.join()
-            self.bridge_process.terminate()
+                self.dispatcher.stop()
+            except asyncio.exceptions.CancelledError:
+                logger.info("Bridge process stopped.")
+            except Exception as ex: # pylint: disable=broad-except
+                logger.error("Error stopping the bridge: %s", ex, exc_info=Config.get_config_instance().app.debug)
 
             return BridgeResponseSchema(bridge=BridgeResponse(
                 name=config.app.name,
                 status=ProcessStateEnum.STOPPING,
-                parent_process_id=self.bridge_process.pid if self.bridge_process else 0,
                 bridge_process_id=pid,
                 config_version=config.app.version,
                 telegram_authenticated=check_telegram_session(),
@@ -194,7 +189,6 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         return BridgeResponseSchema(bridge=BridgeResponse(
             name=config.app.name,
             status=ProcessStateEnum.STOPPED,
-            parent_process_id=self.bridge_process.pid if self.bridge_process else 0,
             bridge_process_id=pid,
             config_version=config.app.version,
             telegram_authenticated=check_telegram_session(),

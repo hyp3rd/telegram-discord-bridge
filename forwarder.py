@@ -25,6 +25,43 @@ from bridge.telegram_handler import start_telegram_client
 config = Config()
 logger = Logger.init_logger(config.app.name, config.logger)
 
+# Create a Forwader class with context manager to handle the bridge process
+# class Forwarder:
+#     """Forwarder class."""
+
+#     def __init__(self, loop: AbstractEventLoop, dispatcher: EventDispatcher, config: Config):
+#         """Initialize the Forwarder class."""
+#         self.loop = loop
+#         self.dispatcher = dispatcher
+#         self.config = config
+#         self.telegram_client: TelegramClient
+#         self.discord_client: discord.Client
+
+#     async def __aenter__(self):
+#         """Enter the context manager."""
+#         # Start the Telegram client
+#         self.telegram_client = await start_telegram_client(config=self.config, event_loop=self.loop)
+
+#         # Start the Discord client
+#         self.discord_client = await start_discord(self.config)
+
+#         # Start the healthcheck
+#         self.loop.create_task(healthcheck(self.dispatcher, self.telegram_client, self.discord_client))
+
+#         # Start the bridge
+#         self.loop.create_task(start(self.telegram_client, self.discord_client, self.dispatcher))
+
+#         return self
+
+#     async def __aexit__(self, exc_type, exc_val, exc_tb):
+#         """Exit the context manager."""
+#         # Stop the Telegram client
+#         if self.telegram_client is not None and self.telegram_client.is_connected():
+#             await self.telegram_client.disconnect()
+
+#         # Stop the Discord client
+#         await self.discord_client.close()
+
 
 def create_pid_file() -> str:
     """Create a PID file."""
@@ -116,7 +153,6 @@ def determine_process_state(pid_file: str) -> Tuple[ProcessStateEnum, int]:
         # The PID file does not exist, so the process is considered stopped.
         return ProcessStateEnum.STOPPED, 0
 
-
 def stop_bridge():
     """Stop the bridge."""
     pid_file = f'{config.app.name}.pid'
@@ -130,7 +166,8 @@ def stop_bridge():
     try:
         os.kill(pid, signal.SIGINT)
         logger.warning("Sent SIGINT to the %s process with PID %s.",
-                       config.app.name, pid)
+                    config.app.name, pid)
+
     except ProcessLookupError:
         logger.error(
             "The %s process with PID %s is not running.", config.app.name, pid)
@@ -156,14 +193,24 @@ async def on_shutdown(telegram_client, discord_client):
     except (Exception, asyncio.CancelledError) as ex:  # pylint: disable=broad-except
         logger.error("Error disconnecting Discord client: %s", {ex})
 
+    # if not config.api.enabled:
     for running_task in all_tasks:
-        if running_task is not task:
+        if running_task is not task and not running_task.done() and not running_task.cancelled():
             if task is not None:
                 logger.debug("Cancelling task %s...", {running_task})
-                task.cancel()
+                try:
+                    task.cancel()
+                except Exception as ex:  # pylint: disable=broad-except
+                    logger.error("Error cancelling task %s: %s", {
+                                running_task}, {ex})
 
-    logger.debug("Stopping event loop...")
-    asyncio.get_running_loop().stop()
+
+    if not config.api.enabled:
+        logger.debug("Stopping event loop...")
+        asyncio.get_running_loop().stop()
+    else:
+        remove_pid_file(f'{config.app.name}.pid')
+
     logger.info("Shutdown process completed.")
 
 
@@ -188,9 +235,10 @@ async def shutdown(sig, tasks_loop: asyncio.AbstractEventLoop):
         if isinstance(result, Exception):
             logger.error("Error during shutdown: %s", result)
 
-    # Stop the loop
-    if tasks_loop is not None:
-        tasks_loop.stop()
+    if not config.api.enabled:
+        # Stop the loop
+        if tasks_loop is not None:
+            tasks_loop.stop()
 
     remove_pid_file(f'{config.app.name}.pid')
 
@@ -219,14 +267,24 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
     telegram_client_instance = await start_telegram_client(config, event_loop)
     discord_client_instance = await start_discord(config)
 
+    # context = {
+    #     'telegram_client': telegram_client_instance,
+    #     'discord_client': discord_client_instance,
+    #     'dispatcher': dispatcher
+    # }
+
     lock.release()
 
     # Set signal handlers for graceful shutdown on received signal (except on Windows)
     # NOTE: This is not supported on Windows
-    if os.name != 'nt':
+    if os.name != 'nt' and not config.api.enabled:
         for sig in (signal.SIGINT, signal.SIGTERM):
             event_loop.add_signal_handler(
                 sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
+    if config.api.enabled:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            event_loop.add_signal_handler(
+                sig, lambda: asyncio.create_task(on_shutdown(telegram_client_instance, discord_client_instance)))
 
     try:
         lock = asyncio.Lock()
@@ -263,7 +321,7 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
 
     except asyncio.CancelledError as ex:
         logger.warning(
-            "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=False)
+            "CancelledError caught: %s", ex, exc_info=False)
     except Exception as ex:  # pylint: disable=broad-except
         logger.error("Error while running the bridge: %s",
                      ex, exc_info=config.app.debug)
@@ -330,7 +388,7 @@ def event_loop_exception_handler(event_loop: AbstractEventLoop | None, context):
         logger.error(
             "Event loop exception handler failed: %s",
             ex,
-            exc_info=True,
+            exc_info=config.app.debug,
         )
 
 
@@ -429,7 +487,7 @@ async def run_controller(dispatcher: EventDispatcher | None,
         print("Please use --start or --stop flags to start or stop the bridge.")
 
 
-def controller(dispatcher: EventDispatcher | None, 
+def controller(dispatcher: EventDispatcher | None,
                      event_loop: AbstractEventLoop | None = None,
                      boot: bool = False,
                      stop: bool = False,
