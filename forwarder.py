@@ -28,7 +28,7 @@ logger = Logger.init_logger(config.app.name, config.logger)
 
 def create_pid_file() -> str:
     """Create a PID file."""
-
+    logger.debug("Creating PID file.")
     # Get the process ID.
     pid = os.getpid()
 
@@ -51,6 +51,12 @@ def create_pid_file() -> str:
 
 def remove_pid_file(pid_file: str):
     """Remove a PID file."""
+    logger.debug("Removing PID file.")
+    #determine if the pid file exists
+    if not os.path.isfile(pid_file):
+        logger.debug("PID file '%s' not found.", pid_file)
+        return
+
     try:
         os.remove(pid_file)
     except FileNotFoundError:
@@ -186,6 +192,8 @@ async def shutdown(sig, tasks_loop: asyncio.AbstractEventLoop):
     if tasks_loop is not None:
         tasks_loop.stop()
 
+    remove_pid_file(f'{config.app.name}.pid')
+
 
 async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
     """Handle graceful shutdown on received signal."""
@@ -268,6 +276,8 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
 def start_bridge(dispatcher: EventDispatcher):
     """Start the bridge."""
 
+    logger.info("Starting %s...", config.app.name)
+
     event_loop = asyncio.get_event_loop()
 
     event_loop.set_debug(config.app.debug)
@@ -283,7 +293,6 @@ def start_bridge(dispatcher: EventDispatcher):
     try:
         if event_loop.is_running():
             logger.warning("Event loop is already running, not starting a new one.")
-            # asyncio.run_coroutine_threadsafe(main(dispatcher=dispatcher), event_loop)
             main_task.done()
         else:
             # Run the event loop.
@@ -302,7 +311,8 @@ def start_bridge(dispatcher: EventDispatcher):
                      ex, exc_info=config.app.debug)
     finally:
         # Remove the PID file.
-        remove_pid_file(pid_file)
+        if not config.api.enabled:
+            remove_pid_file(pid_file)
 
 
 def event_loop_exception_handler(event_loop: AbstractEventLoop | None, context):
