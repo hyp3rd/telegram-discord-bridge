@@ -24,10 +24,15 @@ async def internet_connectivity_check() -> bool:
     """Check if the bridge has internet connectivity."""
     loop = asyncio.get_running_loop()
     try:
-        host = await loop.run_in_executor(executor, socket.gethostbyname, ("one.one.one.one"))
+        # host = await loop.run_in_executor(executor, socket.gethostbyname, ("one.one.one.one"))
+        host = await loop.run_in_executor(executor, socket.gethostbyname, ("google.com"))
         await loop.run_in_executor(executor, socket.create_connection, (host, 443), 5)
         return True
-    except OSError:
+    except socket.gaierror as ex:
+        logger.error("Unable to resolve hostname: %s", ex, exc_info=config.app.debug)
+        return False
+    except OSError as ex:
+        logger.error("Unable to reach the internetL %s", ex, exc_info=config.app.debug)
         return False
 
 

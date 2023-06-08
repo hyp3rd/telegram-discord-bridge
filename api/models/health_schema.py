@@ -1,7 +1,5 @@
 """Health Schema."""""
 
-# from multiprocessing import Manager
-# from multiprocessing.managers import SyncManager
 from typing import Dict
 from multiprocessing.managers import BaseManager
 from pydantic import BaseModel

@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+from asyncio.events import AbstractEventLoop
 from typing import Any, List
 
 from discord import Message
@@ -77,14 +78,18 @@ async def get_telegram_auth_code(api_auth: bool) -> str | int:
     return code
 
 
-async def start_telegram_client(config: Config) -> TelegramClient: # pylint: disable=too-many-statements
+async def start_telegram_client(config: Config, event_loop: AbstractEventLoop | None = None) -> TelegramClient: # pylint: disable=too-many-statements
     """Start the Telegram client."""
     logger.info("Starting Telegram client...")
 
-    telethon_logger = Logger.get_telethon_logger()
-    telethon_logger_handler = Logger.generate_handler(
-        f"{config.app.name}_telegram", config.logger)
-    telethon_logger.addHandler(telethon_logger_handler)
+    if event_loop is None:
+        logger.debug("Creating a new event loop for Telegram client")
+        event_loop = asyncio.get_event_loop()
+
+    # telethon_logger = Logger.get_telethon_logger()
+    # telethon_logger_handler = Logger.generate_handler(
+    #     f"{config.app.name}_telegram", config.logger)
+    # telethon_logger.addHandler(telethon_logger_handler)
 
     telegram_client = TelegramClient(
         session=config.app.name,
@@ -92,9 +97,10 @@ async def start_telegram_client(config: Config) -> TelegramClient: # pylint: dis
         api_hash=config.telegram.api_hash,
         connection_retries=15,
         retry_delay=4,
-        base_logger=telethon_logger,
+        # base_logger=telethon_logger,
         lang_code="en",
-        system_lang_code="en",)
+        system_lang_code="en",
+        loop=event_loop,)
 
     telegram_client.parse_mode = "markdown"
     await telegram_client.connect()

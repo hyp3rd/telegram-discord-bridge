@@ -25,10 +25,47 @@ from bridge.telegram_handler import start_telegram_client
 config = Config()
 logger = Logger.init_logger(config.app.name, config.logger)
 
+# Create a Forwader class with context manager to handle the bridge process
+# class Forwarder:
+#     """Forwarder class."""
+
+#     def __init__(self, loop: AbstractEventLoop, dispatcher: EventDispatcher, config: Config):
+#         """Initialize the Forwarder class."""
+#         self.loop = loop
+#         self.dispatcher = dispatcher
+#         self.config = config
+#         self.telegram_client: TelegramClient
+#         self.discord_client: discord.Client
+
+#     async def __aenter__(self):
+#         """Enter the context manager."""
+#         # Start the Telegram client
+#         self.telegram_client = await start_telegram_client(config=self.config, event_loop=self.loop)
+
+#         # Start the Discord client
+#         self.discord_client = await start_discord(self.config)
+
+#         # Start the healthcheck
+#         self.loop.create_task(healthcheck(self.dispatcher, self.telegram_client, self.discord_client))
+
+#         # Start the bridge
+#         self.loop.create_task(start(self.telegram_client, self.discord_client, self.dispatcher))
+
+#         return self
+
+#     async def __aexit__(self, exc_type, exc_val, exc_tb):
+#         """Exit the context manager."""
+#         # Stop the Telegram client
+#         if self.telegram_client is not None and self.telegram_client.is_connected():
+#             await self.telegram_client.disconnect()
+
+#         # Stop the Discord client
+#         await self.discord_client.close()
+
 
 def create_pid_file() -> str:
     """Create a PID file."""
-
+    logger.debug("Creating PID file.")
     # Get the process ID.
     pid = os.getpid()
 
@@ -36,7 +73,7 @@ def create_pid_file() -> str:
     bot_pid_file = f'{config.app.name}.pid'
     process_state, _ = determine_process_state(bot_pid_file)
 
-    if process_state == "running":
+    if process_state == ProcessStateEnum.RUNNING:
         sys.exit(1)
 
     try:
@@ -51,6 +88,12 @@ def create_pid_file() -> str:
 
 def remove_pid_file(pid_file: str):
     """Remove a PID file."""
+    logger.debug("Removing PID file.")
+    #determine if the pid file exists
+    if not os.path.isfile(pid_file):
+        logger.debug("PID file '%s' not found.", pid_file)
+        return
+
     try:
         os.remove(pid_file)
     except FileNotFoundError:
@@ -110,7 +153,6 @@ def determine_process_state(pid_file: str) -> Tuple[ProcessStateEnum, int]:
         # The PID file does not exist, so the process is considered stopped.
         return ProcessStateEnum.STOPPED, 0
 
-
 def stop_bridge():
     """Stop the bridge."""
     pid_file = f'{config.app.name}.pid'
@@ -124,7 +166,8 @@ def stop_bridge():
     try:
         os.kill(pid, signal.SIGINT)
         logger.warning("Sent SIGINT to the %s process with PID %s.",
-                       config.app.name, pid)
+                    config.app.name, pid)
+
     except ProcessLookupError:
         logger.error(
             "The %s process with PID %s is not running.", config.app.name, pid)
@@ -150,14 +193,24 @@ async def on_shutdown(telegram_client, discord_client):
     except (Exception, asyncio.CancelledError) as ex:  # pylint: disable=broad-except
         logger.error("Error disconnecting Discord client: %s", {ex})
 
+    # if not config.api.enabled:
     for running_task in all_tasks:
-        if running_task is not task:
+        if running_task is not task and not running_task.done() and not running_task.cancelled():
             if task is not None:
                 logger.debug("Cancelling task %s...", {running_task})
-                task.cancel()
+                try:
+                    task.cancel()
+                except Exception as ex:  # pylint: disable=broad-except
+                    logger.error("Error cancelling task %s: %s", {
+                                running_task}, {ex})
 
-    logger.debug("Stopping event loop...")
-    asyncio.get_event_loop().stop()
+
+    if not config.api.enabled:
+        logger.debug("Stopping event loop...")
+        asyncio.get_running_loop().stop()
+    else:
+        remove_pid_file(f'{config.app.name}.pid')
+
     logger.info("Shutdown process completed.")
 
 
@@ -182,9 +235,12 @@ async def shutdown(sig, tasks_loop: asyncio.AbstractEventLoop):
         if isinstance(result, Exception):
             logger.error("Error during shutdown: %s", result)
 
-    # Stop the loop
-    if tasks_loop is not None:
-        tasks_loop.stop()
+    if not config.api.enabled:
+        # Stop the loop
+        if tasks_loop is not None:
+            tasks_loop.stop()
+
+    remove_pid_file(f'{config.app.name}.pid')
 
 
 async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
@@ -203,27 +259,44 @@ async def handle_signal(sig, tgc: TelegramClient, dcl: discord.Client, tasks):
 
 async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, discord.Client]:
     """Handle the initialization of the bridge's clients."""
-    telegram_client_instance = await start_telegram_client(config)
+
+    lock = asyncio.Lock()
+    await lock.acquire()
+    event_loop = asyncio.get_event_loop()
+
+    telegram_client_instance = await start_telegram_client(config, event_loop)
     discord_client_instance = await start_discord(config)
 
-    event_loop = asyncio.get_event_loop()
+    # context = {
+    #     'telegram_client': telegram_client_instance,
+    #     'discord_client': discord_client_instance,
+    #     'dispatcher': dispatcher
+    # }
+
+    lock.release()
 
     # Set signal handlers for graceful shutdown on received signal (except on Windows)
     # NOTE: This is not supported on Windows
-    if os.name != 'nt':
+    if os.name != 'nt' and not config.api.enabled:
         for sig in (signal.SIGINT, signal.SIGTERM):
             event_loop.add_signal_handler(
                 sig, lambda sig=sig: asyncio.create_task(shutdown(sig, tasks_loop=event_loop)))  # type: ignore
+    if config.api.enabled:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            event_loop.add_signal_handler(
+                sig, lambda: asyncio.create_task(on_shutdown(telegram_client_instance, discord_client_instance)))
 
     try:
+        lock = asyncio.Lock()
+        await lock.acquire()
         # Create tasks for starting the main logic and waiting for clients to disconnect
-        start_task = asyncio.create_task(
+        start_task = event_loop.create_task(
             start(telegram_client_instance, discord_client_instance, config)
         )
-        telegram_wait_task = asyncio.create_task(
+        telegram_wait_task = event_loop.create_task(
             telegram_client_instance.run_until_disconnected()  # type: ignore
         )
-        discord_wait_task = asyncio.create_task(
+        discord_wait_task = event_loop.create_task(
             discord_client_instance.wait_until_ready()
         )
         api_healthcheck_task = event_loop.create_task(
@@ -237,6 +310,7 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
                 telegram_client=telegram_client_instance,
                 discord_client=discord_client_instance)
         )
+        lock.release()
 
         await asyncio.gather(start_task,
                              telegram_wait_task,
@@ -244,9 +318,10 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
                              api_healthcheck_task,
                              on_restored_connectivity_task, return_exceptions=config.app.debug)
 
+
     except asyncio.CancelledError as ex:
         logger.warning(
-            "on_restored_connectivity_task CancelledError caught: %s", ex, exc_info=False)
+            "CancelledError caught: %s", ex, exc_info=False)
     except Exception as ex:  # pylint: disable=broad-except
         logger.error("Error while running the bridge: %s",
                      ex, exc_info=config.app.debug)
@@ -256,9 +331,14 @@ async def init_clients(dispatcher: EventDispatcher) -> Tuple[TelegramClient, dis
     return telegram_client_instance, discord_client_instance
 
 
-def start_bridge(dispatcher: EventDispatcher, event_loop: AbstractEventLoop):
+def start_bridge(dispatcher: EventDispatcher):
     """Start the bridge."""
 
+    logger.info("Starting %s...", config.app.name)
+
+    event_loop = asyncio.get_event_loop()
+
+    event_loop.set_debug(config.app.debug)
     # Set the exception handler.
     event_loop.set_exception_handler(event_loop_exception_handler)
 
@@ -269,8 +349,12 @@ def start_bridge(dispatcher: EventDispatcher, event_loop: AbstractEventLoop):
     main_task = event_loop.create_task(main(dispatcher=dispatcher))
 
     try:
-        # Run the event loop.
-        event_loop.run_forever()
+        if event_loop.is_running():
+            logger.warning("Event loop is already running, not starting a new one.")
+            main_task.done()
+        else:
+            # Run the event loop.
+            event_loop.run_forever()
     except KeyboardInterrupt:
         # Cancel the main task.
         main_task.cancel()
@@ -285,11 +369,14 @@ def start_bridge(dispatcher: EventDispatcher, event_loop: AbstractEventLoop):
                      ex, exc_info=config.app.debug)
     finally:
         # Remove the PID file.
-        remove_pid_file(pid_file)
+        if not config.api.enabled:
+            remove_pid_file(pid_file)
 
 
-def event_loop_exception_handler(event_loop: AbstractEventLoop, context):
+def event_loop_exception_handler(event_loop: AbstractEventLoop | None, context):
     """Asyncio Event loop exception handler."""
+    if event_loop is None:
+        event_loop = asyncio.get_event_loop()
     try:
         exception = context.get("exception")
         if not isinstance(exception, asyncio.CancelledError):
@@ -301,7 +388,7 @@ def event_loop_exception_handler(event_loop: AbstractEventLoop, context):
         logger.error(
             "Event loop exception handler failed: %s",
             ex,
-            exc_info=True,
+            exc_info=config.app.debug,
         )
 
 
@@ -351,7 +438,11 @@ async def main(dispatcher: EventDispatcher):
                 clients = ()
 
 
-def controller(dispatcher: EventDispatcher | None, boot: bool, stop: bool, background: bool):
+async def run_controller(dispatcher: EventDispatcher | None,
+                     event_loop: AbstractEventLoop | None = None,
+                     boot: bool = False,
+                     stop: bool = False,
+                     background: bool = False):
     """Init the bridge."""
     if boot:
         logger.info("Booting %s...", config.app.name)
@@ -377,13 +468,68 @@ def controller(dispatcher: EventDispatcher | None, boot: bool, stop: bool, backg
             logger.info("Starting %s in the background...", config.app.name)
             daemonize_process()
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        if event_loop is None:
+            try:
+                event_loop = asyncio.get_event_loop()
+            except RuntimeError:
+                logger.warning("No event loop found, creating a new one")
+                event_loop = asyncio.new_event_loop()
+
+        asyncio.set_event_loop(event_loop)
 
         if dispatcher is None:
             dispatcher = EventDispatcher()
 
-        start_bridge(dispatcher=dispatcher, event_loop=loop)
+        start_bridge(dispatcher=dispatcher)
+    elif stop:
+        stop_bridge()
+    else:
+        print("Please use --start or --stop flags to start or stop the bridge.")
+
+
+def controller(dispatcher: EventDispatcher | None,
+                     event_loop: AbstractEventLoop | None = None,
+                     boot: bool = False,
+                     stop: bool = False,
+                     background: bool = False):
+    """Init the bridge."""
+    if boot:
+        logger.info("Booting %s...", config.app.name)
+        logger.info("Version: %s", config.app.version)
+        logger.info("Description: %s", config.app.description)
+        logger.info("Log level: %s", config.logger.level)
+        logger.info("Debug enabled: %s", config.app.debug)
+        logger.info("Login through API enabled: %s",
+                    config.api.telegram_login_enabled)
+
+        if background:
+            logger.info("Running %s in the background", config.app.name)
+            if os.name != "posix":
+                logger.error(
+                    "Background mode is only supported on POSIX systems")
+                sys.exit(1)
+
+            if config.logger.console is True:
+                logger.error(
+                    "Background mode requires console logging to be disabled")
+                sys.exit(1)
+
+            logger.info("Starting %s in the background...", config.app.name)
+            daemonize_process()
+
+        if event_loop is None:
+            try:
+                event_loop = asyncio.get_event_loop()
+            except RuntimeError:
+                logger.warning("No event loop found, creating a new one")
+                event_loop = asyncio.new_event_loop()
+
+            asyncio.set_event_loop(event_loop)
+
+        if dispatcher is None:
+            dispatcher = EventDispatcher()
+
+        start_bridge(dispatcher=dispatcher)
     elif stop:
         stop_bridge()
     else:
@@ -391,28 +537,36 @@ def controller(dispatcher: EventDispatcher | None, boot: bool, stop: bool, backg
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Process handler for the bridge.")
-    parser.add_argument("--start", action="store_true",
-                        help="Start the bridge.")
+    # extra precautions to prevent the bridge from running twice
+    if not config.api.enabled:
+        parser = argparse.ArgumentParser(
+            description="Process handler for the bridge.")
+        parser.add_argument("--start", action="store_true",
+                            help="Start the bridge.")
 
-    parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
+        parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
 
-    parser.add_argument("--background", action="store_true",
-                        help="Run the bridge in the background (forked).")
+        parser.add_argument("--background", action="store_true",
+                            help="Run the bridge in the background (forked).")
 
-    parser.add_argument("--version", action="store_true",
-                        help="Get the Bridge version.")
+        parser.add_argument("--version", action="store_true",
+                            help="Get the Bridge version.")
 
-    cmd_args = parser.parse_args()
+        cmd_args = parser.parse_args()
 
-    if cmd_args.version:
-        print(f'The Bridge\nv{config.app.version}')
-        sys.exit(0)
+        if cmd_args.version:
+            print(f'The Bridge\nv{config.app.version}')
+            sys.exit(0)
 
-    __start: bool = cmd_args.start
-    __stop: bool = cmd_args.stop
-    __background: bool = cmd_args.background
+        __start: bool = cmd_args.start
+        __stop: bool = cmd_args.stop
+        __background: bool = cmd_args.background
 
-    event_dispatcher = EventDispatcher()
-    controller(dispatcher=event_dispatcher, boot=__start, stop=__stop, background=__background)
+        event_dispatcher = EventDispatcher()
+
+        controller(dispatcher=event_dispatcher, event_loop=asyncio.new_event_loop() ,boot=__start, stop=__stop, background=__background)
+    else:
+        logger.error("API mode is enabled, please use the API to start the bridge, or disable it to use the CLI.")
+        if not config.logger.console:
+            print("API mode is enabled, please use the API to start the bridge, or disable it to use the CLI.")
+        sys.exit(1)

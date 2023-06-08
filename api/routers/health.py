@@ -2,7 +2,6 @@
 
 import asyncio
 import functools
-import multiprocessing
 from datetime import datetime
 from typing import Any, List
 
@@ -25,22 +24,13 @@ class WSConnectionManager:
     def __init__(self, health_history: HealthHistory):
         self.active_connections: List[WebSocket] = []
         self.health_history: HealthHistory = health_history
-        self.websocket_subscribers: multiprocessing.Queue = multiprocessing.Queue()
+        # self.websocket_subscribers: multiprocessing.Queue = multiprocessing.Queue()
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         pass
 
-    # async def add_subscriber_from_queue(self):
-    #     """Add a subscriber from the queue."""
-    #     while True:
-    #         subscriber = self.websocket_subscribers.get()
-    #         logger.debug("Adding subscriber %s", subscriber)
-    #         await self.add_subscriber(subscriber)r)
-
-    async def connect(self, websocket: WebSocket | None = None):
+    async def connect(self, websocket: WebSocket):
         """Connect, handles the WS connections."""
-        if not websocket:
-            websocket = self.websocket_subscribers.get()
         logger.debug("Connecting to %s", websocket)
         if isinstance(websocket, WebSocket):
             await websocket.accept()
@@ -135,6 +125,5 @@ class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-m
                 })
 
             self.health_history.add_health_data(health_data)
-            # self.dispatcher.notify(self.name, health_data)
         else:
             logger.warning("The healthcheck subscriber %s received data: %s", self.name, data)

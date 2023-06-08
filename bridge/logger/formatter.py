@@ -54,11 +54,11 @@ class ColourizedFormatter(logging.Formatter):
 
         func = self.level_name_colors.get(level_no, default)
         return func(level_name)
-    
+
     def color_asctime(self, date: str) -> str:
         """Colorize the date."""
         return click.style(date, fg="bright_blue")
-    
+
     def format_pid(self, pid: int) -> str:
         """Format the pid."""
         return click.style(str(pid), fg="blue", bold=True)
