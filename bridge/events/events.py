@@ -171,7 +171,7 @@ class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
 
                 # add the original function as a subscriber, not the wrapper
                 self.dispatcher.add_subscriber(event, wrapper)
- 
+
                 return wrapper
 
             return decorator
