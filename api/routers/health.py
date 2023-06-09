@@ -76,7 +76,6 @@ class WSConnectionManager:
 
         if websocket in self.active_connections:
             await websocket.send_json(health_data.dict())
-            # await asyncio.sleep(config.app.healthcheck_interval)  # send health data every second
 
 
 def websocket_broadcast_when_healthcheck(func):
@@ -122,7 +121,7 @@ class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-m
                     "discord": data.discord.is_healthy,
                     "openai": data.openai.is_healthy,
                     "internet": data.app.internet_connected,
-                })
+                },)
 
             self.health_history.add_health_data(health_data)
         else:

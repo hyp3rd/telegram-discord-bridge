@@ -103,7 +103,7 @@ def remove_pid_file(pid_file: str):
         logger.error("Failed to remove PID file '%s'.", pid_file)
 
 
-def determine_process_state(pid_file: str) -> Tuple[ProcessStateEnum, int]:
+def determine_process_state(pid_file: str | None = None) -> Tuple[ProcessStateEnum, int]:
     """
     Determine the state of the process.
 
@@ -122,6 +122,9 @@ def determine_process_state(pid_file: str) -> Tuple[ProcessStateEnum, int]:
     that created the PID file.
     :rtype: Tuple[str, int]
     """
+
+    if pid_file is None:
+        pid_file = f'{config.app.name}.pid'
 
     if not os.path.isfile(pid_file):
         # The PID file does not exist, so the process is considered stopped.
@@ -444,6 +447,12 @@ async def run_controller(dispatcher: EventDispatcher | None,
                      stop: bool = False,
                      background: bool = False):
     """Init the bridge."""
+    if not config.api.enabled:
+        logger.error("API mode is disabled, please use the CLI to start the bridge, or enable it in the config file.")
+        if not config.logger.console:
+            print("API mode is disabled, please use the CLI to start the bridge, or enable it in the config file.")
+        sys.exit(1)
+
     if boot:
         logger.info("Booting %s...", config.app.name)
         logger.info("Version: %s", config.app.version)
@@ -538,35 +547,35 @@ def controller(dispatcher: EventDispatcher | None,
 
 if __name__ == "__main__":
     # extra precautions to prevent the bridge from running twice
-    if not config.api.enabled:
-        parser = argparse.ArgumentParser(
-            description="Process handler for the bridge.")
-        parser.add_argument("--start", action="store_true",
-                            help="Start the bridge.")
-
-        parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
-
-        parser.add_argument("--background", action="store_true",
-                            help="Run the bridge in the background (forked).")
-
-        parser.add_argument("--version", action="store_true",
-                            help="Get the Bridge version.")
-
-        cmd_args = parser.parse_args()
-
-        if cmd_args.version:
-            print(f'The Bridge\nv{config.app.version}')
-            sys.exit(0)
-
-        __start: bool = cmd_args.start
-        __stop: bool = cmd_args.stop
-        __background: bool = cmd_args.background
-
-        event_dispatcher = EventDispatcher()
-
-        controller(dispatcher=event_dispatcher, event_loop=asyncio.new_event_loop() ,boot=__start, stop=__stop, background=__background)
-    else:
+    if config.api.enabled:
         logger.error("API mode is enabled, please use the API to start the bridge, or disable it to use the CLI.")
         if not config.logger.console:
             print("API mode is enabled, please use the API to start the bridge, or disable it to use the CLI.")
         sys.exit(1)
+
+    parser = argparse.ArgumentParser(
+        description="Process handler for the bridge.")
+    parser.add_argument("--start", action="store_true",
+                        help="Start the bridge.")
+
+    parser.add_argument("--stop", action="store_true", help="Stop the bridge.")
+
+    parser.add_argument("--background", action="store_true",
+                        help="Run the bridge in the background (forked).")
+
+    parser.add_argument("--version", action="store_true",
+                        help="Get the Bridge version.")
+
+    cmd_args = parser.parse_args()
+
+    if cmd_args.version:
+        print(f'The Bridge\nv{config.app.version}')
+        sys.exit(0)
+
+    __start: bool = cmd_args.start
+    __stop: bool = cmd_args.stop
+    __background: bool = cmd_args.background
+
+    event_dispatcher = EventDispatcher()
+
+    controller(dispatcher=event_dispatcher, event_loop=asyncio.new_event_loop() ,boot=__start, stop=__stop, background=__background)

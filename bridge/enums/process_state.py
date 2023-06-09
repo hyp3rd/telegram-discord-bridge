@@ -1,4 +1,4 @@
-"""PrcessState Enum"""
+"""Prcess State Enum"""
 
 from enum import Enum
 

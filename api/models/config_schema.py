@@ -4,7 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel  # pylint: disable=import-error
 
 
-class Forwarder(BaseModel):  # pylint: disable=too-few-public-methods
+class ForwarderConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Forwarder model."""
     forwarder_name: str
     tg_channel_id: int
@@ -63,6 +63,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
 
 class APIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """API config."""
+    enabled: bool
     cors_origins: List[str]
     telegram_login_enabled: bool
     telegram_auth_file: str
@@ -74,12 +75,16 @@ class ConfigSummary(BaseModel):  # pylint: disable=too-few-public-methods
     application: ApplicationConfig
     api: APIConfig
 
-
-class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods
-    """Config model."""
+class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
+    """Config YAML schema."""
     application: ApplicationConfig
     logger: LoggerConfig
+    api: APIConfig
     telegram: TelegramConfig
     discord: DiscordConfig
     openai: OpenAIConfig
-    telegram_forwarders: List[Forwarder]
+    telegram_forwarders: List[ForwarderConfig]
+
+class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods
+    """Config model."""
+    config: ConfigYAMLSchema
