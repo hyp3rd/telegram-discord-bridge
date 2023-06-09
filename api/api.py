@@ -68,12 +68,10 @@ class BridgeAPI:
         # It contains the start, stop, and health endpoints
         self.app.include_router(router=bridge.router,
                                 prefix=APIVersion.V1.value)
-        
+
+        # The config router is used to control the bridge configuration: `api/v1/config`
         self.app.include_router(router=config.router,
                                 prefix=APIVersion.V1.value)
-
-        # # The upload_config function is used to upload the configuration file to the bridge
-        self.app.post("/upload")(self.upload_config)
 
 
     def index(self):
@@ -95,51 +93,6 @@ class BridgeAPI:
                 telegram_auth_file=config_instance.api.telegram_auth_file,
                 telegram_auth_request_expiration=config_instance.api.telegram_auth_request_expiration,
             ))
-
-    async def upload_config(self, file: UploadFile = File(...)):
-        """upload the config file."""
-        config_instance = Config.get_config_instance()
-
-        content = await file.read()
-        mime = magic.Magic(mime=True)
-        mime_type = mime.from_buffer(content)
-
-        logger.debug("Uploaded file type: %s", mime_type)
-
-        if mime_type != 'text/plain':
-            raise HTTPException(
-                status_code=400, detail="Invalid file type. Only YAML file is accepted.")
-
-        try:
-            new_config_file_content = yaml.safe_load(content)
-        except yaml.YAMLError as exc:
-            raise HTTPException(
-                status_code=400, detail='Invalid YAML file.') from exc
-
-        try:
-            _ = ConfigSchema(**new_config_file_content)
-        except ValidationError as exc:
-            raise HTTPException(
-                status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
-
-        # validate here
-        valid, errors = config_instance.validate_config(new_config_file_content)
-        if not valid:
-            raise HTTPException(
-                status_code=400, detail=f'{errors}')
-
-        new_config_file_name = f'config-{new_config_file_content["application"]["version"]}.yml'
-
-        if os.path.exists(new_config_file_name):
-            backup_filename = f"{new_config_file_name}_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.yml"
-            os.rename(new_config_file_name, backup_filename)
-
-        with open(new_config_file_name, "w", encoding="utf-8") as new_config_file:
-            yaml.dump(new_config_file_content, new_config_file)
-
-        config_instance.set_version(new_config_file_content["application"]["version"])
-
-        return {"operation_status": "Configuration file uploaded successfully"}
 
 
 app = BridgeAPI().app

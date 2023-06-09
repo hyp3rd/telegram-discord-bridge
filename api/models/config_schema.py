@@ -75,9 +75,8 @@ class ConfigSummary(BaseModel):  # pylint: disable=too-few-public-methods
     application: ApplicationConfig
     api: APIConfig
 
-
-class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods
-    """Config model."""
+class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
+    """Config YAML schema."""
     application: ApplicationConfig
     logger: LoggerConfig
     api: APIConfig
@@ -85,3 +84,7 @@ class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods
     discord: DiscordConfig
     openai: OpenAIConfig
     telegram_forwarders: List[ForwarderConfig]
+
+class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods
+    """Config model."""
+    config: ConfigYAMLSchema

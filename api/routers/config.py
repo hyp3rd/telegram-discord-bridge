@@ -1,12 +1,21 @@
 """Config router for the API"""
 
-from fastapi import APIRouter, File, UploadFile
+import os
+from datetime import datetime
 
-from api.models import (APIConfig, ApplicationConfig, ConfigSchema,
-                        DiscordConfig, ForwarderConfig, LoggerConfig,
-                        OpenAIConfig, TelegramConfig)
+import magic
+import yaml
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import ValidationError  # pylint: disable=import-error
+
+from api.models import (APIConfig, ApplicationConfig, BaseResponse,
+                        ConfigSchema, ConfigYAMLSchema, DiscordConfig,
+                        ForwarderConfig, LoggerConfig, OpenAIConfig,
+                        TelegramConfig)
 from bridge.config import Config
+from bridge.enums import RequestTypeEnum
 from bridge.logger import Logger
+from forwarder import determine_process_state
 
 logger = Logger.get_logger(Config.get_config_instance().app.name)
 
@@ -21,8 +30,10 @@ class ConfigRouter:
             tags=["config"],
             responses={404: {"description": "Not found"}},
             )
-    
+
         self.router.get("/", response_model=ConfigSchema)(self.get_config)
+
+        self.router.put("/", response_model=BaseResponse)(self.upload_config)
 
 
     async def get_config(self) -> ConfigSchema:
@@ -92,13 +103,92 @@ class ConfigRouter:
 
         """Get the config."""
         return ConfigSchema(
-            application=application_config,
-            logger=logger_config,
-            api=api_config,
-            telegram=telegram_config,
-            discord=discord_config,
-            openai=openai_config,
-            telegram_forwarders=telegram_forwarders,
+            config=ConfigYAMLSchema(
+                application=application_config,
+                logger=logger_config,
+                api=api_config,
+                telegram=telegram_config,
+                discord=discord_config,
+                openai=openai_config,
+                telegram_forwarders=telegram_forwarders,
+            )
         )
-    
+
+
+    async def upload_config(self, file: UploadFile = File(...)) -> BaseResponse:
+        """Upload a new config file."""
+
+        process_state, pid = determine_process_state()
+
+        response = BaseResponse(
+            resource="config",
+            config_version=self.config.app.version,
+            request_type=RequestTypeEnum.UPLOAD_CONFIG,
+            bridge_status=process_state,
+            bridge_pid=pid,
+        )
+
+        content = await file.read()
+
+        mime = magic.Magic(mime=True)
+        mime_type = mime.from_buffer(content)
+
+        response.operation_status["mime_type"] = mime_type
+        response.operation_status["file_name"] = file.filename if file.filename else "unknown"
+
+        if not file.filename:
+            raise HTTPException(
+                status_code=400, detail="Invalid file name.")
+        
+        if file.filename.startswith(".") or not file.filename.endswith(".yaml") and not file.filename.endswith(".yml"):
+            raise HTTPException(
+                status_code=400, detail="Invalid file name.")
+        
+        if file.size is None or file.size > 1024 * 1024 * 1:
+            raise HTTPException(
+                status_code=400, detail="Invalid file size. Only file size less than 1MB is accepted.")
+        
+
+        logger.debug("Uploaded file type: %s", mime_type)
+        if mime_type != 'text/plain':
+            raise HTTPException(
+                status_code=400, detail="Invalid file type. Only YAML file is accepted.")
+
+        try:
+            new_config_file_content = yaml.safe_load(content)
+        except yaml.YAMLError as exc:
+            raise HTTPException(
+                status_code=400, detail='Invalid YAML structure in the config file.') from exc
+
+        try:
+            _ = ConfigYAMLSchema(**new_config_file_content)
+        except ValidationError as exc:
+            for error in exc.errors():
+                logger.error(error)
+            raise HTTPException(
+                status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
+
+        # validate here
+        valid, errors = self.config.validate_config(new_config_file_content)
+        if not valid:
+            raise HTTPException(
+                status_code=400, detail=f'{errors}')
+
+        new_config_file_name = f'config-{new_config_file_content["application"]["version"]}.yml'
+
+        response.operation_status["new_config_file_name"] = new_config_file_name
+
+        if os.path.exists(new_config_file_name):
+            backup_filename = f"{new_config_file_name}_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.yml"
+            os.rename(new_config_file_name, backup_filename)
+            response.operation_status["config_backup_filename"] = backup_filename
+
+        with open(new_config_file_name, "w", encoding="utf-8") as new_config_file:
+            yaml.dump(new_config_file_content, new_config_file)
+
+        response.success = True
+
+        return response
+
+
 router = ConfigRouter().router

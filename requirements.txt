@@ -25,3 +25,4 @@ fastapi==0.96.0
 python-multipart==0.0.6
 pydantic==1.10.9
 psutil==5.9.5
+ulid-py==1.1.0

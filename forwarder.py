@@ -103,7 +103,7 @@ def remove_pid_file(pid_file: str):
         logger.error("Failed to remove PID file '%s'.", pid_file)
 
 
-def determine_process_state(pid_file: str) -> Tuple[ProcessStateEnum, int]:
+def determine_process_state(pid_file: str | None = None) -> Tuple[ProcessStateEnum, int]:
     """
     Determine the state of the process.
 
@@ -122,6 +122,9 @@ def determine_process_state(pid_file: str) -> Tuple[ProcessStateEnum, int]:
     that created the PID file.
     :rtype: Tuple[str, int]
     """
+
+    if pid_file is None:
+        pid_file = f'{config.app.name}.pid'
 
     if not os.path.isfile(pid_file):
         # The PID file does not exist, so the process is considered stopped.

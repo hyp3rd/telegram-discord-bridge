@@ -121,7 +121,7 @@ class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-m
                     "discord": data.discord.is_healthy,
                     "openai": data.openai.is_healthy,
                     "internet": data.app.internet_connected,
-                })
+                },)
 
             self.health_history.add_health_data(health_data)
         else:
