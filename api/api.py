@@ -1,17 +1,12 @@
 """API for the bridge."""
-import os
-from datetime import datetime
+
 from enum import Enum
 
-import magic
-import yaml
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import ValidationError  # pylint: disable=import-error
 
-from api.models import (APIConfig, ApplicationConfig, ConfigSchema,
-                        ConfigSummary)
+from api.models import APIConfig, ApplicationConfig, ConfigSummary
 from api.rate_limiter import RateLimitMiddleware
 from api.routers import auth, bridge, config
 from bridge.config import Config
@@ -26,7 +21,7 @@ class APIVersion(str, Enum):
     V2 = "/api/v2"
 
 
-class BridgeAPI:
+class BridgeAPI: # pylint: disable=too-few-public-methods
     """Bridge API."""
 
     # This is the main function that starts the application

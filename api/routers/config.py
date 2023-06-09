@@ -38,6 +38,7 @@ class ConfigRouter:
 
     async def get_config(self) -> ConfigSchema:
         """Get the current config."""
+
         application_config = ApplicationConfig(
             name=self.config.app.name,
             version=self.config.app.version,
@@ -101,7 +102,6 @@ class ConfigRouter:
                 )
             )
 
-        """Get the config."""
         return ConfigSchema(
             config=ConfigYAMLSchema(
                 application=application_config,
@@ -115,7 +115,7 @@ class ConfigRouter:
         )
 
 
-    async def upload_config(self, file: UploadFile = File(...)) -> BaseResponse:
+    async def upload_config(self, file: UploadFile = File(...)) -> BaseResponse: # pylint: disable=too-many-locals
         """Upload a new config file."""
 
         process_state, pid = determine_process_state()
@@ -139,15 +139,15 @@ class ConfigRouter:
         if not file.filename:
             raise HTTPException(
                 status_code=400, detail="Invalid file name.")
-        
+
         if file.filename.startswith(".") or not file.filename.endswith(".yaml") and not file.filename.endswith(".yml"):
             raise HTTPException(
                 status_code=400, detail="Invalid file name.")
-        
+
         if file.size is None or file.size > 1024 * 1024 * 1:
             raise HTTPException(
                 status_code=400, detail="Invalid file size. Only file size less than 1MB is accepted.")
-        
+
 
         logger.debug("Uploaded file type: %s", mime_type)
         if mime_type != 'text/plain':

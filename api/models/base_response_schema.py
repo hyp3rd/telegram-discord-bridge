@@ -27,4 +27,3 @@ class BaseResponse(BaseModel):
     success: bool = False
     operation_status: OperationStatus = {}
     operation_errors: OperationErrors = {}
-    
