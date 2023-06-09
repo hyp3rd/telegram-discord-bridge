@@ -4,6 +4,10 @@ from typing import Tuple
 
 import discord
 
+from bridge.config import Config
+from bridge.logger import Logger
+
+logger = Logger.get_logger(Config.get_config_instance().app.name)
 
 class DiscordClientHealth:
     """A simple class to keep context for the client handler function"""
@@ -20,6 +24,7 @@ class DiscordClientHealth:
         status: str = "Discord Client is healthy and connected"
 
         if client.latency > bot_max_latency:
+            logger.debug("Discord Client's latency: %s - Expected: %s", client.latency, bot_max_latency)
             status = "Discord Client's latency is too high"
             return status, False
 

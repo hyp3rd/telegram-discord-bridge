@@ -16,12 +16,12 @@ PyYAML==6.0
 rsa==4.9
 Telethon==1.28.5
 yarl==1.9.2
-openai==0.27.6
+openai==0.27.8
 aiofiles==23.1.0
 python-magic==0.4.27
 requests==2.28.2
 uvicorn[standard]==0.22.0
-fastapi==0.95.1
+fastapi==0.96.0
 python-multipart==0.0.6
-pydantic==1.10.7
+pydantic==1.10.9
 psutil==5.9.5

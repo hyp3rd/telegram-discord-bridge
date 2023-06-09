@@ -24,9 +24,9 @@ __command_exists() {
 #######################################
 run() {
   if __command_exists uvicorn; then
-    docker build -t ghcr.io/hyp3rd/bridge:v1.1.10 .
+    docker build -t ghcr.io/hyp3rd/bridge:v1.1.11 .
 
-    docker push ghcr.io/hyp3rd/bridge:v1.1.10
+    docker push ghcr.io/hyp3rd/bridge:v1.1.11
   else
     echo "docker is not installed or not running'"
   fi
