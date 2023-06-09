@@ -73,8 +73,6 @@ class BridgeAPI:
         self.app.post("/upload")(self.upload_config)
 
 
-
-
     def index(self):
         """index."""
         config = Config.get_config_instance()
