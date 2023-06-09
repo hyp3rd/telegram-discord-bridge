@@ -76,7 +76,6 @@ class WSConnectionManager:
 
         if websocket in self.active_connections:
             await websocket.send_json(health_data.dict())
-            # await asyncio.sleep(config.app.healthcheck_interval)  # send health data every second
 
 
 def websocket_broadcast_when_healthcheck(func):

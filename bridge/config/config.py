@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Tuple
 import yaml
 
 
-class AppConfig:  # pylint: disable=too-few-public-methods
+class AppConfig():  # pylint: disable=too-few-public-methods
     """Application configuration handler."""
 
     def __init__(self, config_data):
@@ -21,7 +21,7 @@ class AppConfig:  # pylint: disable=too-few-public-methods
         self.recoverer_delay: float = config_data["recoverer_delay"]
 
 
-class APIConfig:  # pylint: disable=too-few-public-methods
+class APIConfig():  # pylint: disable=too-few-public-methods
     """API configuration handler."""
 
     def __init__(self, config_data):
@@ -32,7 +32,7 @@ class APIConfig:  # pylint: disable=too-few-public-methods
         self.telegram_auth_request_expiration: int = config_data["telegram_auth_request_expiration"]
 
 
-class LoggerConfig:  # pylint: disable=too-few-public-methods
+class LoggerConfig():  # pylint: disable=too-few-public-methods
     """Logger configuration handler."""
 
     def __init__(self, config_data):
@@ -44,7 +44,7 @@ class LoggerConfig:  # pylint: disable=too-few-public-methods
         self.console = config_data["console"]
 
 
-class TelegramConfig:  # pylint: disable=too-few-public-methods
+class TelegramConfig():  # pylint: disable=too-few-public-methods
     """Telegram configuration handler."""
 
     def __init__(self, config_data):
@@ -56,7 +56,7 @@ class TelegramConfig:  # pylint: disable=too-few-public-methods
         self.log_unhandled_conversations: bool = config_data["log_unhandled_conversations"]
 
 
-class DiscordConfig:  # pylint: disable=too-few-public-methods
+class DiscordConfig():  # pylint: disable=too-few-public-methods
     """Discord configuration handler."""
 
     def __init__(self, config_data):
@@ -66,7 +66,7 @@ class DiscordConfig:  # pylint: disable=too-few-public-methods
         self.max_latency: float = config_data["max_latency"]
 
 
-class OpenAIConfig:  # pylint: disable=too-few-public-methods
+class OpenAIConfig():  # pylint: disable=too-few-public-methods
     """OpenAI configuration handler."""
 
     def __getitem__(self, key: str) -> str:
