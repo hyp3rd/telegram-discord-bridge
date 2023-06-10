@@ -35,6 +35,8 @@ class ConfigRouter:
 
         self.router.put("/", response_model=BaseResponse)(self.upload_config)
 
+        self.router.post("/", response_model=BaseResponse)(self.post_config)
+
 
     async def get_config(self) -> ConfigSchema:
         """Get the current config."""
@@ -185,6 +187,51 @@ class ConfigRouter:
 
         with open(new_config_file_name, "w", encoding="utf-8") as new_config_file:
             yaml.dump(new_config_file_content, new_config_file)
+
+        response.success = True
+
+        return response
+    
+    async def post_config(self, config: ConfigSchema) -> BaseResponse:
+        """Post a new config file."""
+
+        process_state, pid = determine_process_state()
+
+        response = BaseResponse(
+            resource="config",
+            config_version=self.config.app.version,
+            request_type=RequestTypeEnum.POST_CONFIG,
+            bridge_status=process_state,
+            bridge_pid=pid,
+        )
+
+        valid, errors = self.config.validate_config(config.config.dict())
+        if not valid:
+            raise HTTPException(
+                status_code=400, detail=f'{errors}')
+        
+        config_file_name = f'config-{config.config.application.version}.yml'
+
+        response.operation_status["new_config_file_name"] = config_file_name
+
+        # validate the config with pydantic
+        try:
+            _ = ConfigYAMLSchema(**config.config.dict())
+        except ValidationError as exc:
+            for error in exc.errors():
+                logger.error(error)
+            raise HTTPException(
+                status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
+
+        if os.path.exists(config_file_name):
+            backup_filename = f"{config_file_name}_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.yml"
+            os.rename(config_file_name, backup_filename)
+            response.operation_status["config_backup_filename"] = backup_filename
+
+        with open(config_file_name, "w", encoding="utf-8") as new_config_file:
+            yaml.dump(config.config.dict(), new_config_file,
+                       allow_unicode=False, encoding="utf-8", 
+                       explicit_start=True, sort_keys=False, indent=2, default_flow_style=False)
 
         response.success = True
 
