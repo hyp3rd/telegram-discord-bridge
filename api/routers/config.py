@@ -191,7 +191,7 @@ class ConfigRouter:
         response.success = True
 
         return response
-    
+
     async def post_config(self, config: ConfigSchema) -> BaseResponse:
         """Post a new config file."""
 
@@ -209,7 +209,7 @@ class ConfigRouter:
         if not valid:
             raise HTTPException(
                 status_code=400, detail=f'{errors}')
-        
+
         config_file_name = f'config-{config.config.application.version}.yml'
 
         response.operation_status["new_config_file_name"] = config_file_name
@@ -230,7 +230,7 @@ class ConfigRouter:
 
         with open(config_file_name, "w", encoding="utf-8") as new_config_file:
             yaml.dump(config.config.dict(), new_config_file,
-                       allow_unicode=False, encoding="utf-8", 
+                       allow_unicode=False, encoding="utf-8",
                        explicit_start=True, sort_keys=False, indent=2, default_flow_style=False)
 
         response.success = True
