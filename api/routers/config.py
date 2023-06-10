@@ -31,11 +31,17 @@ class ConfigRouter:
             responses={404: {"description": "Not found"}},
             )
 
-        self.router.get("/", response_model=ConfigSchema)(self.get_config)
+        self.router.get("/", response_model=ConfigSchema,
+                        summary="Get the current config",
+                        description="The endpoint reports the current loaded config in full, including secrets.")(self.get_config)
 
-        self.router.put("/", response_model=BaseResponse)(self.upload_config)
+        self.router.put("/", response_model=BaseResponse,
+                        summary="Upload a new config file",
+                        description="The endpoint requires a fully filled in config file in YAML format, the file is saved based on the `version` field.")(self.upload_config)
 
-        self.router.post("/", response_model=BaseResponse)(self.post_config)
+        self.router.post("/", response_model=BaseResponse,
+                        summary="Post a new config",
+                        description="The endpooint allows to POST a new config in form of JSON payload, the file is saved in YAML, based on the `version` field")(self.post_config)
 
 
     async def get_config(self) -> ConfigSchema:

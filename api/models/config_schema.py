@@ -9,9 +9,9 @@ class ForwarderConfig(BaseModel):  # pylint: disable=too-few-public-methods
     forwarder_name: str
     tg_channel_id: int
     discord_channel_id: int
-    strip_off_links: bool
-    mention_everyone: bool
-    forward_everything: bool
+    strip_off_links: bool = False
+    mention_everyone: bool = False
+    forward_everything: bool = True
     forward_hashtags: Optional[List[dict]] = None
     excluded_hashtags: Optional[List[dict]] = None
     mention_override: Optional[List[dict]] = None
@@ -19,7 +19,7 @@ class ForwarderConfig(BaseModel):  # pylint: disable=too-few-public-methods
 
 class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """OpenAI config."""
-    enabled: bool
+    enabled: bool = False
     api_key: str
     organization: str
     sentiment_analysis_prompt: List[str]
@@ -29,7 +29,7 @@ class DiscordConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Discord config."""
     bot_token: str
     built_in_roles: List[str]
-    max_latency: float
+    max_latency: float = 0.5
 
 
 class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
@@ -38,36 +38,36 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     password: str
     api_id: int
     api_hash: str
-    log_unhandled_conversations: bool
+    log_unhandled_conversations: bool = False
 
 
 class LoggerConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Logger config."""
-    level: str
-    file_max_bytes: int
-    file_backup_count: int
-    format: str
-    date_format: str
-    console: bool
+    level: str = 'INFO'
+    file_max_bytes: int = 10485760
+    file_backup_count: int = 5
+    format: str = "%(asctime)s %(levelprefix)s %(message)s"
+    date_format: str = "%Y-%m-%d %H:%M:%S"
+    console: bool = True
 
 
 class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Application config."""
-    name: str
+    name: str = "hyp3rbridg3"
     version: str
-    description: str
-    debug: bool
-    healthcheck_interval: int
-    recoverer_delay: float
+    description: str = "A bridge to forward messages from those pesky Telegram channels."
+    debug: bool = False
+    healthcheck_interval: int = 60
+    recoverer_delay: float = 60.0
 
 
 class APIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """API config."""
-    enabled: bool
-    cors_origins: List[str]
-    telegram_login_enabled: bool
-    telegram_auth_file: str
-    telegram_auth_request_expiration: int
+    enabled: bool = True
+    cors_origins: List[str] = ["*"]
+    telegram_login_enabled: bool = True
+    telegram_auth_file: str = "telegram_auth.json"
+    telegram_auth_request_expiration: int = 300
 
 
 class ConfigSummary(BaseModel):  # pylint: disable=too-few-public-methods
