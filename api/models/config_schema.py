@@ -47,6 +47,14 @@ class ForwarderConfig(BaseModel):
                     if forward_hashtag['name'] == excluded_hashtag['name']:
                         raise ValueError('forward_hashtags and excluded_hashtags must not contain the same hashtag')
         return values
+    
+    @root_validator
+    def mention_override_validator_mention_everyone(cls, values):
+        """Mention override validator."""
+        mention_override, mention_everyone = values.get('mention_override'), values.get('mention_everyone')
+        if mention_override and mention_everyone:
+            raise ValueError('mention_override and mention_everyone must not be set at the same time')
+        return values
 
     @validator('forwarder_name')
     def forwarder_name_validator(cls, val):
@@ -323,6 +331,27 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
                 raise ValueError(f'Forwarder combination {combination} is duplicated')
 
             forwarder_combinations.add(combination)
+        return values
+    
+    @root_validator
+    def shared_forward_hashtags_validator(cls, values):
+        """Ensure that hashtags are not shared between forwarders with the same telegram_id chaannel."""
+        tg_channel_hashtags = {}
+        for forwarder in values.get('telegram_forwarders'):
+            tg_channel_id = forwarder["tg_channel_id"]
+            forward_hashtags = {tag["name"].lower() for tag in forwarder["forward_hashtags"]} if forwarder["forward_hashtags"] else set()
+
+            if forward_hashtags:  # Only process non-empty forward_hashtags
+                if tg_channel_id not in tg_channel_hashtags:
+                    tg_channel_hashtags[tg_channel_id] = [forward_hashtags]
+                else:
+                    for existing_hashtags in tg_channel_hashtags[tg_channel_id]:
+                        shared_hashtags = existing_hashtags.intersection(
+                            forward_hashtags)
+                        if shared_hashtags:
+                            raise ValueError(f"Shared hashtags {shared_hashtags} found for forwarders with tg_channel_id {tg_channel_id}. The same message will be forwarded multiple times.")  # pylint: disable=line-too-long
+
+                    tg_channel_hashtags[tg_channel_id].append(forward_hashtags)
         return values
 
 class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods
