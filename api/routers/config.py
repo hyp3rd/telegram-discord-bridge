@@ -37,11 +37,11 @@ class ConfigRouter:
 
         self.router.put("/", response_model=BaseResponse,
                         summary="Upload a new config file",
-                        description="The endpoint requires a config file in YAML format and will be versioned `version` field.")(self.upload_config)
+                        description="Upload a config file in YAML format and will be versioned `version` field.")(self.upload_config)
 
         self.router.post("/", response_model=BaseResponse,
                         summary="Post a new config",
-                        description="The endpooint allows to POST a new config in form of JSON payloadand will be versioned `version` field.")(self.post_config)
+                        description="POST a new config in JSON payload. The file will be versioned `version` field.")(self.post_config)
 
 
     async def get_config(self) -> ConfigSchema:
