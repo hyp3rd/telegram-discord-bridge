@@ -6,7 +6,7 @@ from datetime import datetime
 import magic
 import yaml
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import ValidationError  # pylint: disable=import-error
+from pydantic import SecretStr, ValidationError  # pylint: disable=import-error
 
 from api.models import (APIConfig, ApplicationConfig, BaseResponse,
                         ConfigSchema, ConfigYAMLSchema, DiscordConfig,
@@ -75,7 +75,7 @@ class ConfigRouter:
 
         telegram_config = TelegramConfig(
             phone=self.config.telegram.phone,
-            password=self.config.telegram.password,
+            password=SecretStr(self.config.telegram.password),
             api_id=self.config.telegram.api_id,
             api_hash=self.config.telegram.api_hash,
             log_unhandled_conversations=self.config.telegram.log_unhandled_conversations,

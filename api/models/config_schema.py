@@ -2,7 +2,7 @@
 from typing import List, Optional
 
 from pydantic import BaseModel  # pylint: disable=import-error
-from pydantic import StrictInt, root_validator, validator
+from pydantic import SecretStr, StrictInt, root_validator, validator
 
 
 class ForwarderConfig(BaseModel):  # pylint: disable=too-few-public-methods
@@ -17,11 +17,31 @@ class ForwarderConfig(BaseModel):  # pylint: disable=too-few-public-methods
     excluded_hashtags: Optional[List[dict]] = None
     mention_override: Optional[List[dict]] = None
 
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    class Config:
+        """Forwarder config."""
+        max_anystr_length = 64
+        error_msg_templates = {
+            'value_error.any_str.max_length': 'max_length:{limit_value}',
+        }
+
     @root_validator
     def forward_everything_validator(cls, values):
         forward_everything, forward_hashtags = values.get('forward_everything'), values.get('forward_hashtags')
         if forward_everything is False and not forward_hashtags:
             raise ValueError('forward_everything must be True if forward_hashtags are not set')
+        return values
+
+    @root_validator
+    def forward_hashtags_excluded_hashtags_validator(cls, values):
+        forward_hashtags, excluded_hashtags = values.get('forward_hashtags'), values.get('excluded_hashtags')
+        if forward_hashtags and excluded_hashtags:
+            for forward_hashtag in forward_hashtags:
+                for excluded_hashtag in excluded_hashtags:
+                    if forward_hashtag['name'] == excluded_hashtag['name']:
+                        raise ValueError('forward_hashtags and excluded_hashtags must not contain the same hashtag')
         return values
 
     @validator('forwarder_name')
@@ -76,12 +96,48 @@ class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     organization: str
     sentiment_analysis_prompt: List[str]
 
+    @root_validator
+    def openai_validator(cls, values):
+        """OpenAI validator."""
+        enabled, api_key, organization = values.get('enabled'), values.get('api_key'), values.get('organization')
+        if enabled:
+            if not api_key:
+                raise ValueError('api_key must not be empty')
+            if not organization:
+                raise ValueError('organization must not be empty')
+            if not values.get('sentiment_analysis_prompt'):
+                raise ValueError('sentiment_analysis_prompt must not be empty')
+        return values
+    
+    @validator('sentiment_analysis_prompt')
+    def sentiment_analysis_prompt_validator(cls, v):
+        """Sentiment analysis prompt validator."""
+        if v:
+            valid: bool = False
+            pronpt_placeholder: str = "#text_to_parse"
+            for prompt in v:
+                if pronpt_placeholder in prompt:
+                    valid = True
+
+            if not valid:
+                raise ValueError('sentiment_analysis_prompt must contain #text_to_parse placeholder')
+        return v
+
+
 
 class DiscordConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Discord config."""
     bot_token: str
-    built_in_roles: List[str]
+    built_in_roles: List[str] = ["everyone", "here", "@Admin"]
     max_latency: float = 0.5
+
+    @root_validator
+    def discord_validator(cls, values):
+        """Discord validator."""
+        bot_token = values.get('bot_token')
+        if not bot_token:
+            raise ValueError('bot_token must not be empty')
+        return values
 
     @validator('built_in_roles')
     def built_in_roles_validator(cls, v):
@@ -101,10 +157,17 @@ class DiscordConfig(BaseModel):  # pylint: disable=too-few-public-methods
 class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Telegram config."""
     phone: str
-    password: str
+    # password: str
+    password: SecretStr
     api_id: StrictInt
     api_hash: str
     log_unhandled_conversations: bool = False
+
+    class Config:
+        """Telegram config."""
+        json_encoders = {
+            SecretStr: lambda v: v.get_secret_value(),
+        }
 
     @validator('api_hash')
     def api_hash_alphanumeric(cls, v):
@@ -127,6 +190,23 @@ class LoggerConfig(BaseModel):  # pylint: disable=too-few-public-methods
     format: str = "%(asctime)s %(levelprefix)s %(message)s"
     date_format: str = "%Y-%m-%d %H:%M:%S"
     console: bool = True
+
+    @validator('level')
+    def level_validator(cls, v):
+        if not v:
+            assert v, 'level must not be empty'
+        if v not in ['NOTSET', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+            raise ValueError('level must be one of NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL')
+        return v
+    
+    @validator('file_max_bytes')
+    def file_max_bytes_validator(cls, v):
+        if v < 0:
+            raise ValueError('file_max_bytes must be > 0')
+
+        if v > 104857600:
+            raise ValueError('file_max_bytes must be < 104857600')
+        return v
 
 
 class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
@@ -207,6 +287,21 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
     discord: DiscordConfig
     openai: OpenAIConfig
     telegram_forwarders: List[ForwarderConfig]
+
+
+    @root_validator
+    def forwarder_validator(cls, values):
+        """Validate forwarder combinations to avoid duplicates."""
+        forwarder_combinations = set()
+        for forwarder in values.get('telegram_forwarders'):
+            tg_channel_id = forwarder["tg_channel_id"]
+            discord_channel_id = forwarder["discord_channel_id"]
+            combination = (tg_channel_id, discord_channel_id)
+            if combination in forwarder_combinations:
+                raise ValueError(f'Forwarder combination {combination} is duplicated')
+            
+            forwarder_combinations.add(combination)
+        return values
 
 class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods
     """Config model."""
