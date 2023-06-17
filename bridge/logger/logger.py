@@ -63,7 +63,7 @@ class Logger(logging.Logger):
         return handler
 
     @staticmethod
-    def get_logger(name: str) -> logging.Logger:
+    def get_logger(name: str) -> 'Logger':
         """Get a logger for the application."""
         logger = Logger(name)
         return logger
@@ -75,7 +75,7 @@ class Logger(logging.Logger):
         return logger
 
     @staticmethod
-    def init_logger(name: str, logger_config: LoggerConfig) -> logging.Logger:
+    def init_logger(name: str, logger_config: LoggerConfig) -> 'Logger':
         """Initialize a logger for the application."""
         logger = Logger(name)
         logger.configure(logger_config)

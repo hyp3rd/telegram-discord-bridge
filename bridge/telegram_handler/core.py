@@ -17,10 +17,10 @@ from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
 from bridge.config import Config
 from bridge.discord_handler import forward_to_discord
 from bridge.logger import Logger
-from bridge.openai_handler import analyze_message_sentiment
+from bridge.openai.handler import OpenAIHandler
 from bridge.utils import telegram_entities_to_markdown
 
-logger = Logger.get_logger(Config().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
 
 tg_to_discord_message_ids = {}
 
@@ -29,15 +29,15 @@ tg_to_discord_message_ids = {}
 # to estabils the user has an active session
 def check_telegram_session() -> bool:
     """Check if the Telegram session file exists."""
-    config = Config.get_config_instance()
-    if os.path.isfile(f"{config.app.name}.session") and os.path.isfile(config.api.telegram_auth_file):
+    config = Config.get_instance()
+    if os.path.isfile(f"{config.application.name}.session") and os.path.isfile(config.api.telegram_auth_file):
         return True
     return False
 
 
 async def get_auth_value_from_file(key: str) -> str | int:
     """Wait for the auth file to be created and then read a value from it."""
-    config = Config.get_config_instance()
+    config = Config.get_instance()
     # Wait for the auth file to be created with a timeout of 120 seconds
     for _ in range(config.api.telegram_auth_request_expiration):
         if os.path.isfile(config.api.telegram_auth_file):
@@ -57,9 +57,9 @@ async def get_telegram_password(api_auth: bool) -> str:
     logger.debug("Attempting to get the Telegram password")
     if telegram_password is not None:
         return telegram_password
-    config = Config.get_config_instance()
+    config = Config.get_instance()
     if not api_auth:
-        return config.telegram.password
+        return config.telegram.password.get_secret_value()
 
     telegram_password = await get_auth_value_from_file('password')
     return str(telegram_password)
@@ -86,13 +86,13 @@ async def start_telegram_client(config: Config, event_loop: AbstractEventLoop | 
         logger.debug("Creating a new event loop for Telegram client")
         event_loop = asyncio.get_event_loop()
 
-    # telethon_logger = Logger.get_telethon_logger()
-    # telethon_logger_handler = Logger.generate_handler(
-    #     f"{config.app.name}_telegram", config.logger)
-    # telethon_logger.addHandler(telethon_logger_handler)
+    telethon_logger = Logger.get_telethon_logger()
+    telethon_logger_handler = Logger.generate_handler(
+        f"{config.application.name}_telegram", config.logger)
+    telethon_logger.addHandler(telethon_logger_handler)
 
     telegram_client = TelegramClient(
-        session=config.app.name,
+        session=config.application.name,
         api_id=config.telegram.api_id,
         api_hash=config.telegram.api_hash,
         connection_retries=15,
@@ -112,25 +112,25 @@ async def start_telegram_client(config: Config, event_loop: AbstractEventLoop | 
 
     try:
         await telegram_client.start(
-            phone=config.telegram.phone,
+            phone=config.telegram.phone, # type: ignore
             code_callback=code_callback,  # type: ignore
             password=lambda: get_telegram_password(config.api.telegram_login_enabled))  # type: ignore
     except FloodWaitError as ex:
         logger.error("Telegram client failed to start: %s",
-                     ex, exc_info=config.app.debug)
+                     ex, exc_info=config.application.debug)
 
         logger.warning(
             "Retrying Telegram client start in %s seconds", ex.seconds)
         await asyncio.sleep(ex.seconds)
         await telegram_client.start(
-            phone=config.telegram.phone,
+            phone=config.telegram.phone, # type: ignore
             code_callback=code_callback,  # type: ignore
             password=lambda: get_telegram_password(config.api.telegram_login_enabled))  # type: ignore
 
     except SessionPasswordNeededError:
         logger.error("Telegram client failed to start: %s",
                      "2FA is enabled but no password was provided",
-                     exc_info=config.app.debug)
+                     exc_info=config.application.debug)
         # append to the json file that 2FA is enabled
         if os.path.isfile(config.api.telegram_auth_file) and config.api.telegram_login_enabled:
             with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
@@ -144,7 +144,7 @@ async def start_telegram_client(config: Config, event_loop: AbstractEventLoop | 
     except SessionRevokedError:
         logger.error("Telegram client failed to start: %s",
                      "The current session was revoked",
-                     exc_info=config.app.debug)
+                     exc_info=config.application.debug)
         if os.path.isfile(config.api.telegram_auth_file) and config.api.telegram_login_enabled:
             # append to the json file that the session was revoked
             with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
@@ -157,7 +157,7 @@ async def start_telegram_client(config: Config, event_loop: AbstractEventLoop | 
     except PhoneCodeInvalidError:
         logger.error("Telegram client failed to start: %s",
                      "The phone code is invalid",
-                     exc_info=config.app.debug)
+                     exc_info=config.application.debug)
         if os.path.isfile(config.api.telegram_auth_file) and config.api.telegram_login_enabled:
             # append to the json file that the phone code is invalid
             with open(config.api.telegram_auth_file, 'r', encoding="utf-8") as auth_file:
@@ -172,7 +172,7 @@ async def start_telegram_client(config: Config, event_loop: AbstractEventLoop | 
 
     bot_identity = await telegram_client.get_me(input_peer=False)
     logger.info("Telegram client started the session: %s, with identity: %s",
-                config.app.name, bot_identity.id)  # type: ignore
+                config.application.name, bot_identity.id)  # type: ignore
 
     return telegram_client
 
@@ -194,7 +194,7 @@ async def process_message_text(event, forwarder_config: dict[str, Any],
     message_text = event.message.message
 
     if openai_enabled:
-        suggestions = await analyze_message_sentiment(message_text)
+        suggestions = await OpenAIHandler.analyze_message_sentiment(message_text)
         message_text = f'{message_text}\n{suggestions}'
 
     if mention_everyone:

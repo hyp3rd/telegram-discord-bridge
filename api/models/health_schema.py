@@ -7,7 +7,7 @@ from bridge.enums import ProcessStateEnum
 from bridge.config import Config
 from bridge.logger import Logger
 
-logger = Logger.get_logger(Config.get_config_instance().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
 
 class Health(BaseModel):
     """Health."""

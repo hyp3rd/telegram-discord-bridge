@@ -18,7 +18,7 @@ from forwarder import determine_process_state, run_controller
 
 
 
-logger = Logger.get_logger(Config.get_config_instance().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
 
 
 class BridgeRouter:  # pylint: disable=too-few-public-methods
@@ -63,8 +63,8 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
     async def start(self):
         """start the bridge."""
-        config = Config.get_config_instance()
-        pid_file = f'{config.app.name}.pid'
+        config = Config.get_instance()
+        pid_file = f'{config.application.name}.pid'
         process_state, pid = determine_process_state(pid_file)
 
         try:
@@ -122,20 +122,20 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                 locker.release()
 
                 return BridgeResponseSchema(bridge=BridgeResponse(
-                    name=config.app.name,
+                    name=config.application.name,
                     status=ProcessStateEnum.STARTING,
                     process_id=pid,
-                    config_version=config.app.version,
+                    config_version=config.application.version,
                     telegram_authenticated=check_telegram_session(),
                     error="",
                 ))
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Error starting the bridge: %s", ex, exc_info=Config.get_config_instance().app.debug)
+            logger.error("Error starting the bridge: %s", ex, exc_info=Config.get_instance().application.debug)
             return BridgeResponseSchema(bridge=BridgeResponse(
-                name=config.app.name,
+                name=config.application.name,
                 status=ProcessStateEnum.STOPPED,
                 process_id=pid,
-                config_version=config.app.version,
+                config_version=config.application.version,
                 telegram_authenticated=check_telegram_session(),
                 error=str(ex),
             ))
@@ -144,28 +144,28 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
         # then return that the bridge is starting
         if pid == 0 and process_state == ProcessStateEnum.RUNNING:
             return BridgeResponseSchema(bridge=BridgeResponse(
-                name=config.app.name,
+                name=config.application.name,
                 status=ProcessStateEnum.ORPHANED,
                 process_id=pid,
-                config_version=config.app.version,
+                config_version=config.application.version,
                 telegram_authenticated=check_telegram_session(),
                 error="",
             ))
 
         # otherwise return the state of the process
         return BridgeResponseSchema(bridge=BridgeResponse(
-            name=config.app.name,
+            name=config.application.name,
             status=ProcessStateEnum.RUNNING,
             process_id=pid,
-            config_version=config.app.version,
+            config_version=config.application.version,
             telegram_authenticated=check_telegram_session(),
             error="",
         ))
 
     async def stop(self):
         """stop the bridge."""
-        config = Config.get_config_instance()
-        process_state, pid = determine_process_state(pid_file=f'{config.app.name}.pid')
+        config = Config.get_instance()
+        process_state, pid = determine_process_state(pid_file=f'{config.application.name}.pid')
 
         if process_state == ProcessStateEnum.RUNNING and pid > 0:
             try:
@@ -175,30 +175,30 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
             except asyncio.exceptions.CancelledError:
                 logger.info("Bridge process stopped.")
             except Exception as ex: # pylint: disable=broad-except
-                logger.error("Error stopping the bridge: %s", ex, exc_info=Config.get_config_instance().app.debug)
+                logger.error("Error stopping the bridge: %s", ex, exc_info=Config.get_instance().application.debug)
 
             return BridgeResponseSchema(bridge=BridgeResponse(
-                name=config.app.name,
+                name=config.application.name,
                 status=ProcessStateEnum.STOPPING,
                 process_id=pid,
-                config_version=config.app.version,
+                config_version=config.application.version,
                 telegram_authenticated=check_telegram_session(),
                 error="",
             ))
 
         return BridgeResponseSchema(bridge=BridgeResponse(
-            name=config.app.name,
+            name=config.application.name,
             status=ProcessStateEnum.STOPPED,
             process_id=pid,
-            config_version=config.app.version,
+            config_version=config.application.version,
             telegram_authenticated=check_telegram_session(),
             error="",
         ))
 
     async def health(self):
         """Return the health status of the Bridge."""
-        config = Config.get_config_instance()
-        pid_file = f'{config.app.name}.pid'
+        config = Config.get_instance()
+        pid_file = f'{config.application.name}.pid'
         process_state, pid = determine_process_state(pid_file)
 
         try:
@@ -232,7 +232,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                 await self.ws_connection_manager.send_health_data(websocket)
             # pylint: disable=broad-except
             except Exception as exc:
-                logger.exception("Error while sending health data to the WS client: %s", exc, exc_info=Config.get_config_instance().app.debug)
+                logger.exception("Error while sending health data to the WS client: %s", exc, exc_info=Config.get_instance().application.debug)
                 raise exc
 
 
@@ -253,7 +253,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                 task.cancel()
             await self.ws_connection_manager.disconnect(websocket)
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Error in health_websocket_endpoint: %s", ex, exc_info=Config.get_config_instance().app.debug)
+            logger.error("Error in health_websocket_endpoint: %s", ex, exc_info=Config.get_instance().application.debug)
             if task:
                 task.cancel()
             await self.ws_connection_manager.disconnect(websocket)

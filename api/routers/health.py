@@ -14,9 +14,9 @@ from bridge.events import EventSubscriber
 from bridge.logger import Logger
 from forwarder import determine_process_state
 
-logger = Logger.get_logger(Config.get_config_instance().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
 # Initialize a global Config object
-config = Config()
+config = Config.get_instance()
 
 class WSConnectionManager:
     """WS Connection Manager."""

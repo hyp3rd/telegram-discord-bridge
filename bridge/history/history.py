@@ -10,8 +10,8 @@ from telethon import TelegramClient
 from bridge.config import Config
 from bridge.logger import Logger
 
-config = Config()
-logger = Logger.get_logger(config.app.name)
+config = Config.get_instance()
+logger = Logger.get_logger(config.application.name)
 
 MESSAGES_HISTORY_FILE = "messages_history.json"
 MISSED_MESSAGES_HISTORY_FILE = "missed_messages_history.json"
@@ -63,12 +63,12 @@ class MessageHistoryHandler:
 
             logger.debug("Mapping data saved successfully.")
 
-            if config.app.debug:
+            if config.application.debug:
                 logger.debug("Current mapping data: %s", mapping_data)
 
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
-                "An error occurred while saving mapping data: %s", ex, exc_info=config.app.debug)
+                "An error occurred while saving mapping data: %s", ex, exc_info=config.application.debug)
 
     async def save_missed_message(self, forwarder_name: str, tg_message_id: int, discord_channel_id: int, exception: Any) -> None:
         """Save the missed message to the missed messages file."""
@@ -87,12 +87,12 @@ class MessageHistoryHandler:
 
             logger.debug("Missed message saved successfully.")
 
-            if config.app.debug:
+            if config.application.debug:
                 logger.debug("Current missed messages data: %s", mapping_data)
 
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
-                "An error occurred while saving missed message: %s", ex, exc_info=config.app.debug)
+                "An error occurred while saving missed message: %s", ex, exc_info=config.application.debug)
 
     async def get_discord_message_id(self, forwarder_name: str, tg_message_id: int) -> Optional[int]:
         """Get the Discord message ID associated with the given TG message ID for the specified forwarder."""

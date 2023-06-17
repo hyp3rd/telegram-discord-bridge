@@ -20,7 +20,7 @@ router = APIRouter(
              response_model=TelegramAuthResponseSchema)
 async def telegram_auth(auth: TelegramAuthSchema):
     """Handles the Telegram authentication and authorization."""
-    config = Config.get_config_instance()
+    config = Config.get_instance()
 
     try:
         # Temporarily write the auth data to the Telegram auth file.

@@ -12,7 +12,7 @@ from api.routers import auth, bridge, config
 from bridge.config import Config
 from bridge.logger import Logger
 
-logger = Logger.init_logger(Config().app.name, Config().logger)
+logger = Logger.init_logger(Config.get_instance().application.name, Config.get_instance.logger)
 
 
 class APIVersion(str, Enum):
@@ -28,13 +28,13 @@ class BridgeAPI: # pylint: disable=too-few-public-methods
     def __init__(self):
         # The bridge_process variable is used to store the bridge process
         self.bridge_process = None
-        config_instance = Config.get_config_instance()
+        config_instance = Config.get_instance()
         # The app variable is the main FastAPI instance
         self.app = FastAPI(
-            title=config_instance.app.name,
-            description=config_instance.app.description,
-            version=config_instance.app.version,
-            debug=config_instance.app.debug,
+            title=config_instance.application.name,
+            description=config_instance.application.description,
+            version=config_instance.application.version,
+            debug=config_instance.application.debug,
             # The RateLimitMiddleware is used to limit the number of requests to 20 per minute
             middleware=[
                 Middleware(RateLimitMiddleware, limit=20, interval=60),
@@ -71,15 +71,15 @@ class BridgeAPI: # pylint: disable=too-few-public-methods
 
     def index(self):
         """index."""
-        config_instance = Config.get_config_instance()
+        config_instance = Config.get_instance()
         return ConfigSummary(
             application=ApplicationConfig(
-                name=config_instance.app.name,
-                version=config_instance.app.version,
-                description=config_instance.app.description,
-                healthcheck_interval=config_instance.app.healthcheck_interval,
-                recoverer_delay=config_instance.app.recoverer_delay,
-                debug=config_instance.app.debug,
+                name=config_instance.application.name,
+                version=config_instance.application.version,
+                description=config_instance.application.description,
+                healthcheck_interval=config_instance.application.healthcheck_interval,
+                recoverer_delay=config_instance.application.recoverer_delay,
+                debug=config_instance.application.debug,
             ),
             api=APIConfig(
                 enabled=config_instance.api.enabled,

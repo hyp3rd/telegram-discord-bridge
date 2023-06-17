@@ -1,7 +1,7 @@
 """Discord handler."""
 import asyncio
 import sys
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 import discord
 from discord import Message, MessageReference, TextChannel
@@ -13,7 +13,7 @@ from bridge.utils import split_message
 
 # from discord.abc import GuildChannel, PrivateChannel,
 
-logger = Logger.get_logger(Config().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
 history_manager = MessageHistoryHandler()
 
 
@@ -25,12 +25,12 @@ async def start_discord(config: Config) -> discord.Client:
 
             # setup discord logger
             discord_logging_handler = Logger.generate_handler(
-                f"{config.app.name}_discord", config.logger)
+                f"{config.application.name}_discord", config.logger)
             discord.utils.setup_logging(handler=discord_logging_handler)
 
             await discord_client.start(token)
             logger.info("Discord client started the session: %s, with identity: %s",
-                        config.app.name, discord_client.user.id)
+                        config.application.name, discord_client.user.id) # type: ignore
 
         except (discord.LoginFailure, TypeError) as login_failure:
             logger.error(
@@ -68,10 +68,10 @@ async def forward_to_discord(discord_channel: TextChannel, message_text: str,
             sent_messages.append(sent_message)
     except discord.Forbidden:
         logger.error("Discord client doesn't have permission to send messages to channel %s",
-                     discord_channel.id, exc_info=Config().app.debug)
+                     discord_channel.id, exc_info=Config.get_instance().application.debug)
     except discord.HTTPException as http_exception:
         logger.error("Error while sending message to Discord: %s",
-                     http_exception, exc_info=Config().app.debug)
+                     http_exception, exc_info=Config.get_instance().application.debug)
 
     return sent_messages
 
@@ -89,7 +89,7 @@ async def fetch_discord_reference(event, forwarder_name: str, discord_channel) -
     try:
         messages = []
         async for message in discord_channel.history(around=discord.Object(id=discord_message_id),   # pylint: disable=line-too-long
-                                                     limit=10):
+                                                     limit=50): # make this configurable
             messages.append(message)
 
         discord_message = next(
@@ -108,23 +108,28 @@ async def fetch_discord_reference(event, forwarder_name: str, discord_channel) -
 
 
 def get_mention_roles(message_forward_hashtags: List[str],
-                      mention_override: dict,
+                      mention_override_tags: Optional[List[dict]],
                       discord_built_in_roles: List[str],
                       server_roles: Sequence[discord.Role]) -> List[str]:
     """Get the roles to mention."""
     mention_roles = set()
 
-    for tag in message_forward_hashtags:
-        if tag.lower() in mention_override:
-            logger.debug("Found mention override for tag %s: %s",
-                         tag, mention_override[tag.lower()])
-            for role_name in mention_override[tag.lower()]:
-                if is_builtin_mention(role_name, discord_built_in_roles):
-                    mention_roles.add("@" + role_name)
-                else:
-                    role = discord.utils.get(server_roles, name=role_name)
-                    if role:
-                        mention_roles.add(role.mention)
+    for tag in message_forward_hashtags: # pylint: disable=too-many-nested-blocks
+        logger.debug("Checking mention override for tag %s", tag)
+        logger.debug("mention_override tags %s", mention_override_tags)
+
+        for mention_override_tag in mention_override_tags:
+            if tag.lower() == mention_override_tag["tag"].lower():
+                logger.debug("Found mention override for tag %s: %s",
+                            tag, mention_override_tag["roles"])
+
+                for role_name in mention_override_tag["roles"]:
+                    if is_builtin_mention(role_name, discord_built_in_roles):
+                        mention_roles.add("@" + role_name)
+                    else:
+                        role = discord.utils.get(server_roles, name=role_name)
+                        if role:
+                            mention_roles.add(role.mention)
 
     return list(mention_roles)
 

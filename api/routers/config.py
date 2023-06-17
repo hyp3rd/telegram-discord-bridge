@@ -17,14 +17,14 @@ from bridge.enums import RequestTypeEnum
 from bridge.logger import Logger
 from forwarder import determine_process_state
 
-logger = Logger.get_logger(Config.get_config_instance().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
 
 class ConfigRouter:
     """Config router class."""
 
     def __init__(self) -> None:
         """Initialize the config router."""
-        self.config = Config.get_config_instance()
+        self.config = Config.get_instance()
         self.router = APIRouter(
             prefix="/config",
             tags=["config"],
@@ -48,12 +48,12 @@ class ConfigRouter:
         """Get the current config."""
 
         application_config = ApplicationConfig(
-            name=self.config.app.name,
-            version=self.config.app.version,
-            description=self.config.app.description,
-            debug=self.config.app.debug,
-            healthcheck_interval=self.config.app.healthcheck_interval,
-            recoverer_delay=self.config.app.recoverer_delay,
+            name=self.config.application.name,
+            version=self.config.application.version,
+            description=self.config.application.description,
+            debug=self.config.application.debug,
+            healthcheck_interval=self.config.application.healthcheck_interval,
+            recoverer_delay=self.config.application.recoverer_delay,
         )
 
         api_config = APIConfig(
@@ -75,10 +75,10 @@ class ConfigRouter:
 
         telegram_config = TelegramConfig(
             phone=self.config.telegram.phone,
-            password=SecretStr(self.config.telegram.password),
+            password=self.config.telegram.password,
             api_id=self.config.telegram.api_id,
             api_hash=self.config.telegram.api_hash,
-            log_unhandled_conversations=self.config.telegram.log_unhandled_conversations,
+            log_unhandled_dialogs=self.config.telegram.log_unhandled_dialogs,
         )
 
         discord_config = DiscordConfig(
@@ -104,9 +104,9 @@ class ConfigRouter:
                     mention_everyone=forwarder["mention_everyone"],
                     forward_everything=forwarder["forward_everything"],
                     strip_off_links=forwarder["strip_off_links"],
-                    forward_hashtags=forwarder["forward_hashtags"] if "forward_hashtags" in forwarder else [],
-                    excluded_hashtags=forwarder["excluded_hashtags"] if "excluded_hashtags" in forwarder else [],
-                    mention_override=forwarder["mention_override"] if "mention_override" in forwarder else None,
+                    forward_hashtags=forwarder["forward_hashtags"] if forwarder["forward_hashtags"] else [],
+                    excluded_hashtags=forwarder["excluded_hashtags"] if forwarder["excluded_hashtags"] in forwarder else [],
+                    mention_override=forwarder["mention_override"] if forwarder["mention_override"] in forwarder else None,
                 )
             )
 
@@ -130,7 +130,7 @@ class ConfigRouter:
 
         response = BaseResponse(
             resource="config",
-            config_version=self.config.app.version,
+            config_version=self.config.application.version,
             request_type=RequestTypeEnum.UPLOAD_CONFIG,
             bridge_status=process_state,
             bridge_pid=pid,
@@ -176,12 +176,6 @@ class ConfigRouter:
             raise HTTPException(
                 status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
 
-        # validate here
-        valid, errors = self.config.validate_config(new_config_file_content)
-        if not valid:
-            raise HTTPException(
-                status_code=400, detail=f'{errors}')
-
         new_config_file_name = f'config-{new_config_file_content["application"]["version"]}.yml'
 
         response.operation_status["new_config_file_name"] = new_config_file_name
@@ -205,16 +199,11 @@ class ConfigRouter:
 
         response = BaseResponse(
             resource="config",
-            config_version=self.config.app.version,
+            config_version=self.config.application.version,
             request_type=RequestTypeEnum.POST_CONFIG,
             bridge_status=process_state,
             bridge_pid=pid,
         )
-
-        valid, errors = self.config.validate_config(config.config.dict())
-        if not valid:
-            raise HTTPException(
-                status_code=400, detail=f'{errors}')
 
         config_file_name = f'config-{config.config.application.version}.yml'
 

@@ -12,8 +12,8 @@ from bridge.discord_handler import DiscordClientHealth
 from bridge.events import EventDispatcher
 from bridge.logger import Logger
 
-config = Config.get_config_instance()
-logger = Logger.get_logger(config.app.name)
+config = Config.get_instance()
+logger = Logger.get_logger(config.application.name)
 
 discord__client_health = DiscordClientHealth()
 
@@ -29,10 +29,10 @@ async def internet_connectivity_check() -> bool:
         await loop.run_in_executor(executor, socket.create_connection, (host, 443), 5)
         return True
     except socket.gaierror as ex:
-        logger.error("Unable to resolve hostname: %s", ex, exc_info=config.app.debug)
+        logger.error("Unable to resolve hostname: %s", ex, exc_info=config.application.debug)
         return False
     except OSError as ex:
-        logger.error("Unable to reach the internetL %s", ex, exc_info=config.app.debug)
+        logger.error("Unable to reach the internetL %s", ex, exc_info=config.application.debug)
         return False
 
 
@@ -45,18 +45,18 @@ async def healthcheck(dispatcher: EventDispatcher, tgc: TelegramClient, dcl: dis
             if has_connectivity:
                 logger.debug("The bridge is online.")
                 # set the internet connectivity status to True
-                config.app.internet_connected = True
+                config.application.internet_connected = True
             else:
                 logger.warning("Unable to reach the internet.")
                 # set the internet connectivity status to False
-                config.app.internet_connected = False
+                config.application.internet_connected = False
                 # wait for the specified interval
                 await asyncio.sleep(interval)
                 await healthcheck(dispatcher, tgc, dcl, interval)
 
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
-                "An error occurred while checking internet connectivity: %s", ex, exc_info=config.app.debug)
+                "An error occurred while checking internet connectivity: %s", ex, exc_info=config.application.debug)
 
         # Check Telegram API status
         try:
@@ -71,7 +71,7 @@ async def healthcheck(dispatcher: EventDispatcher, tgc: TelegramClient, dcl: dis
             config.telegram.is_healthy = False
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
-                "An error occurred while connecting to the Telegram API: %s", ex, exc_info=config.app.debug)
+                "An error occurred while connecting to the Telegram API: %s", ex, exc_info=config.application.debug)
             # set the Telegram availability status to False
             config.telegram.is_healthy = False
 
@@ -89,7 +89,7 @@ async def healthcheck(dispatcher: EventDispatcher, tgc: TelegramClient, dcl: dis
                 config.discord.is_healthy = False
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
-                "An error occurred while connecting to the Discord API: %s", ex, exc_info=config.app.debug)
+                "An error occurred while connecting to the Discord API: %s", ex, exc_info=config.application.debug)
             # set the Discord availability status to False
             config.discord.is_healthy = False
 

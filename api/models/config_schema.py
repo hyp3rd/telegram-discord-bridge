@@ -1,6 +1,8 @@
 """config schema validation model."""
-from typing import List, Optional
+import os
+from typing import Dict, List, Optional
 
+import yaml
 from pydantic import BaseModel  # pylint: disable=import-error
 from pydantic import SecretStr, StrictInt, root_validator, validator
 
@@ -47,7 +49,7 @@ class ForwarderConfig(BaseModel):
                     if forward_hashtag['name'] == excluded_hashtag['name']:
                         raise ValueError('forward_hashtags and excluded_hashtags must not contain the same hashtag')
         return values
-    
+
     @root_validator
     def mention_override_validator_mention_everyone(cls, values):
         """Mention override validator."""
@@ -181,7 +183,7 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     password: SecretStr
     api_id: StrictInt
     api_hash: str
-    log_unhandled_conversations: bool = False
+    log_unhandled_dialogs: bool = False
 
     class Config:
         """Telegram config."""
@@ -332,7 +334,7 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
 
             forwarder_combinations.add(combination)
         return values
-    
+
     @root_validator
     def shared_forward_hashtags_validator(cls, values):
         """Ensure that hashtags are not shared between forwarders with the same telegram_id chaannel."""
@@ -354,6 +356,78 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
                     tg_channel_hashtags[tg_channel_id].append(forward_hashtags)
         return values
 
-class ConfigSchema(BaseModel):  # pylint: disable=too-few-public-methods
+class ConfigSchema(BaseModel):
     """Config model."""
     config: ConfigYAMLSchema
+
+class Config(BaseModel):
+    """Config model."""
+    _instances: Dict[str, 'Config'] = {}
+    _file_path = os.path.join(
+        os.path.curdir,
+        "config.yml",
+    )
+
+    application: ApplicationConfig
+    logger: LoggerConfig
+    api: APIConfig
+    telegram: TelegramConfig
+    discord: DiscordConfig
+    openai: OpenAIConfig
+    telegram_forwarders: List[ForwarderConfig]
+
+    @classmethod
+    def from_yaml(cls, yaml_file: str) -> 'Config':
+        """Load config from YAML file."""
+        try:
+            with open(yaml_file, 'r') as stream:
+                config = yaml.safe_load(stream)
+            return cls(**config)
+        except FileNotFoundError as ex:
+            raise FileNotFoundError(
+                f"Config file {yaml_file} not found.") from ex
+
+        except yaml.YAMLError as ex:
+            raise ValueError(
+                f"Error parsing config file {yaml_file}.") from ex
+
+    def to_yaml(self, yaml_file: str) -> None:
+        """Save config to YAML file."""
+        with open(yaml_file, 'w') as stream:
+            yaml.dump(self.dict(), stream, default_flow_style=False)
+
+    def to_summary(self) -> ConfigSummary:
+        """Get config summary."""
+        return ConfigSummary(
+            application=self.application,
+            api=self.api,
+        )
+
+    def __new__(cls):
+        """Creates a new Config instance."""
+        if None not in cls._instances:
+            instance = super().__new__(cls)
+            instance._initialized = False
+            cls._instances[""] = instance
+        return cls._instances[""]
+
+    def __init__(self):
+        """Initializes a new Config instance."""
+        if not self._initialized:
+            self._initialized = True
+            self.from_yaml(self._file_path)
+
+    def get_instance(self, version: str | None = None) -> 'Config':
+        """Get config instance."""
+        if version and version in self._instances:
+            self._instances[version] = self.from_yaml(
+                os.path.join(os.path.curdir, f"config.{version}.yml"))
+
+        return self._instances[""]
+
+    def get_telegram_channel_by_forwarder_name(self, forwarder_name: str):
+        """Get the Telegram channel ID associated with a given forwarder ID."""
+        for forwarder in self.telegram_forwarders:
+            if forwarder["forwarder_name"] == forwarder_name:
+                return forwarder["tg_channel_id"]
+        return None

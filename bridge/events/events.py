@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List
 from bridge.config import Config
 from bridge.logger import Logger
 
-logger = Logger.get_logger(Config.get_config_instance().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
 
 
 class EventDispatcher:
@@ -50,8 +50,6 @@ class EventDispatcher:
 
     def notify(self, event, data=None):
         """Notify subscribers of an event."""
-        logger.debug("Event dispatcher notified of event: %s - data: %s", event, data)
-
         if event in self.subscribers:
             for subscriber in self.subscribers[event]:
                 logger.debug("Event dispatcher notifying subscriber: %s", subscriber)
@@ -62,22 +60,22 @@ class EventDispatcher:
                         subscriber.update(event, data)
                 except EventDispatcherException as ex:
                     message = "The event dispatcher failed to notify its subscribers"
-                    logger.error("%s - event: %s - error: %s",  message, event, ex, exc_info=Config.get_config_instance().app.debug)
+                    logger.error("%s - event: %s - error: %s",  message, event, ex, exc_info=Config.get_instance().application.debug)
                     # raise EventDispatcherException(message=message) from ex
                 except Exception as ex: # pylint: disable=broad-except
                     message = "The event dispatcher failed to notify its subscribers"
-                    logger.error("%s - event: %s - error: %s",  message, event, ex, exc_info=Config.get_config_instance().app.debug)
+                    logger.error("%s - event: %s - error: %s",  message, event, ex, exc_info=Config.get_instance().application.debug)
                     # raise EventDispatcherException(message=message) from ex
                 else:
                     logger.debug("Event dispatcher successfully notified subscriber: %s", subscriber)
                 finally:
                     logger.debug("Event dispatcher finished notifying subscriber: %s", subscriber)
         else:
-            logger.info("Event dispatcher has no subscribers for event: %s", event)
+            logger.debug("Event dispatcher has no subscribers for event: %s", event)
 
     def stop(self):
         """Stop the event dispatcher."""
-        logger.debug("Stopping event dispatcher")
+        logger.warning("Stopping event dispatcher")
         self.subscribers.clear()
         logger.info("Event dispatcher stopped")
 

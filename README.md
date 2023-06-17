@@ -83,7 +83,7 @@ telegram:
   # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
   api_hash: "<your api hash>"
   # Whether to log the conversations that aren't available for forwarding (private chats, etc.)
-  log_unhandled_conversations: False
+  log_unhandled_dialogs: False
 
 # Discord configuration
 discord:

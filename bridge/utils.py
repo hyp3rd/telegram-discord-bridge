@@ -6,12 +6,6 @@ from telethon.tl.types import (MessageEntityBold, MessageEntityCode,
                                MessageEntityItalic, MessageEntityPre,
                                MessageEntityStrike, MessageEntityTextUrl)
 
-from bridge.config import Config
-from bridge.logger import Logger
-
-config = Config()
-logger = Logger.get_logger(config.app.name)
-
 
 def split_message(message: str, max_length: int = 2000) -> List[str]:
     """Split a message into multiple messages if it exceeds the max length."""
@@ -20,8 +14,10 @@ def split_message(message: str, max_length: int = 2000) -> List[str]:
 
     message_parts = []
     while len(message) > max_length:
+        # Find the last newline before the max length.
         split_index = message[:max_length].rfind("\n")
         if split_index == -1:
+            # If a newline wasn't found, split at the max length.
             split_index = max_length
 
         message_parts.append(message[:split_index])
@@ -97,7 +93,6 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list, str
             )
             offset_correction += correction
         elif url:  # This is a MessageEntityTextUrl.
-            logger.debug("processing url: %s", url)
             links.append(f"<{url}>")
             # No need to do anything here as we're only replacing the text with itself.
 
