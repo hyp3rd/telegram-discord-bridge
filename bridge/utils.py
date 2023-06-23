@@ -59,12 +59,12 @@ def telegram_entities_to_markdown(message: Message, strip_off_links: bool) -> st
     ]
 
     # Sort entities by start offset in descending order.
-    sorted_entities = sorted(entities, key=lambda e: e[0], reverse=True)
+    entities = sorted(entities, key=lambda e: e[0], reverse=True)
 
     links = []  # To hold link text and URLs
     link_count = 0  # To count the links and assign reference numbers
 
-    for start, end, entity_type, url in sorted_entities:
+    for start, end, entity_type, url in entities:
         markdown_delimiters = markdown_map.get(entity_type)  # type: ignore
 
         if markdown_delimiters:

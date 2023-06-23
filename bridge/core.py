@@ -20,10 +20,6 @@ from bridge.logger import Logger
 from bridge.openai.handler import OpenAIHandler
 from bridge.utils import telegram_entities_to_markdown
 
-# from bridge.telegram_handler import (get_message_forward_hashtags,
-#                                      handle_message_media,
-#                                      process_message_text)
-
 
 class Bridge:
     """Bridge between Telegram and Discord."""

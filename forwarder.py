@@ -18,7 +18,7 @@ from bridge.core import Bridge
 from bridge.discord_handler import start_discord
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
-from bridge.healtcheck_handler import healthcheck
+from bridge.healtcheck import HealthHandler
 from bridge.logger import Logger
 from bridge.telegram_handler import start_telegram_client
 
@@ -362,9 +362,9 @@ class Forwarder(metaclass=SingletonMeta):
                 self.discord_client.wait_until_ready()
             )
             api_healthcheck_task = event_loop.create_task(
-                healthcheck(self.dispatcher,
+                HealthHandler(self.dispatcher,
                             self.telegram_client,
-                            self.discord_client, self.config.application.healthcheck_interval)
+                            self.discord_client).check(self.config.application.healthcheck_interval)
             )
             on_restored_connectivity_task = event_loop.create_task(
                 bridge.on_restored_connectivity()
