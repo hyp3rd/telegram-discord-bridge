@@ -13,8 +13,7 @@ from telethon.tl.types import (Channel, InputChannel, Message,
                                MessageEntityUrl)
 
 from bridge.config import Config, ForwarderConfig
-from bridge.discord_handler import (fetch_discord_reference,
-                                    forward_to_discord, get_mention_roles)
+from bridge.discord import DiscordHandler
 from bridge.history import MessageHistoryHandler
 from bridge.logger import Logger
 from bridge.openai.handler import OpenAIHandler
@@ -29,6 +28,7 @@ class Bridge:
     def __init__(self, telegram_client: TelegramClient, discord_client: discord.Client):
         self.telegram_client = telegram_client
         self.discord_client = discord_client
+        self.discord_handler = DiscordHandler()
         self.history_manager = MessageHistoryHandler()
         self.input_channels_entities = []
 
@@ -176,7 +176,7 @@ class Bridge:
             discord_channel = self.discord_client.get_channel(forwarder.discord_channel_id)  # type: ignore
             server_roles = discord_channel.guild.roles  # type: ignore
 
-            mention_roles = get_mention_roles(message_forward_hashtags,
+            mention_roles = self.discord_handler.get_mention_roles(message_forward_hashtags,
                                             forwarder.mention_override,
                                             self.config.discord.built_in_roles,
                                             server_roles)
@@ -185,7 +185,7 @@ class Bridge:
                 message, forwarder.strip_off_links, mention_everyone, mention_roles, self.config.openai.enabled)
 
             if message.reply_to and message.reply_to.reply_to_msg_id:
-                discord_reference = await fetch_discord_reference(message,
+                discord_reference = await self.discord_handler.fetch_reference(message,
                                                                 forwarder.forwarder_name,
                                                                 discord_channel) if message.reply_to.reply_to_msg_id else None
             else:
@@ -197,7 +197,7 @@ class Bridge:
                                                                 message_text,
                                                                 discord_reference)
             else:
-                sent_discord_messages = await forward_to_discord(discord_channel,  # type: ignore
+                sent_discord_messages = await self.discord_handler.forward_message(discord_channel,  # type: ignore
                                                                 message_text,
                                                                 reference=discord_reference)  # type: ignore
 
@@ -393,7 +393,7 @@ class Bridge:
         file_path = await self.telegram_client.download_media(message)
         try:
             with open(file_path, "rb") as image_file:  # type: ignore
-                sent_discord_messages = await forward_to_discord(discord_channel,
+                sent_discord_messages = await self.discord_handler.forward_message(discord_channel,
                                                                 message_text,
                                                                 image_file=image_file,
                                                                 reference=discord_reference)
@@ -417,7 +417,7 @@ class Bridge:
         contains_url = any(isinstance(entity, (MessageEntityTextUrl,
                                             MessageEntityUrl))
                         for entity in message.entities or [])
-        
+
         sent_discord_messages: List[DiscordMessage] | None = None
 
         if contains_url:
@@ -432,10 +432,10 @@ class Bridge:
 
         return sent_discord_messages
 
-    @staticmethod
-    async def process_url_message(discord_channel, message_text, discord_reference) -> List[DiscordMessage]:
+
+    async def process_url_message(self, discord_channel, message_text, discord_reference) -> List[DiscordMessage]:
         """Process a message that contains a URL."""
-        sent_discord_messages = await forward_to_discord(discord_channel,
+        sent_discord_messages = await self.discord_handler.forward_message(discord_channel,
                                                         message_text,
                                                         reference=discord_reference)
         return sent_discord_messages

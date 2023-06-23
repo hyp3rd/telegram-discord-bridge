@@ -8,7 +8,7 @@ import discord
 from telethon import TelegramClient
 
 from bridge.config import Config
-from bridge.discord_handler import DiscordClientHealth
+from bridge.discord import DiscordClientHealth
 from bridge.events import EventDispatcher
 from bridge.logger import Logger
 

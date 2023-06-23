@@ -11,7 +11,7 @@ from bridge.config import Config
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
 from bridge.logger import Logger
-from bridge.telegram_handler import check_telegram_session
+from bridge.telegram import check_telegram_session
 from forwarder import determine_process_state, run_controller
 
 # from typing import List

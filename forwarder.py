@@ -15,12 +15,12 @@ from telethon import TelegramClient
 
 from bridge.config import Config
 from bridge.core import Bridge
-from bridge.discord_handler import start_discord
+from bridge.discord import DiscordHandler
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
 from bridge.healtcheck import HealthHandler
 from bridge.logger import Logger
-from bridge.telegram_handler import start_telegram_client
+from bridge.telegram import TelegramHandler
 
 ERR_API_DISABLED = "API mode is disabled, please use the CLI to start the bridge, or enable it in the config file."
 ERR_API_ENABLED = "API mode is enabled, please use the API to start the bridge, or disable it in the config file."
@@ -327,14 +327,10 @@ class Forwarder(metaclass=SingletonMeta):
     async def init_clients(self) -> Tuple[TelegramClient, discord.Client]:
         """Handle the initialization of the bridge's clients."""
 
-        # lock = asyncio.Lock()
-        # await lock.acquire()
         event_loop = asyncio.get_event_loop()
 
-        self.telegram_client = await start_telegram_client(self.config, event_loop)
-        self.discord_client = await start_discord(self.config)
-
-        # lock.release()
+        self.telegram_client = await TelegramHandler(self.dispatcher).init_client(event_loop)
+        self.discord_client = await DiscordHandler().init_client()
 
         # Set signal handlers for graceful shutdown on received signal (except on Windows)
         # NOTE: This is not supported on Windows
