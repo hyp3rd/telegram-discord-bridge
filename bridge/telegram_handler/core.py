@@ -3,22 +3,15 @@ import asyncio
 import json
 import os
 from asyncio.events import AbstractEventLoop
-from typing import Any, List
 
-from discord import Message
 from telethon import TelegramClient
 from telethon.errors.rpcerrorlist import (FloodWaitError,
                                           PhoneCodeInvalidError,
                                           SessionPasswordNeededError,
                                           SessionRevokedError)
-from telethon.tl.types import (MessageEntityHashtag, MessageEntityTextUrl,
-                               MessageEntityUrl)
 
 from bridge.config import Config
-from bridge.discord_handler import forward_to_discord
 from bridge.logger import Logger
-from bridge.openai.handler import OpenAIHandler
-from bridge.utils import telegram_entities_to_markdown
 
 logger = Logger.get_logger(Config.get_instance().application.name)
 
@@ -177,83 +170,88 @@ async def start_telegram_client(config: Config, event_loop: AbstractEventLoop | 
     return telegram_client
 
 
-def get_message_forward_hashtags(message):
-    """Get forward_hashtags from a message."""
-    entities = message.entities or []
-    forward_hashtags = [entity for entity in entities if isinstance(
-        entity, MessageEntityHashtag)]
+# def get_message_forward_hashtags(message: TelegramMessage):
+#     """Get forward_hashtags from a message."""
+#     entities = message.entities or []
+#     forward_hashtags = [entity for entity in entities if isinstance(
+#         entity, MessageEntityHashtag)]
 
-    return [message.text[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
-
-
-async def process_message_text(event, forwarder_config: dict[str, Any],
-                               mention_everyone: bool,
-                               mention_roles: List[str],
-                               openai_enabled: bool) -> str:  # pylint: disable=too-many-arguments
-    """Process the message text and return the processed text."""
-    message_text = event.message.message
-
-    if openai_enabled:
-        suggestions = await OpenAIHandler.analyze_message_sentiment(message_text)
-        message_text = f'{message_text}\n{suggestions}'
-
-    if mention_everyone:
-        message_text += '\n' + '@everyone'
-
-    if mention_roles:
-        mention_text = ", ".join(role for role in mention_roles)
-        message_text = f"{mention_text}\n{message_text}"
-
-    return telegram_entities_to_markdown(message_text, event.message.entities,
-                                         forwarder_config["strip_off_links"])
+#     return [message.message[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
 
 
-async def process_media_message(telegram_client: TelegramClient,
-                                event, discord_channel,
-                                message_text, discord_reference):
-    """Process a message that contains media."""
-    file_path = await telegram_client.download_media(event.message)
-    try:
-        with open(file_path, "rb") as image_file:  # type: ignore
-            sent_discord_messages = await forward_to_discord(discord_channel,
-                                                             message_text,
-                                                             image_file=image_file,
-                                                             reference=discord_reference)
-    except OSError as ex:
-        logger.error(
-            "An error occurred while opening the file %s: %s",  file_path, ex)
-        return
-    finally:
-        os.remove(file_path)  # type: ignore
+# async def process_message_text(message: TelegramMessage, 
+#                                strip_off_links: bool,
+#                                mention_everyone: bool,
+#                                mention_roles: List[str],
+#                                openai_enabled: bool) -> str:  # pylint: disable=too-many-arguments
+#     """Process the message text and return the processed text."""
 
-    return sent_discord_messages
+#     if message.entities:
+#         message_text = telegram_entities_to_markdown(message,
+#                                          strip_off_links)
+#     else:
+#         message_text = message.message
 
+#     if openai_enabled:
+#         suggestions = await OpenAIHandler.analyze_message_sentiment(message.message)
+#         message_text = f'{message_text}\n{suggestions}'
 
-async def handle_message_media(telegram_client: TelegramClient, event,
-                               discord_channel, message_text,
-                               discord_reference) -> List[Message] | None:
-    """Handle a message that contains media."""
-    contains_url = any(isinstance(entity, (MessageEntityTextUrl,
-                                           MessageEntityUrl))
-                       for entity in event.message.entities or [])
+#     if mention_everyone:
+#         message_text += '\n' + '@everyone'
 
-    if contains_url:
-        sent_discord_messages = await process_url_message(discord_channel,
-                                                          message_text,
-                                                          discord_reference)
-    else:
-        sent_discord_messages = await process_media_message(telegram_client,
-                                                            event,
-                                                            discord_channel,
-                                                            message_text,
-                                                            discord_reference)
+#     if mention_roles:
+#         mention_text = ", ".join(role for role in mention_roles)
+#         message_text = f"{mention_text}\n{message_text}"
 
-    return sent_discord_messages
+#     return message_text
 
 
-async def process_url_message(discord_channel, message_text, discord_reference):
-    """Process a message that contains a URL."""
-    sent_discord_messages = await forward_to_discord(discord_channel,
-                                                     message_text,
-                                                     reference=discord_reference)
-    return sent_discord_messages
+# async def process_media_message(telegram_client: TelegramClient,
+#                                 event, discord_channel,
+#                                 message_text, discord_reference):
+#     """Process a message that contains media."""
+#     file_path = await telegram_client.download_media(event.message)
+#     try:
+#         with open(file_path, "rb") as image_file:  # type: ignore
+#             sent_discord_messages = await forward_to_discord(discord_channel,
+#                                                              message_text,
+#                                                              image_file=image_file,
+#                                                              reference=discord_reference)
+#     except OSError as ex:
+#         logger.error(
+#             "An error occurred while opening the file %s: %s",  file_path, ex)
+#         return
+#     finally:
+#         os.remove(file_path)  # type: ignore
+
+#     return sent_discord_messages
+
+
+# async def handle_message_media(telegram_client: TelegramClient, event,
+#                                discord_channel, message_text,
+#                                discord_reference) -> List[Message] | None:
+#     """Handle a message that contains media."""
+#     contains_url = any(isinstance(entity, (MessageEntityTextUrl,
+#                                            MessageEntityUrl))
+#                        for entity in event.message.entities or [])
+
+#     if contains_url:
+#         sent_discord_messages = await process_url_message(discord_channel,
+#                                                           message_text,
+#                                                           discord_reference)
+#     else:
+#         sent_discord_messages = await process_media_message(telegram_client,
+#                                                             event,
+#                                                             discord_channel,
+#                                                             message_text,
+#                                                             discord_reference)
+
+#     return sent_discord_messages
+
+
+# async def process_url_message(discord_channel, message_text, discord_reference):
+#     """Process a message that contains a URL."""
+#     sent_discord_messages = await forward_to_discord(discord_channel,
+#                                                      message_text,
+#                                                      reference=discord_reference)
+#     return sent_discord_messages

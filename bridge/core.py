@@ -1,21 +1,28 @@
 """A `bridge` to forward messages from Telegram to a Discord server."""
 
 import asyncio
+import os
 import sys
 from typing import List
 
 import discord
+from discord import Message as DiscordMessage
 from telethon import TelegramClient, events
-from telethon.tl.types import Channel, InputChannel
+from telethon.tl.types import (Channel, InputChannel, Message,
+                               MessageEntityHashtag, MessageEntityTextUrl,
+                               MessageEntityUrl)
 
 from bridge.config import Config, ForwarderConfig
 from bridge.discord_handler import (fetch_discord_reference,
                                     forward_to_discord, get_mention_roles)
 from bridge.history import MessageHistoryHandler
 from bridge.logger import Logger
-from bridge.telegram_handler import (get_message_forward_hashtags,
-                                     handle_message_media,
-                                     process_message_text)
+from bridge.openai.handler import OpenAIHandler
+from bridge.utils import telegram_entities_to_markdown
+
+# from bridge.telegram_handler import (get_message_forward_hashtags,
+#                                      handle_message_media,
+#                                      process_message_text)
 
 
 class Bridge:
@@ -70,9 +77,9 @@ class Bridge:
 
 
                 for forwarder in self.config.telegram_forwarders:
-                    if forwarder.tg_channel_id in {dialog.name, dialog.entity.id}:
+                    if forwarder.tg_channel_id in {dialog.name, dialog.entity.id}: # type: ignore
                         self.input_channels_entities.append(
-                            InputChannel(dialog.entity.id, dialog.entity.access_hash))
+                            InputChannel(dialog.entity.id, dialog.entity.access_hash)) # type: ignore
 
                         self.logger.info("Registered Forwarder %s: Telegram channel '%s' (ID %s) with Discord Channel %s",
                                     forwarder.forwarder_name, dialog.name, dialog.entity.id, forwarder.discord_channel_id)  # type: ignore
@@ -85,14 +92,141 @@ class Bridge:
             self.logger.error("Error while registering forwarders: %s", ex)
             sys.exit(1)
 
+
     async def _register_telegram_handlers(self):
         """Register the Telegram handlers."""
         self.logger.info("Registering Telegram handlers...")
         self.telegram_client.add_event_handler(self._handle_new_message, events.NewMessage(chats=self.input_channels_entities))
-        self.telegram_client.add_event_handler(self._handle_edit_message, events.MessageEdited(chats=self.input_channels_entities))
-        self.telegram_client.add_event_handler(self._handle_deleted_message, events.MessageDeleted(chats=self.input_channels_entities))
+
+        if self.config.telegram.subscribe_to_edit_events:
+            self.telegram_client.add_event_handler(self._handle_edit_message, events.MessageEdited(chats=self.input_channels_entities))
+            self.logger.info("Subscribed to Telegram edit events")
+
+        if self.config.telegram.subscribe_to_delete_events:
+            self.telegram_client.add_event_handler(self._handle_deleted_message, events.MessageDeleted(chats=self.input_channels_entities))
+            self.logger.info("Subscribed to Telegram delete events")
+
+
+    async def _handle_new_message(self, event):  # pylint: disable=too-many-locals
+        """Handle the processing of a new Telegram message."""
+        self.logger.debug("processing Telegram message: %s", event)
+
+        if not isinstance(event.message, Message):
+            self.logger.error("Event message is not a Telegram message")
+            return
+
+        message: Message = event.message
+
+        self.logger.debug("message: %s", message)
+        # self.logger.debug("message with markdown: %s", message.text)
+
+        tg_channel_id = message.peer_id.channel_id  # type: ignore
+
+        matching_forwarders: List[ForwarderConfig] = self.get_matching_forwarders(tg_channel_id)
+
+        if len(matching_forwarders) < 1:
+            self.logger.error(
+                "No forwarders found for Telegram channel %s", tg_channel_id)
+            return
+
+        self.logger.debug("Found %s matching forwarders", len(matching_forwarders))
+        self.logger.debug("Matching forwarders: %s", matching_forwarders)
+
+        for forwarder in matching_forwarders:
+            self.logger.debug("Forwarder config: %s", forwarder)
+
+
+            should_forward_message = forwarder.forward_everything
+            mention_everyone = forwarder.mention_everyone
+            message_forward_hashtags: List[str] = []
+
+            if not should_forward_message or forwarder.mention_override:
+                message_forward_hashtags = self.get_message_forward_hashtags(
+                    message)
+
+                self.logger.debug("message_forward_hashtags: %s",
+                                message_forward_hashtags)
+
+                self.logger.debug("mention_override: %s",
+                                forwarder.mention_override)
+
+                self.logger.debug("forward_hashtags: %s",
+                                forwarder.forward_hashtags)
+
+                matching_forward_hashtags = []
+
+                if message_forward_hashtags and forwarder.forward_hashtags:
+                    matching_forward_hashtags = [
+                        tag for tag in forwarder.forward_hashtags if tag["name"].lower() in message_forward_hashtags]
+
+                if len(matching_forward_hashtags) > 0:
+                    should_forward_message = True
+                    mention_everyone = any(tag.get("override_mention_everyone", False)
+                                        for tag in matching_forward_hashtags)
+
+            if forwarder.excluded_hashtags:
+                message_forward_hashtags = self.get_message_forward_hashtags(
+                    message)
+
+                matching_forward_hashtags = [
+                    tag for tag in forwarder.excluded_hashtags if tag["name"].lower() in message_forward_hashtags]
+
+                if len(matching_forward_hashtags) > 0:
+                    should_forward_message = False
+
+            if not should_forward_message:
+                continue
+
+            discord_channel = self.discord_client.get_channel(forwarder.discord_channel_id)  # type: ignore
+            server_roles = discord_channel.guild.roles  # type: ignore
+
+            mention_roles = get_mention_roles(message_forward_hashtags,
+                                            forwarder.mention_override,
+                                            self.config.discord.built_in_roles,
+                                            server_roles)
+
+            message_text = await self.process_message_text(
+                message, forwarder.strip_off_links, mention_everyone, mention_roles, self.config.openai.enabled)
+
+            if message.reply_to and message.reply_to.reply_to_msg_id:
+                discord_reference = await fetch_discord_reference(message,
+                                                                forwarder.forwarder_name,
+                                                                discord_channel) if message.reply_to.reply_to_msg_id else None
+            else:
+                discord_reference = None
+
+            if message.media:
+                sent_discord_messages = await self.handle_message_media(message,
+                                                                discord_channel,
+                                                                message_text,
+                                                                discord_reference)
+            else:
+                sent_discord_messages = await forward_to_discord(discord_channel,  # type: ignore
+                                                                message_text,
+                                                                reference=discord_reference)  # type: ignore
+
+            if sent_discord_messages:
+                self.logger.debug("Forwarded TG message %s to Discord channel %s",
+                            sent_discord_messages[0].id, forwarder.discord_channel_id)
+
+                self.logger.debug("Saving mapping data for forwarder %s",
+                            forwarder.forwarder_name)
+                main_sent_discord_message = sent_discord_messages[0]
+                await self.history_manager.save_mapping_data(forwarder.forwarder_name, message.id,
+                                                        main_sent_discord_message.id)
+                self.logger.info("Forwarded TG message %s to Discord message %s",
+                            message.id, main_sent_discord_message.id)
+            else:
+                await self.history_manager.save_missed_message(forwarder.forwarder_name,
+                                                        message.id,
+                                                        forwarder.discord_channel_id,
+                                                        None)
+                self.logger.error("Failed to forward TG message %s to Discord",
+                            message.id, exc_info=self.config.application.debug)
+
 
     async def _handle_edit_message(self, event):
+        """Handle the processing of a Telegram edited message."""
         self.logger.debug("processing Telegram edited message event: %s", event)
 
         if event.message is None:
@@ -135,7 +269,7 @@ class Bridge:
             self.logger.debug("Discord channel: %s", discord_channel)
 
             try:
-                discord_message = await discord_channel.fetch_message(discord_message_id)
+                discord_message = await discord_channel.fetch_message(discord_message_id) # type: ignore
 
                 if discord_message is None:
                     self.logger.error("Discord message not found, skipping...")
@@ -193,7 +327,7 @@ class Bridge:
                     return
 
                 try:
-                    discord_message = await discord_channel.fetch_message(discord_message_id)
+                    discord_message = await discord_channel.fetch_message(discord_message_id) # type: ignore
                 except discord.errors.NotFound:
                     self.logger.debug("Discord message %s not found", discord_message_id)
                     return
@@ -213,114 +347,102 @@ class Bridge:
                     return
 
 
-    async def _handle_new_message(self, event):  # pylint: disable=too-many-locals
-        """Handle the processing of a new Telegram message."""
-        self.logger.debug("processing Telegram message: %s", event.message.id)
-
-        tg_channel_id = event.message.peer_id.channel_id
-
-        matching_forwarders: List[ForwarderConfig] = self.get_matching_forwarders(tg_channel_id)
-
-        if len(matching_forwarders) < 1:
-            self.logger.error(
-                "No forwarders found for Telegram channel %s", tg_channel_id)
-            return
-
-        self.logger.debug("Found %s matching forwarders", len(matching_forwarders))
-        self.logger.debug("Matching forwarders: %s", matching_forwarders)
-
-        for forwarder in matching_forwarders:
-            self.logger.debug("Forwarder config: %s", forwarder)
-
-
-            should_forward_message = forwarder.forward_everything
-            mention_everyone = forwarder.mention_everyone
-
-            if not should_forward_message or forwarder.mention_override:
-                message_forward_hashtags = get_message_forward_hashtags(
-                    event.message)
-
-                self.logger.debug("message_forward_hashtags: %s",
-                                message_forward_hashtags)
-
-                self.logger.debug("mention_override: %s",
-                                forwarder.mention_override)
-
-                self.logger.debug("forward_hashtags: %s",
-                                forwarder.forward_hashtags)
-
-                matching_forward_hashtags = []
-
-                if message_forward_hashtags and forwarder.forward_hashtags:
-                    matching_forward_hashtags = [
-                        tag for tag in forwarder.forward_hashtags if tag["name"].lower() in message_forward_hashtags]
-
-                if len(matching_forward_hashtags) > 0:
-                    should_forward_message = True
-                    mention_everyone = any(tag.get("override_mention_everyone", False)
-                                        for tag in matching_forward_hashtags)
-
-            if forwarder.excluded_hashtags:
-                message_forward_hashtags = get_message_forward_hashtags(
-                    event.message)
-
-                matching_forward_hashtags = [
-                    tag for tag in forwarder.excluded_hashtags if tag["name"].lower() in message_forward_hashtags]
-
-                if len(matching_forward_hashtags) > 0:
-                    should_forward_message = False
-
-            if not should_forward_message:
-                continue
-
-            discord_channel = self.discord_client.get_channel(forwarder.discord_channel_id)  # type: ignore
-            server_roles = discord_channel.guild.roles  # type: ignore
-
-            mention_roles = get_mention_roles(message_forward_hashtags,
-                                            forwarder.mention_override,
-                                            self.config.discord.built_in_roles,
-                                            server_roles)
-
-            message_text = await process_message_text(
-                event, forwarder, mention_everyone, mention_roles, self.config.openai.enabled)
-
-            discord_reference = await fetch_discord_reference(event,
-                                                            forwarder.forwarder_name,
-                                                            discord_channel) if event.message.reply_to_msg_id else None
-
-            if event.message.media:
-                sent_discord_messages = await handle_message_media(self.telegram_client, event,
-                                                                discord_channel,
-                                                                message_text,
-                                                                discord_reference)
-            else:
-                sent_discord_messages = await forward_to_discord(discord_channel,  # type: ignore
-                                                                message_text,
-                                                                reference=discord_reference)  # type: ignore
-
-            if sent_discord_messages:
-                self.logger.debug("Forwarded TG message %s to Discord channel %s",
-                            sent_discord_messages[0].id, forwarder.discord_channel_id)
-
-                self.logger.debug("Saving mapping data for forwarder %s",
-                            forwarder.forwarder_name)
-                main_sent_discord_message = sent_discord_messages[0]
-                await self.history_manager.save_mapping_data(forwarder.forwarder_name, event.message.id,
-                                                        main_sent_discord_message.id)
-                self.logger.info("Forwarded TG message %s to Discord message %s",
-                            event.message.id, main_sent_discord_message.id)
-            else:
-                await self.history_manager.save_missed_message(forwarder.forwarder_name,
-                                                        event.message.id,
-                                                        forwarder.discord_channel_id,
-                                                        None)
-                self.logger.error("Failed to forward TG message %s to Discord",
-                            event.message.id, exc_info=self.config.application.debug)
-
-
     def get_matching_forwarders(self, tg_channel_id: int) -> List[ForwarderConfig]:
         """Get the forwarders that match the given Telegram channel ID."""
         return [forwarder_config for forwarder_config in self.config.telegram_forwarders if tg_channel_id == forwarder_config["tg_channel_id"]]  # pylint: disable=line-too-long
+
+    @staticmethod
+    def get_message_forward_hashtags(message: Message):
+        """Get forward_hashtags from a message."""
+        if not message.entities:
+            return []
+        entities = message.entities or []
+        forward_hashtags = [entity for entity in entities if isinstance(
+            entity, MessageEntityHashtag)]
+
+        return [message.message[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
+
+    @staticmethod
+    async def process_message_text(message: Message, 
+                                strip_off_links: bool,
+                                mention_everyone: bool,
+                                mention_roles: List[str],
+                                openai_enabled: bool) -> str:  # pylint: disable=too-many-arguments
+        """Process the message text and return the processed text."""
+
+        if message.entities:
+            message_text = telegram_entities_to_markdown(message,
+                                            strip_off_links)
+        else:
+            message_text = message.message
+
+        if openai_enabled:
+            suggestions = await OpenAIHandler.analyze_message_sentiment(message.message)
+            message_text = f'{message_text}\n{suggestions}'
+
+        if mention_everyone:
+            message_text += '\n' + '@everyone'
+
+        if mention_roles:
+            mention_text = ", ".join(role for role in mention_roles)
+            message_text = f"{mention_text}\n{message_text}"
+
+        return message_text
+
+
+    async def process_media_message(self,
+                                    message: Message, discord_channel,
+                                    message_text, discord_reference) -> List[DiscordMessage] | None:
+        """Process a message that contains media."""
+        file_path = await self.telegram_client.download_media(message)
+        try:
+            with open(file_path, "rb") as image_file:  # type: ignore
+                sent_discord_messages = await forward_to_discord(discord_channel,
+                                                                message_text,
+                                                                image_file=image_file,
+                                                                reference=discord_reference)
+                if not sent_discord_messages:
+                    self.logger.error("Failed to send message to Discord")
+                    return
+
+        except OSError as ex:
+            self.logger.error(
+                "An error occurred while opening the file %s: %s",  file_path, ex)
+            return
+        finally:
+            os.remove(file_path)  # type: ignore
+
+        return sent_discord_messages
+
+    async def handle_message_media(self, message: Message,
+                                discord_channel, message_text,
+                                discord_reference) -> List[DiscordMessage] | None:
+        """Handle a message that contains media."""
+        contains_url = any(isinstance(entity, (MessageEntityTextUrl,
+                                            MessageEntityUrl))
+                        for entity in message.entities or [])
+        
+        sent_discord_messages: List[DiscordMessage] | None = None
+
+        if contains_url:
+            sent_discord_messages = await self.process_url_message(discord_channel,
+                                                            message_text,
+                                                            discord_reference)
+        else:
+            sent_discord_messages = await self.process_media_message(message,
+                                                                discord_channel,
+                                                                message_text,
+                                                                discord_reference)
+
+        return sent_discord_messages
+
+    @staticmethod
+    async def process_url_message(discord_channel, message_text, discord_reference) -> List[DiscordMessage]:
+        """Process a message that contains a URL."""
+        sent_discord_messages = await forward_to_discord(discord_channel,
+                                                        message_text,
+                                                        reference=discord_reference)
+        return sent_discord_messages
 
 
     async def on_restored_connectivity(self):

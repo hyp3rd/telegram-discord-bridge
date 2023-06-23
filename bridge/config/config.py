@@ -192,6 +192,8 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     api_id: StrictInt
     api_hash: str
     log_unhandled_dialogs: bool = False
+    subscribe_to_edit_events: bool = False
+    subscribe_to_delete_events: bool = False
     is_healthy: bool = False
 
     class Config:

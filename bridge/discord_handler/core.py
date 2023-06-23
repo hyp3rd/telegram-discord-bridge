@@ -5,6 +5,7 @@ from typing import List, Optional, Sequence
 
 import discord
 from discord import Message, MessageReference, TextChannel
+from telethon.types import Message as TelegramMessage
 
 from bridge.config import Config
 from bridge.history import MessageHistoryHandler
@@ -76,20 +77,28 @@ async def forward_to_discord(discord_channel: TextChannel, message_text: str,
     return sent_messages
 
 
-async def fetch_discord_reference(event, forwarder_name: str, discord_channel) -> MessageReference | None:
+async def fetch_discord_reference(message: TelegramMessage, forwarder_name: str, discord_channel) -> MessageReference | None:
     """Fetch the Discord message reference."""
+    if not message.reply_to or not message.reply_to.reply_to_msg_id:
+        return None
+
+    reply_to_msg_id = message.reply_to.reply_to_msg_id
+
+    logger.debug("Fetching reference Discord message for TG message %s",
+                    reply_to_msg_id)
+
     discord_message_id = await history_manager.get_discord_message_id(
         forwarder_name,
-        event.message.reply_to_msg_id)
+        reply_to_msg_id)
     if not discord_message_id:
         logger.debug("No mapping found for TG message %s",
-                     event.message.reply_to_msg_id)
+                     reply_to_msg_id)
         return None
 
     try:
         messages = []
         async for message in discord_channel.history(around=discord.Object(id=discord_message_id),   # pylint: disable=line-too-long
-                                                     limit=50): # make this configurable
+                                                     limit=10): # make this configurable
             messages.append(message)
 
         discord_message = next(
@@ -97,13 +106,13 @@ async def fetch_discord_reference(event, forwarder_name: str, discord_channel) -
         if not discord_message:
             logger.debug(
                 "Reference Discord message not found for TG message %s",
-                event.message.reply_to_msg_id)
+                reply_to_msg_id)
             return None
 
         return MessageReference.from_message(discord_message)
     except discord.NotFound:
         logger.debug("Reference Discord message not found for TG message %s",
-                     event.message.reply_to_msg_id)
+                     reply_to_msg_id)
         return None
 
 
@@ -117,6 +126,9 @@ def get_mention_roles(message_forward_hashtags: List[str],
     for tag in message_forward_hashtags: # pylint: disable=too-many-nested-blocks
         logger.debug("Checking mention override for tag %s", tag)
         logger.debug("mention_override tags %s", mention_override_tags)
+
+        if not mention_override_tags:
+            continue
 
         for mention_override_tag in mention_override_tags:
             if tag.lower() == mention_override_tag["tag"].lower():
