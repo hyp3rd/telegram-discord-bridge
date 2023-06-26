@@ -12,7 +12,7 @@ from bridge.config import Config
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventSubscriber
 from bridge.logger import Logger
-from forwarder import determine_process_state
+from forwarder import Forwarder
 
 logger = Logger.get_logger(Config.get_instance().application.name)
 # Initialize a global Config object
@@ -46,12 +46,13 @@ class WSConnectionManager:
         for websocket in self.active_connections:
             await self.send_health_data(websocket, data)
 
+    # async def send_health_data(self, websocket: WebSocket):
     async def send_health_data(self, websocket: WebSocket, data: Config | None = None):
         """Send health data to the WS client."""
         logger.debug("Sending health data to %s", websocket)
         current_config = data if data else config.get_config_instance()
-        pid_file = f'{current_config.app.name}.pid'
-        process_state, pid = determine_process_state(pid_file)
+        pid_file = f'{current_config.application.name}.pid'
+        process_state, pid = Forwarder().get_instance().determine_process_state(pid_file)
 
         health_status = None
 
@@ -120,7 +121,7 @@ class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-m
                     "telegram": data.telegram.is_healthy,
                     "discord": data.discord.is_healthy,
                     "openai": data.openai.is_healthy,
-                    "internet": data.app.internet_connected,
+                    "internet": data.application.internet_connected,
                 },)
 
             self.health_history.add_health_data(health_data)

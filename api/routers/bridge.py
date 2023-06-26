@@ -11,8 +11,8 @@ from bridge.config import Config
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
 from bridge.logger import Logger
-from bridge.telegram import check_telegram_session
-from forwarder import determine_process_state, run_controller
+from bridge.telegram import TelegramHandler
+from forwarder import Forwarder, OperationStatus
 
 # from typing import List
 
@@ -26,6 +26,10 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
     def __init__(self):
         """Initialize the Bridge Router."""
+
+        self.forwarder = Forwarder(event_loop=asyncio.get_running_loop())
+        self.telegram_handler: TelegramHandler
+
         self.dispatcher: EventDispatcher
         HealtHistoryManager.register('HealthHistory', HealthHistory)
 
@@ -63,9 +67,11 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
     async def start(self):
         """start the bridge."""
+        event_loop = asyncio.get_running_loop()
+
         config = Config.get_instance()
-        pid_file = f'{config.application.name}.pid'
-        process_state, pid = determine_process_state(pid_file)
+
+        process_state, pid = self.forwarder.determine_process_state()
 
         try:
             # if the pid file is empty and the process is None,
@@ -96,7 +102,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
             #     self.bridge_process.start()
             #     # self.bridge_process.join()
 
-            if pid == 0 or process_state not in [ProcessStateEnum.RUNNING, ProcessStateEnum.STARTING]:
+            if pid == 0 or process_state not in [ProcessStateEnum.RUNNING, ProcessStateEnum.STARTING, ProcessStateEnum.UNKNOWN]:
                 # create a shared list of subscribers
                 healthcheck_subscribers: List[HealthcheckSubscriber] = []
 
@@ -112,22 +118,28 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
                 self.on_update = self.healthcheck_subscriber.create_on_update_decorator()
 
-                event_loop = asyncio.get_running_loop()
+                self.telegram_handler = TelegramHandler(dispatcher=self.dispatcher)
+
+                # event_loop = asyncio.get_running_loop()
 
                 # controller_task = asyncio.ensure_future(run_controller(self.dispatcher, event_loop, True, False, False,))
 
                 locker = asyncio.Lock()
                 await locker.acquire()
-                event_loop.create_task(run_controller(self.dispatcher, event_loop, True, False, False))
+                # event_loop.create_task(run_controller(self.dispatcher, event_loop, True, False, False))
+                # event_loop.create_task(self.forwarder.api_controller())
+                operation_status: OperationStatus = await self.forwarder.api_controller()
                 locker.release()
+
+                logger.info("Operation status: %s", operation_status)
 
                 return BridgeResponseSchema(bridge=BridgeResponse(
                     name=config.application.name,
-                    status=ProcessStateEnum.STARTING,
+                    status=operation_status[0],
                     process_id=pid,
                     config_version=config.application.version,
-                    telegram_authenticated=check_telegram_session(),
-                    error="",
+                    telegram_authenticated=self.telegram_handler.has_session_file(),
+                    error=operation_status[1],
                 ))
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Error starting the bridge: %s", ex, exc_info=Config.get_instance().application.debug)
@@ -136,7 +148,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                 status=ProcessStateEnum.STOPPED,
                 process_id=pid,
                 config_version=config.application.version,
-                telegram_authenticated=check_telegram_session(),
+                telegram_authenticated=self.telegram_handler.has_session_file(),
                 error=str(ex),
             ))
 
@@ -148,7 +160,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                 status=ProcessStateEnum.ORPHANED,
                 process_id=pid,
                 config_version=config.application.version,
-                telegram_authenticated=check_telegram_session(),
+                telegram_authenticated=self.telegram_handler.has_session_file(),
                 error="",
             ))
 
@@ -158,18 +170,19 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
             status=ProcessStateEnum.RUNNING,
             process_id=pid,
             config_version=config.application.version,
-            telegram_authenticated=check_telegram_session(),
+            telegram_authenticated=self.telegram_handler.has_session_file(),
             error="",
         ))
 
     async def stop(self):
         """stop the bridge."""
         config = Config.get_instance()
-        process_state, pid = determine_process_state(pid_file=f'{config.application.name}.pid')
+        process_state, pid = self.forwarder.determine_process_state()
 
         if process_state == ProcessStateEnum.RUNNING and pid > 0:
             try:
-                await run_controller(dispatcher=self.dispatcher, boot=False, background=False, stop=True)
+                # await run_controller(dispatcher=self.dispatcher, boot=False, background=False, stop=True)
+                await self.forwarder.api_controller(start_forwarding=False)
 
                 self.dispatcher.stop()
             except asyncio.exceptions.CancelledError:
@@ -182,7 +195,7 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
                 status=ProcessStateEnum.STOPPING,
                 process_id=pid,
                 config_version=config.application.version,
-                telegram_authenticated=check_telegram_session(),
+                telegram_authenticated=self.telegram_handler.has_session_file(),
                 error="",
             ))
 
@@ -191,16 +204,17 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
             status=ProcessStateEnum.STOPPED,
             process_id=pid,
             config_version=config.application.version,
-            telegram_authenticated=check_telegram_session(),
+            telegram_authenticated=False,
             error="",
         ))
 
     async def health(self):
         """Return the health status of the Bridge."""
-        config = Config.get_instance()
-        pid_file = f'{config.application.name}.pid'
-        process_state, pid = determine_process_state(pid_file)
-
+        if self.forwarder is not None:
+            process_state, pid = self.forwarder.determine_process_state()
+        else:
+            process_state = ProcessStateEnum.STOPPED
+            pid = 0
         try:
             health_status = self.health_history.get_health_data()
         except ValueError:

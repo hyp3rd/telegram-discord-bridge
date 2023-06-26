@@ -37,7 +37,6 @@ class Bridge:
 
     async def start(self):
         """Start the bridge."""
-        self.logger.info("Starting the bridge...")
         await self._register_forwarders()
         await self._register_telegram_handlers()
 

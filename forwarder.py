@@ -7,7 +7,7 @@ import signal
 import sys
 from asyncio import AbstractEventLoop
 from sqlite3 import OperationalError
-from typing import Tuple
+from typing import Tuple, TypeAlias
 
 import discord
 import psutil  # pylint: disable=import-error
@@ -24,6 +24,8 @@ from bridge.telegram import TelegramHandler
 
 ERR_API_DISABLED = "API mode is disabled, please use the CLI to start the bridge, or enable it in the config file."
 ERR_API_ENABLED = "API mode is enabled, please use the API to start the bridge, or disable it in the config file."
+
+OperationStatus: TypeAlias = Tuple[ProcessStateEnum, str]
 
 class SingletonMeta(type):
     """Singleton metaclass."""
@@ -45,26 +47,43 @@ class Forwarder(metaclass=SingletonMeta):
     logger: Logger
     telegram_client: TelegramClient
     discord_client: discord.Client
+    is_running: bool = False
 
 
-    def __init__(self, event_loop: AbstractEventLoop, is_background: bool):
+    def __init__(self, event_loop: AbstractEventLoop | None = None, is_background: bool = False):
         """Initialize the forwarder."""
+        if self.is_running:
+            self.logger.warning("The forwarder %s is already running.", self.config.application.name)
+            return
+
         self.config = Config.get_instance()
         self.logger = Logger.init_logger(self.config.application.name, self.config.logger)
 
+
+        self.logger.info("Initializing the forwarder %s", self.config.application.name)
         self.dispatcher = EventDispatcher()
 
-        self.event_loop = event_loop
+        self.event_loop = event_loop or asyncio.new_event_loop()
         # configure the event loop
         self.event_loop.set_debug(self.config.application.debug)
         self.event_loop.set_exception_handler(self.__event_loop_exception_handler)
 
         self.is_background = is_background
 
+        self.is_running = True
         self.logger.debug("Forwarder initialized.")
 
+    def get_instance(self) -> "Forwarder":
+        """
+        Get the forwarder instance.
+        """
+        self.logger.info("Getting the forwarder instance")
+        if self.is_running:
+            return self
+        self.logger.warning("The forwarder %s is not running, can't return an instance", self.config.application.name)
+        return Forwarder()
 
-    async def api_controller(self, start_forwarding: bool = True):
+    async def api_controller(self, start_forwarding: bool = True) -> OperationStatus:
         """Run the forwarder from the API controller."""
         self.logger.debug("Starting the API controller.")
 
@@ -72,9 +91,14 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.error(ERR_API_DISABLED)
             if not self.config.logger.console:
                 print(ERR_API_DISABLED)
-            sys.exit(1)
+            return ProcessStateEnum.FAILED, ERR_API_DISABLED
 
         self.__controller(start_forwarding)
+
+        status = ProcessStateEnum.STARTING if start_forwarding else ProcessStateEnum.STOPPING
+        msg = f"The forwarder {self.config.application.name} is starting with config version {self.config.application.version}" if start_forwarding else f"The forwarder {self.config.application.name} is stopping"
+
+        return status, msg
 
     def cli_controller(self, start_forwarding: bool = True):
         """Run the forwarder from the CLI controller."""

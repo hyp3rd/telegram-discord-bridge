@@ -1,5 +1,6 @@
 """Config router for the API"""
 
+import asyncio
 import os
 from datetime import datetime
 
@@ -8,14 +9,17 @@ import yaml
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import SecretStr, ValidationError  # pylint: disable=import-error
 
-from api.models import (APIConfig, ApplicationConfig, BaseResponse,
-                        ConfigSchema, ConfigYAMLSchema, DiscordConfig,
-                        ForwarderConfig, LoggerConfig, OpenAIConfig,
-                        TelegramConfig)
-from bridge.config import Config
+# from api.models import (APIConfig, ApplicationConfig, BaseResponse,
+#                         ConfigSchema, ConfigYAMLSchema, DiscordConfig,
+#                         ForwarderConfig, LoggerConfig, OpenAIConfig,
+#                         TelegramConfig)
+from api.models import BaseResponse
+from bridge.config import (APIConfig, ApplicationConfig, Config, ConfigSchema,
+                           ConfigYAMLSchema, DiscordConfig, ForwarderConfig,
+                           LoggerConfig, OpenAIConfig, TelegramConfig)
 from bridge.enums import RequestTypeEnum
 from bridge.logger import Logger
-from forwarder import determine_process_state
+from forwarder import Forwarder
 
 logger = Logger.get_logger(Config.get_instance().application.name)
 
@@ -25,6 +29,7 @@ class ConfigRouter:
     def __init__(self) -> None:
         """Initialize the config router."""
         self.config = Config.get_instance()
+        self.forwarder = Forwarder(event_loop=asyncio.get_running_loop())
         self.router = APIRouter(
             prefix="/config",
             tags=["config"],
@@ -126,7 +131,7 @@ class ConfigRouter:
     async def upload_config(self, file: UploadFile = File(...)) -> BaseResponse: # pylint: disable=too-many-locals
         """Upload a new config file."""
 
-        process_state, pid = determine_process_state()
+        process_state, pid = self.forwarder.determine_process_state()
 
         response = BaseResponse(
             resource="config",
@@ -195,7 +200,7 @@ class ConfigRouter:
     async def post_config(self, config: ConfigSchema) -> BaseResponse:
         """Post a new config file."""
 
-        process_state, pid = determine_process_state()
+        process_state, pid = self.forwarder.determine_process_state()
 
         response = BaseResponse(
             resource="config",

@@ -11,4 +11,5 @@ class ProcessStateEnum(str, Enum):
     STOPPING = "stopping"
     PAUSED = "paused"
     ORPHANED = "orphaned"
+    FAILED = "failed"
     UNKNOWN = "unknown"

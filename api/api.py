@@ -12,7 +12,7 @@ from api.routers import auth, bridge, config
 from bridge.config import Config
 from bridge.logger import Logger
 
-logger = Logger.init_logger(Config.get_instance().application.name, Config.get_instance.logger)
+logger = Logger.init_logger(Config.get_instance().application.name, Config.get_instance().logger)
 
 
 class APIVersion(str, Enum):
