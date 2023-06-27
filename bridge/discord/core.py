@@ -12,7 +12,8 @@ from bridge.history import MessageHistoryHandler
 from bridge.logger import Logger
 from bridge.utils import split_message
 
-logger = Logger.get_logger(Config.get_instance().application.name)
+config = Config.get_instance()
+logger = Logger.get_logger(config.application.name)
 
 class SingletonMeta(type):
     """Singleton metaclass."""
@@ -28,10 +29,9 @@ class DiscordHandler(metaclass=SingletonMeta):
     """Discord handler class."""
 
     history_manager: MessageHistoryHandler
-    config: Config
 
     def __init__(self):
-        self.config = Config.get_instance()
+        config = Config.get_instance()
         self.history_manager = MessageHistoryHandler()
 
     async def init_client(self) -> discord.Client:
@@ -42,12 +42,12 @@ class DiscordHandler(metaclass=SingletonMeta):
 
                 # setup discord logger
                 discord_logging_handler = Logger.generate_handler(
-                    f"{self.config.application.name}_discord", self.config.logger)
+                    f"{config.application.name}_discord", config.logger)
                 discord.utils.setup_logging(handler=discord_logging_handler)
 
                 await discord_client.start(token)
                 logger.info("Discord client started the session: %s, with identity: %s",
-                            self.config.application.name, discord_client.user.id) # type: ignore
+                            config.application.name, discord_client.user.id) # type: ignore
 
             except (discord.LoginFailure, TypeError) as login_failure:
                 logger.error(
@@ -59,7 +59,7 @@ class DiscordHandler(metaclass=SingletonMeta):
 
         discord_client = discord.Client(intents=discord.Intents.default())
         _ = asyncio.ensure_future(
-            start_discord_client(discord_client, self.config.discord.bot_token))
+            start_discord_client(discord_client, config.discord.bot_token))
 
         return discord_client
 

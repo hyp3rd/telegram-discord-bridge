@@ -6,13 +6,13 @@ from fastapi import FastAPI
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.models import APIConfig, ApplicationConfig, ConfigSummary
 from api.rate_limiter import RateLimitMiddleware
 from api.routers import auth, bridge, config
-from bridge.config import Config
+from bridge.config import APIConfig, ApplicationConfig, Config, ConfigSummary
 from bridge.logger import Logger
 
-logger = Logger.init_logger(Config.get_instance().application.name, Config.get_instance().logger)
+config_instance = Config.get_instance()
+logger = Logger.init_logger(config_instance.application.name, config_instance.logger)
 
 
 class APIVersion(str, Enum):
@@ -28,7 +28,6 @@ class BridgeAPI: # pylint: disable=too-few-public-methods
     def __init__(self):
         # The bridge_process variable is used to store the bridge process
         self.bridge_process = None
-        config_instance = Config.get_instance()
         # The app variable is the main FastAPI instance
         self.app = FastAPI(
             title=config_instance.application.name,
@@ -71,7 +70,7 @@ class BridgeAPI: # pylint: disable=too-few-public-methods
 
     def index(self):
         """index."""
-        config_instance = Config.get_instance()
+
         return ConfigSummary(
             application=ApplicationConfig(
                 name=config_instance.application.name,
@@ -88,6 +87,5 @@ class BridgeAPI: # pylint: disable=too-few-public-methods
                 telegram_auth_file=config_instance.api.telegram_auth_file,
                 telegram_auth_request_expiration=config_instance.api.telegram_auth_request_expiration,
             ))
-
 
 app = BridgeAPI().app

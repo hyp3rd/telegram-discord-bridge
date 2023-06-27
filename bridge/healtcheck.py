@@ -12,6 +12,8 @@ from bridge.discord import DiscordClientHealth
 from bridge.events import EventDispatcher
 from bridge.logger import Logger
 
+config= Config.get_instance()
+logger = Logger.get_logger(config.application.name)
 
 class SingletonMeta(type):
     """Singleton metaclass."""
@@ -26,8 +28,6 @@ class SingletonMeta(type):
 class HealthHandler(metaclass=SingletonMeta):
     """Handler class for healthchecks."""
 
-    config: Config
-    logger: Logger
     telegram_client: TelegramClient
     discord_client: discord.Client
 
@@ -36,8 +36,6 @@ class HealthHandler(metaclass=SingletonMeta):
 
     def __init__(self, dispatcher: EventDispatcher, telegram_client: TelegramClient, discord_client: discord.Client):
         """Initialize the handler."""
-        self.config = Config.get_instance()
-        self.logger = Logger.init_logger(self.config.application.name, self.config.logger)
 
         self.dispatcher = dispatcher
 
@@ -58,10 +56,10 @@ class HealthHandler(metaclass=SingletonMeta):
             await loop.run_in_executor(self.executor, socket.create_connection, (host, 443), 5)
             return True
         except socket.gaierror as ex:
-            self.logger.error("Unable to resolve hostname: %s", ex, exc_info=self.config.application.debug)
+            logger.error("Unable to resolve hostname: %s", ex, exc_info=config.application.debug)
             return False
         except OSError as ex:
-            self.logger.error("Unable to reach the internetL %s", ex, exc_info=self.config.application.debug)
+            logger.error("Unable to reach the internetL %s", ex, exc_info=config.application.debug)
             return False
 
 
@@ -72,56 +70,56 @@ class HealthHandler(metaclass=SingletonMeta):
             try:
                 has_connectivity = await self.internet_connectivity_check()
                 if has_connectivity:
-                    self.logger.debug("The bridge is online.")
+                    logger.debug("The bridge is online.")
                     # set the internet connectivity status to True
-                    self.config.application.internet_connected = True
+                    config.application.internet_connected = True
                 else:
-                    self.logger.warning("Unable to reach the internet.")
+                    logger.warning("Unable to reach the internet.")
                     # set the internet connectivity status to False
-                    self.config.application.internet_connected = False
+                    config.application.internet_connected = False
                     # wait for the specified interval
                     await asyncio.sleep(interval)
                     await self.check(interval)
 
             except Exception as ex:  # pylint: disable=broad-except
-                self.logger.error(
-                    "An error occurred while checking internet connectivity: %s", ex, exc_info=self.config.application.debug)
+                logger.error(
+                    "An error occurred while checking internet connectivity: %s", ex, exc_info=config.application.debug)
 
             # Check Telegram API status
             try:
                 if self.telegram_client.is_connected():
                     await self.telegram_client.get_me()
-                    self.logger.debug("Telegram API is healthy.")
+                    logger.debug("Telegram API is healthy.")
                     # set the Telegram availability status to True
-                    self.config.telegram.is_healthy = True
+                    config.telegram.is_healthy = True
             except ConnectionError as ex:
-                self.logger.error("Unable to reach the Telegram API: %s", ex)
+                logger.error("Unable to reach the Telegram API: %s", ex)
                 # set the Telegram availability status to False
-                self.config.telegram.is_healthy = False
+                config.telegram.is_healthy = False
             except Exception as ex:  # pylint: disable=broad-except
-                self.logger.error(
-                    "An error occurred while connecting to the Telegram API: %s", ex, exc_info=self.config.application.debug)
+                logger.error(
+                    "An error occurred while connecting to the Telegram API: %s", ex, exc_info=config.application.debug)
                 # set the Telegram availability status to False
-                self.config.telegram.is_healthy = False
+                config.telegram.is_healthy = False
 
             # Check Discord API status
             try:
                 discord_status, is_healthy = self.discord_client_health.report_status(
-                    self.discord_client,  self.config.discord.max_latency)
+                    self.discord_client,  config.discord.max_latency)
                 if is_healthy:
-                    self.logger.debug("Discord API is healthy.")
+                    logger.debug("Discord API is healthy.")
                     # set the Discord availability status to True
-                    self.config.discord.is_healthy = True
+                    config.discord.is_healthy = True
                 else:
-                    self.logger.warning(discord_status)
+                    logger.warning(discord_status)
                     # set the Discord availability status to False
-                    self.config.discord.is_healthy = False
+                    config.discord.is_healthy = False
             except Exception as ex:  # pylint: disable=broad-except
-                self.logger.error(
-                    "An error occurred while connecting to the Discord API: %s", ex, exc_info=self.config.application.debug)
+                logger.error(
+                    "An error occurred while connecting to the Discord API: %s", ex, exc_info=config.application.debug)
                 # set the Discord availability status to False
-                self.config.discord.is_healthy = False
+                config.discord.is_healthy = False
 
-            self.dispatcher.notify("healthcheck", self.config)
+            self.dispatcher.notify("healthcheck", config)
             # Sleep for the given interval and retry
             await asyncio.sleep(interval)

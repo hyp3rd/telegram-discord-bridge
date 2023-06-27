@@ -14,9 +14,10 @@ from bridge.events import EventSubscriber
 from bridge.logger import Logger
 from forwarder import Forwarder
 
-logger = Logger.get_logger(Config.get_instance().application.name)
 # Initialize a global Config object
 config = Config.get_instance()
+logger = Logger.get_logger(config.application.name)
+
 
 class WSConnectionManager:
     """WS Connection Manager."""
@@ -40,19 +41,17 @@ class WSConnectionManager:
         """Disconnect, handles the WS connections."""
         self.active_connections.remove(websocket)
 
-    async def broadcast_health_data(self, data: Config | None = None):
+    async def broadcast_health_data(self):
         """Broadcast health data to all WS clients."""
         logger.debug("Broadcasting health data to %s", self.active_connections)
         for websocket in self.active_connections:
-            await self.send_health_data(websocket, data)
+            await self.send_health_data(websocket)
 
-    # async def send_health_data(self, websocket: WebSocket):
-    async def send_health_data(self, websocket: WebSocket, data: Config | None = None):
+    async def send_health_data(self, websocket: WebSocket):
         """Send health data to the WS client."""
         logger.debug("Sending health data to %s", websocket)
-        current_config = data if data else config.get_config_instance()
-        pid_file = f'{current_config.application.name}.pid'
-        process_state, pid = Forwarder().get_instance().determine_process_state(pid_file)
+
+        process_state, pid = Forwarder().get_instance().determine_process_state()
 
         health_status = None
 
@@ -109,10 +108,13 @@ class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-m
         Returns:
             None
         """
+
         logger.debug("The healthcheck subscriber %s received event: %s", self.name, event)
 
         if data and isinstance(data, Config):
-            logger.debug("The healthcheck subscriber %s received config: %s", self.name, data)
+            if config.application.debug:
+                logger.debug("The healthcheck subscriber %s received config: %s", self.name, data)
+
             health_data = Health(
                 timestamp=datetime.timestamp(datetime.now()),
                 process_state=ProcessStateEnum.RUNNING,

@@ -9,10 +9,6 @@ import yaml
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import SecretStr, ValidationError  # pylint: disable=import-error
 
-# from api.models import (APIConfig, ApplicationConfig, BaseResponse,
-#                         ConfigSchema, ConfigYAMLSchema, DiscordConfig,
-#                         ForwarderConfig, LoggerConfig, OpenAIConfig,
-#                         TelegramConfig)
 from api.models import BaseResponse
 from bridge.config import (APIConfig, ApplicationConfig, Config, ConfigSchema,
                            ConfigYAMLSchema, DiscordConfig, ForwarderConfig,
@@ -21,14 +17,14 @@ from bridge.enums import RequestTypeEnum
 from bridge.logger import Logger
 from forwarder import Forwarder
 
-logger = Logger.get_logger(Config.get_instance().application.name)
+config = Config.get_instance()
+logger = Logger.get_logger(config.application.name)
 
 class ConfigRouter:
     """Config router class."""
 
     def __init__(self) -> None:
         """Initialize the config router."""
-        self.config = Config.get_instance()
         self.forwarder = Forwarder(event_loop=asyncio.get_running_loop())
         self.router = APIRouter(
             prefix="/config",
@@ -53,54 +49,54 @@ class ConfigRouter:
         """Get the current config."""
 
         application_config = ApplicationConfig(
-            name=self.config.application.name,
-            version=self.config.application.version,
-            description=self.config.application.description,
-            debug=self.config.application.debug,
-            healthcheck_interval=self.config.application.healthcheck_interval,
-            recoverer_delay=self.config.application.recoverer_delay,
+            name=config.application.name,
+            version=config.application.version,
+            description=config.application.description,
+            debug=config.application.debug,
+            healthcheck_interval=config.application.healthcheck_interval,
+            recoverer_delay=config.application.recoverer_delay,
         )
 
         api_config = APIConfig(
-            enabled=self.config.api.enabled,
-            cors_origins=self.config.api.cors_origins,
-            telegram_login_enabled=self.config.api.telegram_login_enabled,
-            telegram_auth_file=self.config.api.telegram_auth_file,
-            telegram_auth_request_expiration=self.config.api.telegram_auth_request_expiration,
+            enabled=config.api.enabled,
+            cors_origins=config.api.cors_origins,
+            telegram_login_enabled=config.api.telegram_login_enabled,
+            telegram_auth_file=config.api.telegram_auth_file,
+            telegram_auth_request_expiration=config.api.telegram_auth_request_expiration,
         )
 
         logger_config = LoggerConfig(
-            level=self.config.logger.level,
-            file_max_bytes=self.config.logger.file_max_bytes,
-            file_backup_count=self.config.logger.file_backup_count,
-            format=self.config.logger.format,
-            date_format=self.config.logger.date_format,
-            console=self.config.logger.console,
+            level=config.logger.level,
+            file_max_bytes=config.logger.file_max_bytes,
+            file_backup_count=config.logger.file_backup_count,
+            format=config.logger.format,
+            date_format=config.logger.date_format,
+            console=config.logger.console,
         )
 
         telegram_config = TelegramConfig(
-            phone=self.config.telegram.phone,
-            password=self.config.telegram.password,
-            api_id=self.config.telegram.api_id,
-            api_hash=self.config.telegram.api_hash,
-            log_unhandled_dialogs=self.config.telegram.log_unhandled_dialogs,
+            phone=config.telegram.phone,
+            password=config.telegram.password,
+            api_id=config.telegram.api_id,
+            api_hash=config.telegram.api_hash,
+            log_unhandled_dialogs=config.telegram.log_unhandled_dialogs,
         )
 
         discord_config = DiscordConfig(
-            bot_token=self.config.discord.bot_token,
-            built_in_roles=self.config.discord.built_in_roles,
-            max_latency=self.config.discord.max_latency,
+            bot_token=config.discord.bot_token,
+            built_in_roles=config.discord.built_in_roles,
+            max_latency=config.discord.max_latency,
         )
 
         openai_config = OpenAIConfig(
-            api_key=self.config.openai.api_key,
-            enabled=self.config.openai.enabled,
-            organization=self.config.openai.organization,
-            sentiment_analysis_prompt=self.config.openai.sentiment_analysis_prompt,
+            api_key=config.openai.api_key,
+            enabled=config.openai.enabled,
+            organization=config.openai.organization,
+            sentiment_analysis_prompt=config.openai.sentiment_analysis_prompt,
         )
 
         telegram_forwarders = []
-        for forwarder in self.config.telegram_forwarders:
+        for forwarder in config.telegram_forwarders:
             telegram_forwarders.append(
                 ForwarderConfig(
                     forwarder_name=forwarder["forwarder_name"],
@@ -135,7 +131,7 @@ class ConfigRouter:
 
         response = BaseResponse(
             resource="config",
-            config_version=self.config.application.version,
+            config_version=config.application.version,
             request_type=RequestTypeEnum.UPLOAD_CONFIG,
             bridge_status=process_state,
             bridge_pid=pid,
@@ -197,26 +193,26 @@ class ConfigRouter:
 
         return response
 
-    async def post_config(self, config: ConfigSchema) -> BaseResponse:
+    async def post_config(self, config_schema: ConfigSchema) -> BaseResponse:
         """Post a new config file."""
 
         process_state, pid = self.forwarder.determine_process_state()
 
         response = BaseResponse(
             resource="config",
-            config_version=self.config.application.version,
+            config_version=config_schema.config.application.version,
             request_type=RequestTypeEnum.POST_CONFIG,
             bridge_status=process_state,
             bridge_pid=pid,
         )
 
-        config_file_name = f'config-{config.config.application.version}.yml'
+        config_file_name = f'config-{config_schema.config.application.version}.yml'
 
         response.operation_status["new_config_file_name"] = config_file_name
 
         # validate the config with pydantic
         try:
-            _ = ConfigYAMLSchema(**config.config.dict())
+            new_config = ConfigYAMLSchema(**config_schema.config.dict())
         except ValidationError as exc:
             for error in exc.errors():
                 logger.error(error)
@@ -229,7 +225,7 @@ class ConfigRouter:
             response.operation_status["config_backup_filename"] = backup_filename
 
         with open(config_file_name, "w", encoding="utf-8") as new_config_file:
-            yaml.dump(config.config.dict(), new_config_file,
+            yaml.dump(new_config, new_config_file,
                        allow_unicode=False, encoding="utf-8",
                        explicit_start=True, sort_keys=False, indent=2, default_flow_style=False)
 

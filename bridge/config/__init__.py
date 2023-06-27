@@ -2,7 +2,8 @@
 
 try:
     from .config import (APIConfig, ApplicationConfig, Config, ConfigSchema,
-                         ConfigYAMLSchema, DiscordConfig, ForwarderConfig,
-                         LoggerConfig, OpenAIConfig, TelegramConfig)
+                         ConfigSummary, ConfigYAMLSchema, DiscordConfig,
+                         ForwarderConfig, LoggerConfig, OpenAIConfig,
+                         TelegramConfig)
 except ImportError as ex:
     raise ex

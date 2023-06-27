@@ -25,7 +25,11 @@ from bridge.telegram import TelegramHandler
 ERR_API_DISABLED = "API mode is disabled, please use the CLI to start the bridge, or enable it in the config file."
 ERR_API_ENABLED = "API mode is enabled, please use the API to start the bridge, or disable it in the config file."
 
+# This is the type that the process runs. It returns a tuple containing
+# a ProcessStateEnum and a string.
 OperationStatus: TypeAlias = Tuple[ProcessStateEnum, str]
+
+config = Config.get_instance()
 
 class SingletonMeta(type):
     """Singleton metaclass."""
@@ -43,29 +47,28 @@ class Forwarder(metaclass=SingletonMeta):
     dispatcher: EventDispatcher
     event_loop: AbstractEventLoop
     is_background: bool
-    config: Config
-    logger: Logger
     telegram_client: TelegramClient
     discord_client: discord.Client
     is_running: bool = False
+    logger: Logger
 
 
     def __init__(self, event_loop: AbstractEventLoop | None = None, is_background: bool = False):
         """Initialize the forwarder."""
+
+        self.logger = Logger.init_logger(config.application.name, config.logger)
+
         if self.is_running:
-            self.logger.warning("The forwarder %s is already running.", self.config.application.name)
+            self.logger.warning("The forwarder %s is already running.", config.application.name)
             return
 
-        self.config = Config.get_instance()
-        self.logger = Logger.init_logger(self.config.application.name, self.config.logger)
 
-
-        self.logger.info("Initializing the forwarder %s", self.config.application.name)
+        self.logger.info("Initializing the forwarder %s", config.application.name)
         self.dispatcher = EventDispatcher()
 
         self.event_loop = event_loop or asyncio.new_event_loop()
         # configure the event loop
-        self.event_loop.set_debug(self.config.application.debug)
+        self.event_loop.set_debug(config.application.debug)
         self.event_loop.set_exception_handler(self.__event_loop_exception_handler)
 
         self.is_background = is_background
@@ -80,23 +83,23 @@ class Forwarder(metaclass=SingletonMeta):
         self.logger.info("Getting the forwarder instance")
         if self.is_running:
             return self
-        self.logger.warning("The forwarder %s is not running, can't return an instance", self.config.application.name)
+        self.logger.warning("The forwarder %s is not running, can't return an instance", config.application.name)
         return Forwarder()
 
     async def api_controller(self, start_forwarding: bool = True) -> OperationStatus:
         """Run the forwarder from the API controller."""
         self.logger.debug("Starting the API controller.")
 
-        if not self.config.api.enabled:
+        if not config.api.enabled:
             self.logger.error(ERR_API_DISABLED)
-            if not self.config.logger.console:
+            if not config.logger.console:
                 print(ERR_API_DISABLED)
             return ProcessStateEnum.FAILED, ERR_API_DISABLED
 
         self.__controller(start_forwarding)
 
         status = ProcessStateEnum.STARTING if start_forwarding else ProcessStateEnum.STOPPING
-        msg = f"The forwarder {self.config.application.name} is starting with config version {self.config.application.version}" if start_forwarding else f"The forwarder {self.config.application.name} is stopping"
+        msg = f"The forwarder {config.application.name} is starting with config version {config.application.version}" if start_forwarding else f"The forwarder {config.application.name} is stopping"
 
         return status, msg
 
@@ -104,9 +107,9 @@ class Forwarder(metaclass=SingletonMeta):
         """Run the forwarder from the CLI controller."""
         self.logger.debug("Starting the CLI controller.")
 
-        if self.config.api.enabled:
+        if config.api.enabled:
             self.logger.error(ERR_API_ENABLED)
-            if not self.config.logger.console:
+            if not config.logger.console:
                 print(ERR_API_ENABLED)
             sys.exit(1)
 
@@ -114,12 +117,12 @@ class Forwarder(metaclass=SingletonMeta):
 
     def __controller(self, start_forwarding: bool = True):
         if start_forwarding:
-            self.logger.info("Booting %s...", self.config.application.name)
-            self.logger.info("Version: %s", self.config.application.version)
-            self.logger.info("Description: %s", self.config.application.description)
-            self.logger.info("Log level: %s", self.config.logger.level)
-            self.logger.info("Debug enabled: %s", self.config.application.debug)
-            self.logger.info("Login through API enabled: %s", self.config.api.telegram_login_enabled)
+            self.logger.info("Booting %s...", config.application.name)
+            self.logger.info("Version: %s", config.application.version)
+            self.logger.info("Description: %s", config.application.description)
+            self.logger.info("Log level: %s", config.logger.level)
+            self.logger.info("Debug enabled: %s", config.application.debug)
+            self.logger.info("Login through API enabled: %s", config.api.telegram_login_enabled)
 
             if self.event_loop is None:
                 try:
@@ -154,7 +157,7 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.error(
                 "Event loop exception handler failed: %s",
                 ex,
-                exc_info=self.config.application.debug,
+                exc_info=config.application.debug,
             )
 
 
@@ -167,9 +170,9 @@ class Forwarder(metaclass=SingletonMeta):
         except asyncio.CancelledError:
             self.logger.warning("CancelledError caught, shutting down...")
         except RuntimeError as ex:
-            self.logger.error("RuntimeError caught: %s", ex, exc_info=self.config.application.debug)
+            self.logger.error("RuntimeError caught: %s", ex, exc_info=config.application.debug)
         except OperationalError as ex:
-            self.logger.error("OperationalError caught: %s", ex, exc_info=self.config.application.debug)
+            self.logger.error("OperationalError caught: %s", ex, exc_info=config.application.debug)
         finally:
             if clients:
                 telegram_client, discord_client = clients[0], clients[1]
@@ -185,12 +188,12 @@ class Forwarder(metaclass=SingletonMeta):
         self.logger.info("Starting the bridge.")
 
         if self.is_background:
-            self.logger.info("Starting %s in the background", self.config.application.name)
+            self.logger.info("Starting %s in the background", config.application.name)
 
             if os.name == "nt":
-                self.logger.warning("Running %s in the background is not supported on Windows.", self.config.application.name)
+                self.logger.warning("Running %s in the background is not supported on Windows.", config.application.name)
                 sys.exit(1)
-            if self.config.logger.console:
+            if config.logger.console:
                 self.logger.error("Background mode requires console logging to be disabled")
                 sys.exit(1)
 
@@ -215,33 +218,33 @@ class Forwarder(metaclass=SingletonMeta):
         except asyncio.LimitOverrunError as ex:
             self.logger.error(
                 "The event loop has exceeded the configured limit of pending tasks: %s",
-                ex, exc_info=self.config.application.debug)
+                ex, exc_info=config.application.debug)
         except Exception as ex:  # pylint: disable=broad-except
             self.logger.error("Error while running the bridge: %s",
-                        ex, exc_info=self.config.application.debug)
+                        ex, exc_info=config.application.debug)
         finally:
             # Remove the PID file.
-            if not self.config.api.enabled:
+            if not config.api.enabled:
                 self.remove_pid_file()
 
     def __stop(self):
         """Stop the bridge."""
-        self.logger.info("Stopping the %s...", self.config.application.name)
+        self.logger.info("Stopping the %s...", config.application.name)
 
         process_state, pid = self.determine_process_state()
         if process_state == ProcessStateEnum.STOPPED:
             self.logger.warning(
-                "PID file not found. The %s may not be running.", self.config.application.name)
+                "PID file not found. The %s may not be running.", config.application.name)
             return
 
         try:
             os.kill(pid, signal.SIGINT)
             self.logger.warning("Sent SIGINT to the %s process with PID %s.",
-                        self.config.application.name, pid)
+                        config.application.name, pid)
 
         except ProcessLookupError:
             self.logger.error(
-                "The %s process with PID %s is not running.", self.config.application.name, pid)
+                "The %s process with PID %s is not running.", config.application.name, pid)
 
 
     def create_pid_file(self) -> str:
@@ -252,11 +255,11 @@ class Forwarder(metaclass=SingletonMeta):
             pid = os.getpid()
 
             # Create the PID file.
-            forwarder_pid_file = f'{self.config.application.name}.pid'
+            forwarder_pid_file = f'{config.application.name}.pid'
             process_state, _ = self.determine_process_state(forwarder_pid_file)
 
             if process_state == ProcessStateEnum.RUNNING:
-                self.logger.error("Unable to create PID file: %s is already running.", self.config.application.name)
+                self.logger.error("Unable to create PID file: %s is already running.", config.application.name)
                 sys.exit(1)
 
             try:
@@ -278,7 +281,7 @@ class Forwarder(metaclass=SingletonMeta):
         """Remove a PID file."""
         self.logger.debug("Removing PID file.")
         if pid_file is None:
-            pid_file = f'{self.config.application.name}.pid'
+            pid_file = f'{config.application.name}.pid'
 
         #determine if the pid file exists
         if not os.path.isfile(pid_file):
@@ -315,7 +318,7 @@ class Forwarder(metaclass=SingletonMeta):
         """
 
         if pid_file is None:
-            pid_file = f'{self.config.application.name}.pid'
+            pid_file = f'{config.application.name}.pid'
 
         if not os.path.isfile(pid_file):
             # The PID file does not exist, so the process is considered stopped.
@@ -358,11 +361,11 @@ class Forwarder(metaclass=SingletonMeta):
 
         # Set signal handlers for graceful shutdown on received signal (except on Windows)
         # NOTE: This is not supported on Windows
-        if os.name != 'nt' and not self.config.api.enabled:
+        if os.name != 'nt' and not config.api.enabled:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 event_loop.add_signal_handler(
                     sig, lambda sig=sig: asyncio.create_task(self.shutdown(sig)))  # type: ignore
-        if self.config.api.enabled:
+        if config.api.enabled:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 event_loop.add_signal_handler(
                     sig, lambda: asyncio.create_task(self.on_shutdown()))
@@ -384,7 +387,7 @@ class Forwarder(metaclass=SingletonMeta):
             api_healthcheck_task = event_loop.create_task(
                 HealthHandler(self.dispatcher,
                             self.telegram_client,
-                            self.discord_client).check(self.config.application.healthcheck_interval)
+                            self.discord_client).check(config.application.healthcheck_interval)
             )
             on_restored_connectivity_task = event_loop.create_task(
                 bridge.on_restored_connectivity()
@@ -395,7 +398,7 @@ class Forwarder(metaclass=SingletonMeta):
                                 telegram_wait_task,
                                 discord_wait_task,
                                 api_healthcheck_task,
-                                on_restored_connectivity_task, return_exceptions=self.config.application.debug)
+                                on_restored_connectivity_task, return_exceptions=config.application.debug)
 
 
         except asyncio.CancelledError as ex:
@@ -403,7 +406,7 @@ class Forwarder(metaclass=SingletonMeta):
                 "CancelledError caught: %s", ex, exc_info=False)
         except Exception as ex:  # pylint: disable=broad-except
             self.logger.error("Error while running the bridge: %s",
-                        ex, exc_info=self.config.application.debug)
+                        ex, exc_info=config.application.debug)
         finally:
             await self.on_shutdown()
 
@@ -443,7 +446,7 @@ class Forwarder(metaclass=SingletonMeta):
                                     running_task}, {ex})
 
 
-        if not self.config.api.enabled:
+        if not config.api.enabled:
             self.logger.debug("Stopping event loop...")
             asyncio.get_running_loop().stop()
         else:
@@ -464,7 +467,7 @@ class Forwarder(metaclass=SingletonMeta):
             task.cancel()
 
         # Wait for all tasks to be cancelled
-        results = await asyncio.gather(*tasks, return_exceptions=self.config.application.debug)
+        results = await asyncio.gather(*tasks, return_exceptions=config.application.debug)
 
         # Check for errors
         for result in results:
@@ -473,7 +476,7 @@ class Forwarder(metaclass=SingletonMeta):
             if isinstance(result, Exception):
                 self.logger.error("Error during shutdown: %s", result)
 
-        if not self.config.api.enabled:
+        if not config.api.enabled:
             # Stop the loop
             if self.event_loop is not None:
                 self.event_loop.stop()
