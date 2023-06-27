@@ -17,8 +17,8 @@ from forwarder import Forwarder, OperationStatus
 # from typing import List
 
 
-
-logger = Logger.get_logger(Config.get_instance().application.name)
+config = Config.get_instance()
+logger = Logger.get_logger(config.application.name)
 
 
 class BridgeRouter:  # pylint: disable=too-few-public-methods
@@ -67,9 +67,6 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
     async def start(self):
         """start the bridge."""
-        event_loop = asyncio.get_running_loop()
-
-        config = Config.get_instance()
 
         process_state, pid = self.forwarder.determine_process_state()
 
@@ -176,14 +173,14 @@ class BridgeRouter:  # pylint: disable=too-few-public-methods
 
     async def stop(self):
         """stop the bridge."""
-        config = Config.get_instance()
+
         process_state, pid = self.forwarder.determine_process_state()
 
         if process_state == ProcessStateEnum.RUNNING and pid > 0:
             try:
                 # await run_controller(dispatcher=self.dispatcher, boot=False, background=False, stop=True)
                 await self.forwarder.api_controller(start_forwarding=False)
-
+                self.health_history_manager_instance.shutdown()
                 self.dispatcher.stop()
             except asyncio.exceptions.CancelledError:
                 logger.info("Bridge process stopped.")

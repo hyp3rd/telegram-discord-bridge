@@ -31,7 +31,6 @@ class DiscordHandler(metaclass=SingletonMeta):
     history_manager: MessageHistoryHandler
 
     def __init__(self):
-        config = Config.get_instance()
         self.history_manager = MessageHistoryHandler()
 
     async def init_client(self) -> discord.Client:

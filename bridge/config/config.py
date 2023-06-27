@@ -26,7 +26,7 @@ class ForwarderConfig(BaseModel):
         return getattr(self, item)
 
     def __setitem__(self, key, value):
-        return setattr(self, key, value)    
+        return setattr(self, key, value)
 
     def __iter__(self):
         return iter(self.__dict__)

@@ -135,7 +135,7 @@ class TelegramHandler(metaclass=SingletonMeta):
             await telegram_client.start(
                 phone=config.telegram.phone, # type: ignore
                 code_callback=code_callback,  # type: ignore
-                password=lambda: self.get_telegram_password())  # type: ignore
+                password=lambda: self.get_password())  # type: ignore
 
         except SessionPasswordNeededError:
             logger.error("Telegram client failed to start: %s",

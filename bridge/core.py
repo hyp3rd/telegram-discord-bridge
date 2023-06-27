@@ -359,7 +359,7 @@ class Bridge:
         return [message.message[hashtag.offset:hashtag.offset + hashtag.length] for hashtag in forward_hashtags]   # pylint: disable=line-too-long
 
     @staticmethod
-    async def process_message_text(message: Message, 
+    async def process_message_text(message: Message,
                                 strip_off_links: bool,
                                 mention_everyone: bool,
                                 mention_roles: List[str],
