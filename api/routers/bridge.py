@@ -21,7 +21,7 @@ config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
 
 
-class BridgeRouter:  # pylint: disable=too-few-public-methods
+class BridgeRouter:  # pylint: disable=too-many-instance-attributes
     """Bridge Router."""
 
     def __init__(self):

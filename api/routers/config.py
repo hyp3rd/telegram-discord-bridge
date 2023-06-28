@@ -7,7 +7,8 @@ from datetime import datetime
 import magic
 import yaml
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import SecretStr, ValidationError  # pylint: disable=import-error
+from pydantic import \
+    ValidationError  # pylint: disable=import-error # SecretStr
 
 from api.models import BaseResponse
 from bridge.config import (APIConfig, ApplicationConfig, Config, ConfigSchema,

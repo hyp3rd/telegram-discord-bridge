@@ -89,7 +89,8 @@ class Forwarder(metaclass=SingletonMeta):
         self.__controller(start_forwarding)
 
         status = ProcessStateEnum.STARTING if start_forwarding else ProcessStateEnum.STOPPING
-        msg = f"The forwarder {config.application.name} is starting with config version {config.application.version}" if start_forwarding else f"The forwarder {config.application.name} is stopping"
+        msg = f"The bridge {config.application.name} with config v{config.application.version}"
+        msg = f"{msg} is starting" if start_forwarding else f"{msg} is stopping"
 
         return status, msg
 
@@ -112,6 +113,7 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.info("Description: %s", config.application.description)
             self.logger.info("Log level: %s", config.logger.level)
             self.logger.info("Debug enabled: %s", config.application.debug)
+            self.logger.info("API enabled: %s", config.api.enabled)
             self.logger.info("Login through API enabled: %s", config.api.telegram_login_enabled)
 
             if self.event_loop is None:

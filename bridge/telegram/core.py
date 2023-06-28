@@ -110,11 +110,15 @@ class TelegramHandler(metaclass=SingletonMeta):
         def code_callback():
             return self.get_auth_code()
 
+        def password_callback():
+            return self.get_password()
+
         try:
             await telegram_client.start(
                 phone=config.telegram.phone, # type: ignore
                 code_callback=code_callback,  # type: ignore
-                password=lambda: self.get_password())  # type: ignore
+                # password=await self.get_password())  # type: ignore
+                password=password_callback)  # type: ignore
         except FloodWaitError as ex:
             logger.error("Telegram client failed to start: %s",
                         ex, exc_info=config.application.debug)
@@ -125,7 +129,8 @@ class TelegramHandler(metaclass=SingletonMeta):
             await telegram_client.start(
                 phone=config.telegram.phone, # type: ignore
                 code_callback=code_callback,  # type: ignore
-                password=lambda: self.get_password())  # type: ignore
+                password=password_callback)  # type: ignore
+                # password=await self.get_password())  # type: ignore
 
         except SessionPasswordNeededError:
             logger.error("Telegram client failed to start: %s",
