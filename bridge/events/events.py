@@ -8,18 +8,9 @@ from typing import Any, Callable, Dict, List
 
 from bridge.config import Config
 from bridge.logger import Logger
+from core import SingletonMeta
 
 logger = Logger.get_logger(Config.get_instance().application.name)
-
-class SingletonMeta(type):
-    """Singleton metaclass."""
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            instance = super().__call__(*args, **kwargs)
-            cls._instances[cls] = instance
-        return cls._instances[cls]
 
 class EventDispatcher(metaclass=SingletonMeta):
     """Event dispatcher class."""

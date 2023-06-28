@@ -21,6 +21,7 @@ from bridge.events import EventDispatcher
 from bridge.healtcheck import HealthHandler
 from bridge.logger import Logger
 from bridge.telegram import TelegramHandler
+from core import SingletonMeta
 
 ERR_API_DISABLED = "API mode is disabled, please use the CLI to start the bridge, or enable it in the config file."
 ERR_API_ENABLED = "API mode is enabled, please use the API to start the bridge, or disable it in the config file."
@@ -30,17 +31,6 @@ ERR_API_ENABLED = "API mode is enabled, please use the API to start the bridge, 
 OperationStatus: TypeAlias = Tuple[ProcessStateEnum, str]
 
 config = Config.get_instance()
-
-class SingletonMeta(type):
-    """Singleton metaclass."""
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            instance = super().__call__(*args, **kwargs)
-            cls._instances[cls] = instance
-        return cls._instances[cls]
-
 
 class Forwarder(metaclass=SingletonMeta):
     """The forwarder class."""
