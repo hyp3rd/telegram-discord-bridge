@@ -10,3 +10,11 @@ repos:
     hooks:
       - id: black
         language_version: python3.10.2
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        require_serial: true
