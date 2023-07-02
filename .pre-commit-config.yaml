@@ -9,3 +9,7 @@ repos:
     rev: 23.3.0
     hooks:
       - id: black
+        name: black
+        language: python
+        entry: black .
+        types: [python]
