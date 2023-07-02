@@ -15,6 +15,7 @@ ErrorSummary: TypeAlias = str
 ErrorDetails: TypeAlias = str
 OperationErrors: TypeAlias = Dict[ErrorSummary, ErrorDetails]
 
+
 class BaseResponse(BaseModel):
     """Base Response."""
 

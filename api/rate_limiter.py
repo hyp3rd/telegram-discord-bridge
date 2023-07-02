@@ -21,11 +21,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public
         if request.client is not None:
             client_ip = request.client.host
         else:
-            client_ip = request.headers.get(
-                "X-Forwarded-For", "").split(",")[0].strip()
+            client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
         request_times = self.requests[client_ip]
-        request_times = [t for t in request_times if time() -
-                         t < self.interval]
+        request_times = [t for t in request_times if time() - t < self.interval]
         self.requests[client_ip] = request_times
 
         if len(request_times) >= self.limit:
@@ -37,10 +35,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public
 
 class RateLimitResponse(Response):
     """Rate Limit Response for the Bridge API"""
+
     media_type = "application/json"
 
     def __init__(self):
         super().__init__(
             status_code=HTTP_429_TOO_MANY_REQUESTS,
-            content='{"detail": "Too many requests"}'
+            content='{"detail": "Too many requests"}',
         )

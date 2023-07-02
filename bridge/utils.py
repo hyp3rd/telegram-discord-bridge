@@ -1,9 +1,15 @@
 """Utility functions."""
 from typing import List, Tuple
 
-from telethon.tl.types import (Message, MessageEntityBold, MessageEntityCode,
-                               MessageEntityItalic, MessageEntityPre,
-                               MessageEntityStrike, MessageEntityTextUrl)
+from telethon.tl.types import (
+    Message,
+    MessageEntityBold,
+    MessageEntityCode,
+    MessageEntityItalic,
+    MessageEntityPre,
+    MessageEntityStrike,
+    MessageEntityTextUrl,
+)
 
 
 def split_message(message: str, max_length: int = 2000) -> List[str]:
@@ -53,8 +59,12 @@ def telegram_entities_to_markdown(message: Message, strip_off_links: bool) -> st
 
     # Create a list of tuples with start offset, end offset, entity type, and associated data.
     entities = [
-        (entity.offset, entity.offset + entity.length, type(entity),
-         entity.url if isinstance(entity, MessageEntityTextUrl) else None)
+        (
+            entity.offset,
+            entity.offset + entity.length,
+            type(entity),
+            entity.url if isinstance(entity, MessageEntityTextUrl) else None,
+        )
         for entity in message.entities
     ]
 
@@ -75,7 +85,12 @@ def telegram_entities_to_markdown(message: Message, strip_off_links: bool) -> st
             link_count += 1
             links.append((link_count, message_text[start:end], url))
             # Replace the link text with plain text followed by the reference number
-            message_text = message_text[:start] + message_text[start:end] + f" [{link_count}]" + message_text[end:]
+            message_text = (
+                message_text[:start]
+                + message_text[start:end]
+                + f" [{link_count}]"
+                + message_text[end:]
+            )
 
     # Append the links at the end of the message
     if links and not strip_off_links:
@@ -85,7 +100,10 @@ def telegram_entities_to_markdown(message: Message, strip_off_links: bool) -> st
 
     return message_text
 
-def apply_markdown(text: str, start: int, end: int, delimiters: Tuple[str, str]) -> Tuple[str, int]:
+
+def apply_markdown(
+    text: str, start: int, end: int, delimiters: Tuple[str, str]
+) -> Tuple[str, int]:
     """Applies markdown delimiters to a portion of the text.
 
     Args:
@@ -99,6 +117,10 @@ def apply_markdown(text: str, start: int, end: int, delimiters: Tuple[str, str])
     """
     opening_delimiter, closing_delimiter = delimiters
     return (
-        text[:start] + opening_delimiter + text[start:end] + closing_delimiter + text[end:],
-        len(opening_delimiter) + len(closing_delimiter)
+        text[:start]
+        + opening_delimiter
+        + text[start:end]
+        + closing_delimiter
+        + text[end:],
+        len(opening_delimiter) + len(closing_delimiter),
     )

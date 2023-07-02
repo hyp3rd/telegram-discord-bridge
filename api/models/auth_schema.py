@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class TelegramAuthSchema(BaseModel):
     """Telegram Auth Schema."""
+
     identity: str = ""
     password: str = ""
     code: str | int = 0
@@ -12,6 +13,7 @@ class TelegramAuthSchema(BaseModel):
 
 class TelegramAuthResponse(BaseModel):
     """Telegram Auth Response Schema."""
+
     status: str
     message: str
     error: str = ""
@@ -21,4 +23,5 @@ class TelegramAuthResponse(BaseModel):
 
 class TelegramAuthResponseSchema(BaseModel):
     """Telegram Auth Response Schema."""
+
     auth: TelegramAuthResponse

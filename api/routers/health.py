@@ -61,9 +61,9 @@ class WSConnectionManager:
             logger.error("Unable to retrieve the last health status.")
             health_data = HealthSchema(
                 health=Health(
-                process_id=pid,
+                    process_id=pid,
+                )
             )
-        )
 
         health_data = HealthSchema(
             health=Health(
@@ -80,24 +80,32 @@ class WSConnectionManager:
 
 def websocket_broadcast_when_healthcheck(func):
     """Decorator to broadcast health data when a healthcheck event is received."""
+
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         result = func(self, *args, **kwargs)
         asyncio.create_task(self.ws_manager.broadcast_health_data())
         return result
+
     return wrapper
 
 
-class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-methods
+class HealthcheckSubscriber(EventSubscriber):  # pylint: disable=too-few-public-methods
     """Healthcheck subscriber class."""
 
-    def __init__(self, name, dispatcher, health_history: HealthHistory, ws_manager: WSConnectionManager):
+    def __init__(
+        self,
+        name,
+        dispatcher,
+        health_history: HealthHistory,
+        ws_manager: WSConnectionManager,
+    ):
         super().__init__(name, dispatcher=dispatcher)
         self.health_history: HealthHistory = health_history
         self.ws_manager = ws_manager
 
     @websocket_broadcast_when_healthcheck
-    def update(self, event:str, data: Any | None = None):
+    def update(self, event: str, data: Any | None = None):
         """
         Update the event subscriber with a new event.
 
@@ -109,11 +117,15 @@ class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-m
             None
         """
 
-        logger.debug("The healthcheck subscriber %s received event: %s", self.name, event)
+        logger.debug(
+            "The healthcheck subscriber %s received event: %s", self.name, event
+        )
 
         if data and isinstance(data, Config):
             if config.application.debug:
-                logger.debug("The healthcheck subscriber %s received config: %s", self.name, data)
+                logger.debug(
+                    "The healthcheck subscriber %s received config: %s", self.name, data
+                )
 
             health_data = Health(
                 timestamp=datetime.timestamp(datetime.now()),
@@ -124,8 +136,11 @@ class HealthcheckSubscriber(EventSubscriber): # pylint: disable=too-few-public-m
                     "discord": data.discord.is_healthy,
                     "openai": data.openai.is_healthy,
                     "internet": data.application.internet_connected,
-                },)
+                },
+            )
 
             self.health_history.add_health_data(health_data)
         else:
-            logger.warning("The healthcheck subscriber %s received data: %s", self.name, data)
+            logger.warning(
+                "The healthcheck subscriber %s received data: %s", self.name, data
+            )

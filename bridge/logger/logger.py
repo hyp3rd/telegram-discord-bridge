@@ -1,4 +1,4 @@
-"""Create a logger for the application."""""
+"""Create a logger for the application.""" ""
 import logging
 from logging.handlers import RotatingFileHandler
 from logging import StreamHandler
@@ -6,8 +6,10 @@ from bridge.config import LoggerConfig
 
 import bridge.logger.formatter as log_formatter
 
+
 class Logger(logging.Logger):
     """Singleton logger class. It allows to create only one instance of the logger."""
+
     _instance = None
 
     def __new__(cls, *args):  # pylint: disable=unused-argument
@@ -38,23 +40,28 @@ class Logger(logging.Logger):
         logging.root.handlers = []
 
     @staticmethod
-    def generate_handler(file_name: str, logger_config: LoggerConfig) -> RotatingFileHandler | StreamHandler:
+    def generate_handler(
+        file_name: str, logger_config: LoggerConfig
+    ) -> RotatingFileHandler | StreamHandler:
         """generate the handler for any external logger"""
         level = getattr(logging, logger_config.level.upper(), None)
 
         if level is None:
             level = logging.INFO
 
-        formatter = log_formatter.ColourizedFormatter(use_colors=logger_config.console, fmt=logger_config.format)
+        formatter = log_formatter.ColourizedFormatter(
+            use_colors=logger_config.console, fmt=logger_config.format
+        )
 
         if not logger_config.console:
             # The log files will rotate when they reach 10 MB in size.
             # The backupCount parameter is set to 5,
             # which means that up to 5 backup files will be kept.
             handler = RotatingFileHandler(
-                f'{file_name}.log',
+                f"{file_name}.log",
                 maxBytes=logger_config.file_max_bytes,
-                backupCount=logger_config.file_backup_count)
+                backupCount=logger_config.file_backup_count,
+            )
         else:
             handler = logging.StreamHandler()
 
@@ -63,7 +70,7 @@ class Logger(logging.Logger):
         return handler
 
     @staticmethod
-    def get_logger(name: str) -> 'Logger':
+    def get_logger(name: str) -> "Logger":
         """Get a logger for the application."""
         logger = Logger(name)
         return logger
@@ -71,11 +78,11 @@ class Logger(logging.Logger):
     @staticmethod
     def get_telethon_logger() -> logging.Logger:
         """Get the Telethon logger"""
-        logger = logging.getLogger('telethon')
+        logger = logging.getLogger("telethon")
         return logger
 
     @staticmethod
-    def init_logger(name: str, logger_config: LoggerConfig) -> 'Logger':
+    def init_logger(name: str, logger_config: LoggerConfig) -> "Logger":
         """Initialize a logger for the application."""
         logger = Logger(name)
         logger.configure(logger_config)

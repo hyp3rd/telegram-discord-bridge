@@ -12,6 +12,7 @@ from core import SingletonMeta
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
 
+
 class OpenAIHandler(metaclass=SingletonMeta):
     """OpenAI handler class."""
 
@@ -38,12 +39,12 @@ class OpenAIHandler(metaclass=SingletonMeta):
                 max_tokens=60,
                 top_p=1.0,
                 frequency_penalty=0.0,
-                presence_penalty=0.0
+                presence_penalty=0.0,
             )
 
             response = await loop.run_in_executor(None, create_completion)
 
-            suggestion = response.choices[0].text.strip() # type: ignore # pylint: disable=no-member
+            suggestion = response.choices[0].text.strip()  # type: ignore # pylint: disable=no-member
             return suggestion
         except openai.error.InvalidRequestError as ex:
             logger.error("Invalid request error: %s", {ex})
@@ -80,12 +81,12 @@ class OpenAIHandler(metaclass=SingletonMeta):
                 max_tokens=250,
                 top_p=1.0,
                 frequency_penalty=0.0,
-                presence_penalty=0.0
+                presence_penalty=0.0,
             )
 
             response = await loop.run_in_executor(None, create_completion)
 
-            suggestion = response.choices[0].text.strip() # type: ignore # pylint: disable=no-member
+            suggestion = response.choices[0].text.strip()  # type: ignore # pylint: disable=no-member
             return suggestion
         except openai.error.InvalidRequestError as ex:
             logger.error("Invalid request error: %s", {ex})

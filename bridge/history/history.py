@@ -19,6 +19,7 @@ MISSED_MESSAGES_HISTORY_FILE = "missed_messages_history.json"
 
 class MessageHistoryHandler:
     """Messages history handler."""
+
     _instance = None
 
     def __new__(cls):
@@ -34,7 +35,9 @@ class MessageHistoryHandler:
             logger.debug("Loading mapping data...")
             if self._mapping_data_cache is None:
                 try:
-                    async with aiofiles.open(MESSAGES_HISTORY_FILE, "r", encoding="utf-8") as messages_mapping:
+                    async with aiofiles.open(
+                        MESSAGES_HISTORY_FILE, "r", encoding="utf-8"
+                    ) as messages_mapping:
                         data = json.loads(await messages_mapping.read())
                         logger.debug("Loaded mapping data: %s", data)
                         self._mapping_data_cache = data
@@ -43,20 +46,28 @@ class MessageHistoryHandler:
 
             return self._mapping_data_cache
 
-    async def save_mapping_data(self, forwarder_name: str, tg_message_id: int, discord_message_id: int) -> None:
+    async def save_mapping_data(
+        self, forwarder_name: str, tg_message_id: int, discord_message_id: int
+    ) -> None:
         """Save the mapping data to the mapping file."""
         # async with self._lock:
         mapping_data = await self.load_mapping_data()
 
-        logger.debug("Saving mapping data: %s, %s, %s", forwarder_name,
-                     tg_message_id, discord_message_id)
+        logger.debug(
+            "Saving mapping data: %s, %s, %s",
+            forwarder_name,
+            tg_message_id,
+            discord_message_id,
+        )
 
         if forwarder_name not in mapping_data:
             mapping_data[forwarder_name] = {}
 
         mapping_data[forwarder_name][tg_message_id] = discord_message_id
         try:
-            async with aiofiles.open(MESSAGES_HISTORY_FILE, "w", encoding="utf-8") as messages_mapping:
+            async with aiofiles.open(
+                MESSAGES_HISTORY_FILE, "w", encoding="utf-8"
+            ) as messages_mapping:
                 await messages_mapping.write(json.dumps(mapping_data, indent=4))
 
             self._mapping_data_cache = mapping_data
@@ -68,21 +79,37 @@ class MessageHistoryHandler:
 
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
-                "An error occurred while saving mapping data: %s", ex, exc_info=config.application.debug)
+                "An error occurred while saving mapping data: %s",
+                ex,
+                exc_info=config.application.debug,
+            )
 
-    async def save_missed_message(self, forwarder_name: str, tg_message_id: int, discord_channel_id: int, exception: Any) -> None:
+    async def save_missed_message(
+        self,
+        forwarder_name: str,
+        tg_message_id: int,
+        discord_channel_id: int,
+        exception: Any,
+    ) -> None:
         """Save the missed message to the missed messages file."""
         mapping_data = await self.load_mapping_data()
 
-        logger.debug("Saving missed message: %s, %s, %s, %s", forwarder_name,
-                     tg_message_id, discord_channel_id, exception)
+        logger.debug(
+            "Saving missed message: %s, %s, %s, %s",
+            forwarder_name,
+            tg_message_id,
+            discord_channel_id,
+            exception,
+        )
 
         if forwarder_name not in mapping_data:
             mapping_data[forwarder_name] = {}
 
         mapping_data[forwarder_name][tg_message_id] = discord_channel_id, exception
         try:
-            async with aiofiles.open(MISSED_MESSAGES_HISTORY_FILE, "w", encoding="utf-8") as missed_messages_mapping:
+            async with aiofiles.open(
+                MISSED_MESSAGES_HISTORY_FILE, "w", encoding="utf-8"
+            ) as missed_messages_mapping:
                 await missed_messages_mapping.write(json.dumps(mapping_data, indent=4))
 
             logger.debug("Missed message saved successfully.")
@@ -92,9 +119,14 @@ class MessageHistoryHandler:
 
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
-                "An error occurred while saving missed message: %s", ex, exc_info=config.application.debug)
+                "An error occurred while saving missed message: %s",
+                ex,
+                exc_info=config.application.debug,
+            )
 
-    async def get_discord_message_id(self, forwarder_name: str, tg_message_id: int) -> Optional[int]:
+    async def get_discord_message_id(
+        self, forwarder_name: str, tg_message_id: int
+    ) -> Optional[int]:
         """Get the Discord message ID associated with the given TG message ID for the specified forwarder."""
         mapping_data = await self.load_mapping_data()
         forwarder_data = mapping_data.get(forwarder_name, None)
@@ -111,25 +143,36 @@ class MessageHistoryHandler:
         if mapping_data.items():
             for forwarder_name, forwarder_data in mapping_data.items():
                 if not forwarder_data:
-                    logger.debug("No messages found in the history for forwarder %s",
-                                 forwarder_name)
+                    logger.debug(
+                        "No messages found in the history for forwarder %s",
+                        forwarder_name,
+                    )
                     continue
                 last_tg_message_id = max(forwarder_data, key=int)
-                logger.debug("Last TG message ID for forwarder %s: %s",
-                             forwarder_name, last_tg_message_id)
+                logger.debug(
+                    "Last TG message ID for forwarder %s: %s",
+                    forwarder_name,
+                    last_tg_message_id,
+                )
                 discord_message_id = forwarder_data[last_tg_message_id]
-                last_messages.append({
-                    "forwarder_name": forwarder_name,
-                    "telegram_id": int(last_tg_message_id),
-                    "discord_id": discord_message_id
-                })
+                last_messages.append(
+                    {
+                        "forwarder_name": forwarder_name,
+                        "telegram_id": int(last_tg_message_id),
+                        "discord_id": discord_message_id,
+                    }
+                )
         return last_messages
 
-    async def fetch_messages_after(self, last_tg_message_id: int, channel_id: int, tgc: TelegramClient) -> List:
+    async def fetch_messages_after(
+        self, last_tg_message_id: int, channel_id: int, tgc: TelegramClient
+    ) -> List:
         """Fetch messages after the last TG message ID."""
         logger.debug("Fetching messages after %s", last_tg_message_id)
         messages = []
-        async for message in tgc.iter_messages(channel_id, offset_id=last_tg_message_id, reverse=True):
+        async for message in tgc.iter_messages(
+            channel_id, offset_id=last_tg_message_id, reverse=True
+        ):
             logger.debug("Fetched message: %s", message.id)
             messages.append(message)
         return messages

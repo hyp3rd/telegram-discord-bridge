@@ -7,19 +7,28 @@ from datetime import datetime
 import magic
 import yaml
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import \
-    ValidationError  # pylint: disable=import-error # SecretStr
+from pydantic import ValidationError  # pylint: disable=import-error # SecretStr
 
 from api.models import BaseResponse
-from bridge.config import (APIConfig, ApplicationConfig, Config, ConfigSchema,
-                           ConfigYAMLSchema, DiscordConfig, ForwarderConfig,
-                           LoggerConfig, OpenAIConfig, TelegramConfig)
+from bridge.config import (
+    APIConfig,
+    ApplicationConfig,
+    Config,
+    ConfigSchema,
+    ConfigYAMLSchema,
+    DiscordConfig,
+    ForwarderConfig,
+    LoggerConfig,
+    OpenAIConfig,
+    TelegramConfig,
+)
 from bridge.enums import RequestTypeEnum
 from bridge.logger import Logger
 from forwarder import Forwarder
 
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
+
 
 class ConfigRouter:
     """Config router class."""
@@ -31,20 +40,28 @@ class ConfigRouter:
             prefix="/config",
             tags=["config"],
             responses={404: {"description": "Not found"}},
-            )
+        )
 
-        self.router.get("/", response_model=ConfigSchema,
-                        summary="Get the current config",
-                        description="The endpoint reports the current loaded config in full, including secrets.")(self.get_config)
+        self.router.get(
+            "/",
+            response_model=ConfigSchema,
+            summary="Get the current config",
+            description="The endpoint reports the current loaded config in full, including secrets.",
+        )(self.get_config)
 
-        self.router.put("/", response_model=BaseResponse,
-                        summary="Upload a new config file",
-                        description="Upload a config file in YAML format and will be versioned `version` field.")(self.upload_config)
+        self.router.put(
+            "/",
+            response_model=BaseResponse,
+            summary="Upload a new config file",
+            description="Upload a config file in YAML format and will be versioned `version` field.",
+        )(self.upload_config)
 
-        self.router.post("/", response_model=BaseResponse,
-                        summary="Post a new config",
-                        description="POST a new config in JSON payload. The file will be versioned `version` field.")(self.post_config)
-
+        self.router.post(
+            "/",
+            response_model=BaseResponse,
+            summary="Post a new config",
+            description="POST a new config in JSON payload. The file will be versioned `version` field.",
+        )(self.post_config)
 
     async def get_config(self) -> ConfigSchema:
         """Get the current config."""
@@ -106,9 +123,15 @@ class ConfigRouter:
                     mention_everyone=forwarder["mention_everyone"],
                     forward_everything=forwarder["forward_everything"],
                     strip_off_links=forwarder["strip_off_links"],
-                    forward_hashtags=forwarder["forward_hashtags"] if forwarder["forward_hashtags"] else [],
-                    excluded_hashtags=forwarder["excluded_hashtags"] if forwarder["excluded_hashtags"] in forwarder else [],
-                    mention_override=forwarder["mention_override"] if forwarder["mention_override"] in forwarder else None,
+                    forward_hashtags=forwarder["forward_hashtags"]
+                    if forwarder["forward_hashtags"]
+                    else [],
+                    excluded_hashtags=forwarder["excluded_hashtags"]
+                    if forwarder["excluded_hashtags"] in forwarder
+                    else [],
+                    mention_override=forwarder["mention_override"]
+                    if forwarder["mention_override"] in forwarder
+                    else None,
                 )
             )
 
@@ -124,8 +147,9 @@ class ConfigRouter:
             )
         )
 
-
-    async def upload_config(self, file: UploadFile = File(...)) -> BaseResponse: # pylint: disable=too-many-locals
+    async def upload_config(
+        self, file: UploadFile = File(...)
+    ) -> BaseResponse:  # pylint: disable=too-many-locals
         """Upload a new config file."""
 
         process_state, pid = self.forwarder.determine_process_state()
@@ -144,31 +168,38 @@ class ConfigRouter:
         mime_type = mime.from_buffer(content)
 
         response.operation_status["mime_type"] = mime_type
-        response.operation_status["file_name"] = file.filename if file.filename else "unknown"
+        response.operation_status["file_name"] = (
+            file.filename if file.filename else "unknown"
+        )
 
         if not file.filename:
-            raise HTTPException(
-                status_code=400, detail="Invalid file name.")
+            raise HTTPException(status_code=400, detail="Invalid file name.")
 
-        if file.filename.startswith(".") or not file.filename.endswith(".yaml") and not file.filename.endswith(".yml"):
-            raise HTTPException(
-                status_code=400, detail="Invalid file name.")
+        if (
+            file.filename.startswith(".")
+            or not file.filename.endswith(".yaml")
+            and not file.filename.endswith(".yml")
+        ):
+            raise HTTPException(status_code=400, detail="Invalid file name.")
 
         if file.size is None or file.size > 1024 * 1024 * 1:
             raise HTTPException(
-                status_code=400, detail="Invalid file size. Only file size less than 1MB is accepted.")
-
+                status_code=400,
+                detail="Invalid file size. Only file size less than 1MB is accepted.",
+            )
 
         logger.debug("Uploaded file type: %s", mime_type)
-        if mime_type != 'text/plain':
+        if mime_type != "text/plain":
             raise HTTPException(
-                status_code=400, detail="Invalid file type. Only YAML file is accepted.")
+                status_code=400, detail="Invalid file type. Only YAML file is accepted."
+            )
 
         try:
             new_config_file_content = yaml.safe_load(content)
         except yaml.YAMLError as exc:
             raise HTTPException(
-                status_code=400, detail='Invalid YAML structure in the config file.') from exc
+                status_code=400, detail="Invalid YAML structure in the config file."
+            ) from exc
 
         try:
             _ = ConfigYAMLSchema(**new_config_file_content)
@@ -176,9 +207,12 @@ class ConfigRouter:
             for error in exc.errors():
                 logger.error(error)
             raise HTTPException(
-                status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
+                status_code=400, detail=f"Invalid configuration: {exc.errors}"
+            ) from exc
 
-        new_config_file_name = f'config-{new_config_file_content["application"]["version"]}.yml'
+        new_config_file_name = (
+            f'config-{new_config_file_content["application"]["version"]}.yml'
+        )
 
         response.operation_status["new_config_file_name"] = new_config_file_name
 
@@ -207,7 +241,7 @@ class ConfigRouter:
             bridge_pid=pid,
         )
 
-        config_file_name = f'config-{config_schema.config.application.version}.yml'
+        config_file_name = f"config-{config_schema.config.application.version}.yml"
 
         response.operation_status["new_config_file_name"] = config_file_name
 
@@ -218,7 +252,8 @@ class ConfigRouter:
             for error in exc.errors():
                 logger.error(error)
             raise HTTPException(
-                status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
+                status_code=400, detail=f"Invalid configuration: {exc.errors}"
+            ) from exc
 
         if os.path.exists(config_file_name):
             backup_filename = f"{config_file_name}_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.yml"
@@ -226,9 +261,16 @@ class ConfigRouter:
             response.operation_status["config_backup_filename"] = backup_filename
 
         with open(config_file_name, "w", encoding="utf-8") as new_config_file:
-            yaml.dump(config_schema.config.dict(), new_config_file,
-                       allow_unicode=False, encoding="utf-8",
-                       explicit_start=True, sort_keys=False, indent=2, default_flow_style=False)
+            yaml.dump(
+                config_schema.config.dict(),
+                new_config_file,
+                allow_unicode=False,
+                encoding="utf-8",
+                explicit_start=True,
+                sort_keys=False,
+                indent=2,
+                default_flow_style=False,
+            )
 
         response.success = True
 

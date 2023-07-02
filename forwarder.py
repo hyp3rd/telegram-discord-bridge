@@ -32,8 +32,10 @@ OperationStatus: TypeAlias = Tuple[ProcessStateEnum, str]
 
 config = Config.get_instance()
 
+
 class Forwarder(metaclass=SingletonMeta):
     """The forwarder class."""
+
     dispatcher: EventDispatcher
     event_loop: AbstractEventLoop
     is_background: bool
@@ -42,16 +44,18 @@ class Forwarder(metaclass=SingletonMeta):
     is_running: bool = False
     logger: Logger
 
-
-    def __init__(self, event_loop: AbstractEventLoop | None = None, is_background: bool = False):
+    def __init__(
+        self, event_loop: AbstractEventLoop | None = None, is_background: bool = False
+    ):
         """Initialize the forwarder."""
 
         self.logger = Logger.init_logger(config.application.name, config.logger)
 
         if self.is_running:
-            self.logger.warning("The forwarder %s is already running.", config.application.name)
+            self.logger.warning(
+                "The forwarder %s is already running.", config.application.name
+            )
             return
-
 
         self.logger.info("Initializing the forwarder %s", config.application.name)
         self.dispatcher = EventDispatcher()
@@ -73,7 +77,10 @@ class Forwarder(metaclass=SingletonMeta):
         self.logger.info("Getting the forwarder instance")
         if self.is_running:
             return self
-        self.logger.warning("The forwarder %s is not running, can't return an instance", config.application.name)
+        self.logger.warning(
+            "The forwarder %s is not running, can't return an instance",
+            config.application.name,
+        )
         return Forwarder()
 
     async def api_controller(self, start_forwarding: bool = True) -> OperationStatus:
@@ -88,7 +95,9 @@ class Forwarder(metaclass=SingletonMeta):
 
         self.__controller(start_forwarding)
 
-        status = ProcessStateEnum.STARTING if start_forwarding else ProcessStateEnum.STOPPING
+        status = (
+            ProcessStateEnum.STARTING if start_forwarding else ProcessStateEnum.STOPPING
+        )
         msg = f"The bridge {config.application.name} with config v{config.application.version}"
         msg = f"{msg} is starting" if start_forwarding else f"{msg} is stopping"
 
@@ -114,7 +123,9 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.info("Log level: %s", config.logger.level)
             self.logger.info("Debug enabled: %s", config.application.debug)
             self.logger.info("API enabled: %s", config.api.enabled)
-            self.logger.info("Login through API enabled: %s", config.api.telegram_login_enabled)
+            self.logger.info(
+                "Login through API enabled: %s", config.api.telegram_login_enabled
+            )
 
             if self.event_loop is None:
                 try:
@@ -133,8 +144,9 @@ class Forwarder(metaclass=SingletonMeta):
         # stop the bridge if start is false
         self.__stop()
 
-
-    def __event_loop_exception_handler(self, event_loop: AbstractEventLoop | None, context: dict):
+    def __event_loop_exception_handler(
+        self, event_loop: AbstractEventLoop | None, context: dict
+    ):
         """Asyncio Event loop exception handler."""
         if not event_loop:
             event_loop = self.event_loop
@@ -152,7 +164,6 @@ class Forwarder(metaclass=SingletonMeta):
                 exc_info=config.application.debug,
             )
 
-
     async def __forwarder_task(self):
         clients = ()
         try:
@@ -162,18 +173,25 @@ class Forwarder(metaclass=SingletonMeta):
         except asyncio.CancelledError:
             self.logger.warning("CancelledError caught, shutting down...")
         except RuntimeError as ex:
-            self.logger.error("RuntimeError caught: %s", ex, exc_info=config.application.debug)
+            self.logger.error(
+                "RuntimeError caught: %s", ex, exc_info=config.application.debug
+            )
         except OperationalError as ex:
-            self.logger.error("OperationalError caught: %s", ex, exc_info=config.application.debug)
+            self.logger.error(
+                "OperationalError caught: %s", ex, exc_info=config.application.debug
+            )
         finally:
             if clients:
                 telegram_client, discord_client = clients[0], clients[1]
-                if telegram_client and not telegram_client.is_connected() and not discord_client.is_ready():
+                if (
+                    telegram_client
+                    and not telegram_client.is_connected()
+                    and not discord_client.is_ready()
+                ):
                     clients = ()
                 else:
                     await self.on_shutdown()
                     clients = ()
-
 
     def __start(self):
         """Start the bridge."""
@@ -183,10 +201,15 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.info("Starting %s in the background", config.application.name)
 
             if os.name == "nt":
-                self.logger.warning("Running %s in the background is not supported on Windows.", config.application.name)
+                self.logger.warning(
+                    "Running %s in the background is not supported on Windows.",
+                    config.application.name,
+                )
                 sys.exit(1)
             if config.logger.console:
-                self.logger.error("Background mode requires console logging to be disabled")
+                self.logger.error(
+                    "Background mode requires console logging to be disabled"
+                )
                 sys.exit(1)
 
         # Create a PID file.
@@ -197,7 +220,9 @@ class Forwarder(metaclass=SingletonMeta):
 
         try:
             if self.event_loop.is_running():
-                self.logger.warning("Event loop is already running, not starting a new one.")
+                self.logger.warning(
+                    "Event loop is already running, not starting a new one."
+                )
                 __forwarder_task.done()
             else:
                 # Run the event loop.
@@ -210,10 +235,15 @@ class Forwarder(metaclass=SingletonMeta):
         except asyncio.LimitOverrunError as ex:
             self.logger.error(
                 "The event loop has exceeded the configured limit of pending tasks: %s",
-                ex, exc_info=config.application.debug)
+                ex,
+                exc_info=config.application.debug,
+            )
         except Exception as ex:  # pylint: disable=broad-except
-            self.logger.error("Error while running the bridge: %s",
-                        ex, exc_info=config.application.debug)
+            self.logger.error(
+                "Error while running the bridge: %s",
+                ex,
+                exc_info=config.application.debug,
+            )
         finally:
             # Remove the PID file.
             if not config.api.enabled:
@@ -226,18 +256,25 @@ class Forwarder(metaclass=SingletonMeta):
         process_state, pid = self.determine_process_state()
         if process_state == ProcessStateEnum.STOPPED:
             self.logger.warning(
-                "PID file not found. The %s may not be running.", config.application.name)
+                "PID file not found. The %s may not be running.",
+                config.application.name,
+            )
             return
 
         try:
             os.kill(pid, signal.SIGINT)
-            self.logger.warning("Sent SIGINT to the %s process with PID %s.",
-                        config.application.name, pid)
+            self.logger.warning(
+                "Sent SIGINT to the %s process with PID %s.",
+                config.application.name,
+                pid,
+            )
 
         except ProcessLookupError:
             self.logger.error(
-                "The %s process with PID %s is not running.", config.application.name, pid)
-
+                "The %s process with PID %s is not running.",
+                config.application.name,
+                pid,
+            )
 
     def create_pid_file(self) -> str:
         """Create a PID file."""
@@ -247,11 +284,14 @@ class Forwarder(metaclass=SingletonMeta):
             pid = os.getpid()
 
             # Create the PID file.
-            forwarder_pid_file = f'{config.application.name}.pid'
+            forwarder_pid_file = f"{config.application.name}.pid"
             process_state, _ = self.determine_process_state(forwarder_pid_file)
 
             if process_state == ProcessStateEnum.RUNNING:
-                self.logger.error("Unable to create PID file: %s is already running.", config.application.name)
+                self.logger.error(
+                    "Unable to create PID file: %s is already running.",
+                    config.application.name,
+                )
                 sys.exit(1)
 
             try:
@@ -268,14 +308,13 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.error("Failed to create PID file.")
             sys.exit(1)
 
-
     def remove_pid_file(self, pid_file: str | None = None):
         """Remove a PID file."""
         self.logger.debug("Removing PID file.")
         if pid_file is None:
-            pid_file = f'{config.application.name}.pid'
+            pid_file = f"{config.application.name}.pid"
 
-        #determine if the pid file exists
+        # determine if the pid file exists
         if not os.path.isfile(pid_file):
             self.logger.debug("PID file '%s' not found.", pid_file)
             return
@@ -288,8 +327,9 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.exception(ex)
             self.logger.error("Failed to remove PID file '%s'.", pid_file)
 
-
-    def determine_process_state(self, pid_file: str | None = None) -> Tuple[ProcessStateEnum, int]:
+    def determine_process_state(
+        self, pid_file: str | None = None
+    ) -> Tuple[ProcessStateEnum, int]:
         """
         Determine the state of the process.
 
@@ -310,7 +350,7 @@ class Forwarder(metaclass=SingletonMeta):
         """
 
         if pid_file is None:
-            pid_file = f'{config.application.name}.pid'
+            pid_file = f"{config.application.name}.pid"
 
         if not os.path.isfile(pid_file):
             # The PID file does not exist, so the process is considered stopped.
@@ -342,34 +382,35 @@ class Forwarder(metaclass=SingletonMeta):
             # The PID file does not exist, so the process is considered stopped.
             return ProcessStateEnum.STOPPED, 0
 
-
     async def init_clients(self) -> Tuple[TelegramClient, discord.Client]:
         """Handle the initialization of the bridge's clients."""
 
         event_loop = asyncio.get_event_loop()
 
-        self.telegram_client = await TelegramHandler(self.dispatcher).init_client(event_loop)
+        self.telegram_client = await TelegramHandler(self.dispatcher).init_client(
+            event_loop
+        )
         self.discord_client = await DiscordHandler().init_client()
 
         # Set signal handlers for graceful shutdown on received signal (except on Windows)
         # NOTE: This is not supported on Windows
-        if os.name != 'nt' and not config.api.enabled:
+        if os.name != "nt" and not config.api.enabled:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 event_loop.add_signal_handler(
-                    sig, lambda sig=sig: asyncio.create_task(self.shutdown(sig)))  # type: ignore
+                    sig, lambda sig=sig: asyncio.create_task(self.shutdown(sig))
+                )  # type: ignore
         if config.api.enabled:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 event_loop.add_signal_handler(
-                    sig, lambda: asyncio.create_task(self.on_shutdown()))
+                    sig, lambda: asyncio.create_task(self.on_shutdown())
+                )
 
         try:
             lock = asyncio.Lock()
             await lock.acquire()
             bridge = Bridge(self.telegram_client, self.discord_client)
             # Create tasks for starting the main logic and waiting for clients to disconnect
-            start_task = event_loop.create_task(
-                bridge.start()
-            )
+            start_task = event_loop.create_task(bridge.start())
             telegram_wait_task = event_loop.create_task(
                 self.telegram_client.run_until_disconnected()  # type: ignore
             )
@@ -377,34 +418,36 @@ class Forwarder(metaclass=SingletonMeta):
                 self.discord_client.wait_until_ready()
             )
             api_healthcheck_task = event_loop.create_task(
-                HealthHandler(self.dispatcher,
-                            self.telegram_client,
-                            self.discord_client).check(config.application.healthcheck_interval)
+                HealthHandler(
+                    self.dispatcher, self.telegram_client, self.discord_client
+                ).check(config.application.healthcheck_interval)
             )
             on_restored_connectivity_task = event_loop.create_task(
                 bridge.on_restored_connectivity()
             )
             lock.release()
 
-            await asyncio.gather(start_task,
-                                telegram_wait_task,
-                                discord_wait_task,
-                                api_healthcheck_task,
-                                on_restored_connectivity_task, return_exceptions=config.application.debug)
-
+            await asyncio.gather(
+                start_task,
+                telegram_wait_task,
+                discord_wait_task,
+                api_healthcheck_task,
+                on_restored_connectivity_task,
+                return_exceptions=config.application.debug,
+            )
 
         except asyncio.CancelledError as ex:
-            self.logger.warning(
-                "CancelledError caught: %s", ex, exc_info=False)
+            self.logger.warning("CancelledError caught: %s", ex, exc_info=False)
         except Exception as ex:  # pylint: disable=broad-except
-            self.logger.error("Error while running the bridge: %s",
-                        ex, exc_info=config.application.debug)
+            self.logger.error(
+                "Error while running the bridge: %s",
+                ex,
+                exc_info=config.application.debug,
+            )
         finally:
             await self.on_shutdown()
 
         return self.telegram_client, self.discord_client
-
-
 
     async def on_shutdown(self):
         """Shutdown the bridge."""
@@ -414,29 +457,39 @@ class Forwarder(metaclass=SingletonMeta):
 
         try:
             self.logger.info("Disconnecting Telegram client...")
-            await self.telegram_client.disconnect() # type: ignore
+            await self.telegram_client.disconnect()  # type: ignore
             self.logger.info("Telegram client disconnected.")
-        except (Exception, asyncio.CancelledError) as ex:  # pylint: disable=broad-except
+        except (
+            Exception,
+            asyncio.CancelledError,
+        ) as ex:  # pylint: disable=broad-except
             self.logger.error("Error disconnecting Telegram client: %s", {ex})
 
         try:
             self.logger.info("Disconnecting Discord client...")
             await self.discord_client.close()
             self.logger.info("Discord client disconnected.")
-        except (Exception, asyncio.CancelledError) as ex:  # pylint: disable=broad-except
+        except (
+            Exception,
+            asyncio.CancelledError,
+        ) as ex:  # pylint: disable=broad-except
             self.logger.error("Error disconnecting Discord client: %s", {ex})
 
         # if not config.api.enabled:
         for running_task in all_tasks:
-            if running_task is not task and not running_task.done() and not running_task.cancelled():
+            if (
+                running_task is not task
+                and not running_task.done()
+                and not running_task.cancelled()
+            ):
                 if task is not None:
                     self.logger.debug("Cancelling task %s...", {running_task})
                     try:
                         task.cancel()
                     except Exception as ex:  # pylint: disable=broad-except
-                        self.logger.error("Error cancelling task %s: %s", {
-                                    running_task}, {ex})
-
+                        self.logger.error(
+                            "Error cancelling task %s: %s", {running_task}, {ex}
+                        )
 
         if not config.api.enabled:
             self.logger.debug("Stopping event loop...")
@@ -446,20 +499,22 @@ class Forwarder(metaclass=SingletonMeta):
 
         self.logger.info("Shutdown process completed.")
 
-
     async def shutdown(self, sig):
         """Shutdown the application gracefully."""
         self.logger.warning("shutdown received signal %s, shutting down...", {sig})
 
         # Cancel all tasks
-        tasks = [task for task in asyncio.all_tasks(
-        ) if task is not asyncio.current_task()]
+        tasks = [
+            task for task in asyncio.all_tasks() if task is not asyncio.current_task()
+        ]
 
         for task in tasks:
             task.cancel()
 
         # Wait for all tasks to be cancelled
-        results = await asyncio.gather(*tasks, return_exceptions=config.application.debug)
+        results = await asyncio.gather(
+            *tasks, return_exceptions=config.application.debug
+        )
 
         # Check for errors
         for result in results:
@@ -516,15 +571,16 @@ def daemonize_process():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Process handler for the bridge.")
-    parser.add_argument("--start", action="store_true",
-                        help="Start the bridge.")
+    parser = argparse.ArgumentParser(description="Process handler for the bridge.")
+    parser.add_argument("--start", action="store_true", help="Start the bridge.")
 
     parser.add_argument("--stop", action="store_false", help="Stop the bridge.")
 
-    parser.add_argument("--background", action="store_true",
-                        help="Run the bridge in the background (forked).")
+    parser.add_argument(
+        "--background",
+        action="store_true",
+        help="Run the bridge in the background (forked).",
+    )
 
     cmd_args = parser.parse_args()
 

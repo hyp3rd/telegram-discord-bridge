@@ -7,6 +7,7 @@ from bridge.enums import ProcessStateEnum
 
 class BridgeResponse(BaseModel):
     """Bridge Response."""
+
     name: str = "Telegram to Discord Bridge"
     status: ProcessStateEnum = ProcessStateEnum.STOPPED
     process_id: int | None = 0
@@ -17,4 +18,5 @@ class BridgeResponse(BaseModel):
 
 class BridgeResponseSchema(BaseModel):
     """Bridge Response Schema."""
+
     bridge: BridgeResponse

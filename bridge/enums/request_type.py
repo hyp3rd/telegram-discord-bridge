@@ -5,6 +5,7 @@ from enum import Enum
 
 class RequestTypeEnum(str, Enum):
     """Request Type Enum."""
+
     START = "start"
     STOP = "stop"
     RELOAD = "reload"

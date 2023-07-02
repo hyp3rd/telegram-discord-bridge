@@ -17,11 +17,12 @@ logger = Logger.init_logger(config_instance.application.name, config_instance.lo
 
 class APIVersion(str, Enum):
     """Process State Enum."""
+
     V1 = "/api/v1"
     V2 = "/api/v2"
 
 
-class BridgeAPI: # pylint: disable=too-few-public-methods
+class BridgeAPI:  # pylint: disable=too-few-public-methods
     """Bridge API."""
 
     # This is the main function that starts the application
@@ -38,35 +39,35 @@ class BridgeAPI: # pylint: disable=too-few-public-methods
             middleware=[
                 Middleware(RateLimitMiddleware, limit=20, interval=60),
                 # The CORSMiddleware is used to allow requests from the web interface
-                Middleware(CORSMiddleware,
-                           allow_origins=config_instance.api.cors_origins,
-                           allow_credentials=True,
-                           allow_methods=["*"],
-                           allow_headers=["*"])
-            ]
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=config_instance.api.cors_origins,
+                    allow_credentials=True,
+                    allow_methods=["*"],
+                    allow_headers=["*"],
+                ),
+            ],
         )
 
         # The index function is used to return the index page
-        self.app.get(path="/",
-                     tags=["index"],
-                     name="The Telegram to Discord Bridge API",
-                     summary="Summary report of the Bridge",
-                     description="The Bridge API provides a way to control the telegram-discord-bridge",
-                     response_model=ConfigSummary)(self.index)
+        self.app.get(
+            path="/",
+            tags=["index"],
+            name="The Telegram to Discord Bridge API",
+            summary="Summary report of the Bridge",
+            description="The Bridge API provides a way to control the telegram-discord-bridge",
+            response_model=ConfigSummary,
+        )(self.index)
 
         # auth router `api/v1/auth` is used to authenticate the user
-        self.app.include_router(router=auth.router,
-                                prefix=APIVersion.V1.value)
+        self.app.include_router(router=auth.router, prefix=APIVersion.V1.value)
 
         # The bridge router is used to control the bridge: `api/v1/bridge`
         # It contains the start, stop, and health endpoints
-        self.app.include_router(router=bridge.router,
-                                prefix=APIVersion.V1.value)
+        self.app.include_router(router=bridge.router, prefix=APIVersion.V1.value)
 
         # The config router is used to control the bridge configuration: `api/v1/config`
-        self.app.include_router(router=config.router,
-                                prefix=APIVersion.V1.value)
-
+        self.app.include_router(router=config.router, prefix=APIVersion.V1.value)
 
     def index(self):
         """index."""
@@ -86,6 +87,8 @@ class BridgeAPI: # pylint: disable=too-few-public-methods
                 telegram_login_enabled=config_instance.api.telegram_login_enabled,
                 telegram_auth_file=config_instance.api.telegram_auth_file,
                 telegram_auth_request_expiration=config_instance.api.telegram_auth_request_expiration,
-            ))
+            ),
+        )
+
 
 app = BridgeAPI().app

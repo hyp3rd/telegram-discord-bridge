@@ -1,7 +1,9 @@
 """Singleton  Metaclass"""
 
+
 class SingletonMeta(type):
     """Singleton metaclass."""
+
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
