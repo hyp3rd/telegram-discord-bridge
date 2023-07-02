@@ -213,7 +213,7 @@ class ConfigRouter:
 
         # validate the config with pydantic
         try:
-            new_config = ConfigYAMLSchema(**config_schema.config.dict())
+            _ = ConfigYAMLSchema(**config_schema.config.dict())
         except ValidationError as exc:
             for error in exc.errors():
                 logger.error(error)
@@ -226,7 +226,7 @@ class ConfigRouter:
             response.operation_status["config_backup_filename"] = backup_filename
 
         with open(config_file_name, "w", encoding="utf-8") as new_config_file:
-            yaml.dump(new_config, new_config_file,
+            yaml.dump(config_schema.config.dict(), new_config_file,
                        allow_unicode=False, encoding="utf-8",
                        explicit_start=True, sort_keys=False, indent=2, default_flow_style=False)
 

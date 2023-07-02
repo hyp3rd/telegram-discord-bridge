@@ -333,7 +333,6 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
     openai: OpenAIConfig
     telegram_forwarders: List[ForwarderConfig]
 
-
     @root_validator
     def forwarder_validator(cls, values):
         """Validate forwarder combinations to avoid duplicates."""
