@@ -14,7 +14,7 @@ __command_exists() {
 }
 
 #######################################
-# Run the build and push docker image
+# Build and push docker image
 # Globals:
 #   None
 # Arguments:
@@ -22,14 +22,14 @@ __command_exists() {
 # Returns:
 #   None
 #######################################
-run() {
+build() {
   if __command_exists uvicorn; then
-    docker build -t ghcr.io/hyp3rd/bridge:v1.1.11 .
+    docker build -t ghcr.io/hyp3rd/bridge:"$(git describe --tags)" .
 
-    docker push ghcr.io/hyp3rd/bridge:v1.1.11
+    docker push ghcr.io/hyp3rd/bridge:"$(git describe --tags)"
   else
     echo "docker is not installed or not running'"
   fi
 }
 
-run
+build
