@@ -3,7 +3,6 @@ import asyncio
 import functools
 
 import openai
-import openai.error
 
 from bridge.config import Config
 from bridge.logger import Logger
@@ -26,7 +25,7 @@ class OpenAIHandler(metaclass=SingletonMeta):
         loop = asyncio.get_event_loop()
         try:
             create_completion = functools.partial(
-                openai.Completion.create,
+                openai.Completion.create,  # pylint: disable=no-member
                 model="text-davinci-003",
                 prompt=(
                     f"Given the message: '{text}', suggest related actions and correlated articles with links:\n"
@@ -46,13 +45,10 @@ class OpenAIHandler(metaclass=SingletonMeta):
 
             suggestion = response.choices[0].text.strip()  # type: ignore # pylint: disable=no-member
             return suggestion
-        except openai.error.InvalidRequestError as ex:
+        except openai.InvalidRequestError as ex:  # pylint: disable=no-member
             logger.error("Invalid request error: %s", {ex})
             return "Error generating suggestion: Invalid request."
-        except openai.error.RateLimitError as ex:
-            logger.error("Rate limit error: %s", {ex})
-            return "Error generating suggestion: Rate limit exceeded."
-        except openai.error.APIError as ex:
+        except openai.APIError as ex:
             logger.error("API error: %s", {ex})
             return "Error generating suggestion: API error."
         except Exception as ex:  # pylint: disable=broad-except
@@ -74,7 +70,7 @@ class OpenAIHandler(metaclass=SingletonMeta):
             logger.debug("openai_sentiment_analysis_prompt %s", prompt)
 
             create_completion = functools.partial(
-                openai.Completion.create,
+                openai.Completion.create,  # pylint: disable=no-member
                 model="text-davinci-003",
                 prompt=(prompt),
                 temperature=0.7,
@@ -88,13 +84,10 @@ class OpenAIHandler(metaclass=SingletonMeta):
 
             suggestion = response.choices[0].text.strip()  # type: ignore # pylint: disable=no-member
             return suggestion
-        except openai.error.InvalidRequestError as ex:
+        except openai.InvalidRequestError as ex:  # pylint: disable=no-member
             logger.error("Invalid request error: %s", {ex})
             return "Error generating suggestion: Invalid request."
-        except openai.error.RateLimitError as ex:
-            logger.error("Rate limit error: %s", {ex})
-            return "Error generating suggestion: Rate limit exceeded."
-        except openai.error.APIError as ex:
+        except openai.APIError as ex:
             logger.error("API error: %s", {ex})
             return "Error generating suggestion: API error."
         except Exception as ex:  # pylint: disable=broad-except

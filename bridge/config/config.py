@@ -5,7 +5,13 @@ from typing import Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel  # pylint: disable=import-error
-from pydantic import SecretStr, StrictInt, root_validator, validator
+from pydantic import SecretStr, StrictInt, model_validator, validator
+
+_instances: Dict[str, "Config"] = {}
+_file_path = os.path.join(
+    os.path.curdir,
+    "config.yml",
+)
 
 
 # pylint: disable=no-self-argument
@@ -35,12 +41,12 @@ class ForwarderConfig(BaseModel):
     class Config:
         """Forwarder config."""
 
-        max_anystr_length = 64
-        error_msg_templates = {
-            "value_error.any_str.max_length": "max_length:{limit_value}",
-        }
+        str_max_length = 64
+        # error_msg_templates = {
+        #     "value_error.any_str.max_length": "max_length:{limit_value}",
+        # }
 
-    @root_validator
+    @model_validator(mode="before")
     def forward_everything_validator(cls, values):
         """Forward everything validator."""
         forward_everything, forward_hashtags = values.get(
@@ -52,7 +58,7 @@ class ForwarderConfig(BaseModel):
             )
         return values
 
-    @root_validator
+    @model_validator(mode="before")
     def forward_hashtags_excluded_hashtags_validator(cls, values):
         """Forward hashtags and excluded hashtags validator."""
         forward_hashtags, excluded_hashtags = values.get(
@@ -67,7 +73,7 @@ class ForwarderConfig(BaseModel):
                         )
         return values
 
-    @root_validator
+    @model_validator(mode="before")
     def mention_override_validator_mention_everyone(cls, values):
         """Mention override validator."""
         mention_override, mention_everyone = values.get("mention_override"), values.get(
@@ -147,7 +153,7 @@ class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     sentiment_analysis_prompt: List[str]
     is_healthy: bool = True  # FIX: This is a hack to make the health check pass
 
-    @root_validator
+    @model_validator(mode="before")
     def openai_validator(cls, values):
         """OpenAI validator."""
         enabled, api_key, organization = (
@@ -189,7 +195,7 @@ class DiscordConfig(BaseModel):  # pylint: disable=too-few-public-methods
     max_latency: float = 0.5
     is_healthy: bool = False
 
-    @root_validator
+    @model_validator(mode="before")
     def discord_validator(cls, values):
         """Discord validator."""
         bot_token = values.get("bot_token")
@@ -339,7 +345,7 @@ class APIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     telegram_auth_file: str = "telegram_auth.json"
     telegram_auth_request_expiration: int = 300
 
-    @root_validator
+    @model_validator(mode="before")
     def telegram_login_validator(cls, values):
         """Telegram login validator."""
         api_enabled, telegram_login_enabled = values.get("enabled"), values.get(
@@ -379,7 +385,7 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
     openai: OpenAIConfig
     telegram_forwarders: List[ForwarderConfig]
 
-    @root_validator
+    @model_validator(mode="before")
     def forwarder_validator(cls, values):
         """Validate forwarder combinations to avoid duplicates."""
         forwarder_combinations = set()
@@ -393,7 +399,7 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
             forwarder_combinations.add(combination)
         return values
 
-    @root_validator
+    @model_validator(mode="after")
     def shared_forward_hashtags_validator(cls, values):
         """Ensure that hashtags are not shared between forwarders with the same telegram_id chaannel."""
         tg_channel_hashtags = {}
@@ -415,8 +421,8 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
                         )
                         if shared_hashtags:
                             raise ValueError(
-                                f"Shared hashtags {shared_hashtags} found for forwarders with tg_channel_id {tg_channel_id}. The same message will be forwarded multiple times."
-                            )  # pylint: disable=line-too-long
+                                f"Shared hashtags {shared_hashtags} found for forwarders with tg_channel_id {tg_channel_id}. The same message will be forwarded multiple times."  # pylint: disable=line-too-long
+                            )
 
                     tg_channel_hashtags[tg_channel_id].append(forward_hashtags)
         return values
@@ -431,12 +437,6 @@ class ConfigSchema(BaseModel):
 class Config(BaseModel):
     """Config model."""
 
-    _instances: Dict[str, "Config"] = {}
-    _file_path = os.path.join(
-        os.path.curdir,
-        "config.yml",
-    )
-
     application: ApplicationConfig
     logger: LoggerConfig
     api: APIConfig
@@ -444,6 +444,23 @@ class Config(BaseModel):
     discord: DiscordConfig
     openai: OpenAIConfig
     telegram_forwarders: List[ForwarderConfig]
+
+    def __getitem__(self, item):
+        try:
+            return getattr(self, item)
+        except AttributeError:
+            raise KeyError(item) from None
+
+    def __setitem__(self, key, value):
+        if key not in self.__dict__:
+            raise KeyError(key)
+        return setattr(self, key, value)
+
+    def __iter__(self):
+        try:
+            return iter(self.__dict__ or {})
+        except (TypeError, AttributeError):
+            return iter({})
 
     @classmethod
     def from_yaml(cls, yaml_file: str) -> "Config":
@@ -461,7 +478,7 @@ class Config(BaseModel):
     def to_yaml(self, yaml_file: str) -> None:
         """Save config to YAML file."""
         with open(yaml_file, "w", encoding="utf-8") as stream:
-            yaml.dump(self.dict(), stream, default_flow_style=False)
+            yaml.dump(self.model_dump(), stream, default_flow_style=False)
 
     def to_summary(self) -> ConfigSummary:
         """Get config summary."""
@@ -470,8 +487,8 @@ class Config(BaseModel):
             api=self.api,
         )
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    # def __init__(self, **data):
+    #     super().__init__(**data)
 
     @classmethod
     def load_instance(cls, yaml_file: str) -> "Config":
@@ -489,17 +506,9 @@ class Config(BaseModel):
     @classmethod
     def get_instance(cls, version: str = "default") -> "Config":
         """Get config instance."""
-        if "default" not in cls._instances:  # if default instance is not created
-            cls._instances["default"] = cls.load_instance(
-                cls._file_path
-            )  # create the default instance
-
-        if version != "default" and version not in cls._instances:
-            cls._instances[version] = cls.load_instance(
-                os.path.join(os.path.curdir, f"config.{version}.yml")
-            )
-
-        return cls._instances[version]
+        if version not in _instances.items():
+            _instances[version] = cls.load_instance(_file_path)
+        return _instances[version]
 
     def get_telegram_channel_by_forwarder_name(self, forwarder_name: str):
         """Get the Telegram channel ID associated with a given forwarder ID."""

@@ -459,16 +459,17 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.info("Disconnecting Telegram client...")
             await self.telegram_client.disconnect()  # type: ignore
             self.logger.info("Telegram client disconnected.")
-        except (
+        except (  # pylint: disable=broad-exception-caught
             Exception,
             asyncio.CancelledError,
-        ) as ex:  # pylint: disable=broad-except
+        ) as ex:
             self.logger.error("Error disconnecting Telegram client: %s", {ex})
 
         try:
             self.logger.info("Disconnecting Discord client...")
             await self.discord_client.close()
             self.logger.info("Discord client disconnected.")
+        # pylint: disable=broad-except
         except (
             Exception,
             asyncio.CancelledError,

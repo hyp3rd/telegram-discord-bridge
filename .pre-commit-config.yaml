@@ -5,11 +5,7 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/psf/black
-    rev: 23.3.0
-    hooks:
-      - id: black
-        language_version: python3.10.2
+
   - repo: local
     hooks:
       - id: pylint
@@ -18,3 +14,9 @@ repos:
         language: system
         types: [python]
         require_serial: true
+
+  # - repo: https://github.com/psf/black
+  #   rev: 23.3.0
+  #   hooks:
+  #     - id: black
+  #       language_version: python3.10.2

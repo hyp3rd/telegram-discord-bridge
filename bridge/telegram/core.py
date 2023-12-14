@@ -5,12 +5,10 @@ import os
 from asyncio.events import AbstractEventLoop
 
 from telethon import TelegramClient
-from telethon.errors.rpcerrorlist import (
-    FloodWaitError,
-    PhoneCodeInvalidError,
-    SessionPasswordNeededError,
-    SessionRevokedError,
-)
+from telethon.errors.rpcerrorlist import (FloodWaitError,
+                                          PhoneCodeInvalidError,
+                                          SessionPasswordNeededError,
+                                          SessionRevokedError)
 
 from bridge.config import Config
 from bridge.events import EventDispatcher
@@ -72,7 +70,7 @@ class TelegramHandler(metaclass=SingletonMeta):
     async def get_auth_code(self) -> str | int:
         """Get the Telegram auth code from the API payload, or the user's input."""
         logger.debug("Attempting to get the Telegram auth code")
-        if config.api.telegram_login_enabled:
+        if config.api.enabled and config.api.telegram_login_enabled:
             return await self._get_creds_from_file("code")
 
         code = input("Enter the Telegram 2FA code: ")
@@ -81,7 +79,7 @@ class TelegramHandler(metaclass=SingletonMeta):
 
         return code
 
-    async def init_client(
+    async def init_client(  # pylint: disable=too-many-statements
         self, event_loop: AbstractEventLoop | None = None
     ) -> TelegramClient:  # pylint: disable=too-many-statements
         """Init the Telegram client."""
@@ -124,7 +122,6 @@ class TelegramHandler(metaclass=SingletonMeta):
             await telegram_client.start(
                 phone=config.telegram.phone,  # type: ignore
                 code_callback=code_callback,  # type: ignore
-                # password=await self.get_password())  # type: ignore
                 password=password_callback,
             )  # type: ignore
         except FloodWaitError as ex:
@@ -141,7 +138,6 @@ class TelegramHandler(metaclass=SingletonMeta):
                 code_callback=code_callback,  # type: ignore
                 password=password_callback,
             )  # type: ignore
-            # password=await self.get_password())  # type: ignore
 
         except SessionPasswordNeededError:
             logger.error(
