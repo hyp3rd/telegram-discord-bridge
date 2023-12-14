@@ -127,7 +127,7 @@ class Bridge:
 
     async def _handle_new_message(
         self, event
-    ):  # pylint: disable=too-many-branches,too-many-statements
+    ):  # pylint: disable=too-many-branches,too-many-statements,too-many-locals
         """Handle the processing of a new Telegram message."""
         logger.debug("processing Telegram message: %s", event)
 
