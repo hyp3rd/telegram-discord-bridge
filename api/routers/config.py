@@ -1,95 +1,120 @@
 """Config router for the API"""
 
+import asyncio
 import os
 from datetime import datetime
 
 import magic
 import yaml
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import ValidationError  # pylint: disable=import-error
+from pydantic import ValidationError  # pylint: disable=import-error # SecretStr
 
-from api.models import (APIConfig, ApplicationConfig, BaseResponse,
-                        ConfigSchema, ConfigYAMLSchema, DiscordConfig,
-                        ForwarderConfig, LoggerConfig, OpenAIConfig,
-                        TelegramConfig)
-from bridge.config import Config
+from api.models import BaseResponse
+from bridge.config import (
+    APIConfig,
+    ApplicationConfig,
+    Config,
+    ConfigSchema,
+    ConfigYAMLSchema,
+    DiscordConfig,
+    ForwarderConfig,
+    LoggerConfig,
+    OpenAIConfig,
+    TelegramConfig,
+)
 from bridge.enums import RequestTypeEnum
 from bridge.logger import Logger
-from forwarder import determine_process_state
+from forwarder import Forwarder
 
-logger = Logger.get_logger(Config.get_config_instance().app.name)
+config = Config.get_instance()
+logger = Logger.get_logger(config.application.name)
+
 
 class ConfigRouter:
     """Config router class."""
 
     def __init__(self) -> None:
         """Initialize the config router."""
-        self.config = Config.get_config_instance()
+        self.forwarder = Forwarder(event_loop=asyncio.get_running_loop())
         self.router = APIRouter(
             prefix="/config",
             tags=["config"],
             responses={404: {"description": "Not found"}},
-            )
+        )
 
-        self.router.get("/", response_model=ConfigSchema)(self.get_config)
+        self.router.get(
+            "/",
+            response_model=ConfigSchema,
+            summary="Get the current config",
+            description="The endpoint reports the current loaded config in full, including secrets.",
+        )(self.get_config)
 
-        self.router.put("/", response_model=BaseResponse)(self.upload_config)
+        self.router.put(
+            "/",
+            response_model=BaseResponse,
+            summary="Upload a new config file",
+            description="Upload a config file in YAML format and will be versioned `version` field.",
+        )(self.upload_config)
 
-        self.router.post("/", response_model=BaseResponse)(self.post_config)
-
+        self.router.post(
+            "/",
+            response_model=BaseResponse,
+            summary="Post a new config",
+            description="POST a new config in JSON payload. The file will be versioned `version` field.",
+        )(self.post_config)
 
     async def get_config(self) -> ConfigSchema:
         """Get the current config."""
 
         application_config = ApplicationConfig(
-            name=self.config.app.name,
-            version=self.config.app.version,
-            description=self.config.app.description,
-            debug=self.config.app.debug,
-            healthcheck_interval=self.config.app.healthcheck_interval,
-            recoverer_delay=self.config.app.recoverer_delay,
+            name=config.application.name,
+            version=config.application.version,
+            description=config.application.description,
+            debug=config.application.debug,
+            healthcheck_interval=config.application.healthcheck_interval,
+            recoverer_delay=config.application.recoverer_delay,
         )
 
         api_config = APIConfig(
-            enabled=self.config.api.enabled,
-            cors_origins=self.config.api.cors_origins,
-            telegram_login_enabled=self.config.api.telegram_login_enabled,
-            telegram_auth_file=self.config.api.telegram_auth_file,
-            telegram_auth_request_expiration=self.config.api.telegram_auth_request_expiration,
+            enabled=config.api.enabled,
+            cors_origins=config.api.cors_origins,
+            telegram_login_enabled=config.api.telegram_login_enabled,
+            telegram_auth_file=config.api.telegram_auth_file,
+            telegram_auth_request_expiration=config.api.telegram_auth_request_expiration,
         )
 
         logger_config = LoggerConfig(
-            level=self.config.logger.level,
-            file_max_bytes=self.config.logger.file_max_bytes,
-            file_backup_count=self.config.logger.file_backup_count,
-            format=self.config.logger.format,
-            date_format=self.config.logger.date_format,
-            console=self.config.logger.console,
+            level=config.logger.level,
+            file_max_bytes=config.logger.file_max_bytes,
+            file_backup_count=config.logger.file_backup_count,
+            format=config.logger.format,
+            date_format=config.logger.date_format,
+            console=config.logger.console,
         )
 
         telegram_config = TelegramConfig(
-            phone=self.config.telegram.phone,
-            password=self.config.telegram.password,
-            api_id=self.config.telegram.api_id,
-            api_hash=self.config.telegram.api_hash,
-            log_unhandled_conversations=self.config.telegram.log_unhandled_conversations,
+            phone=config.telegram.phone,
+            password=config.telegram.password,
+            api_id=config.telegram.api_id,
+            api_hash=config.telegram.api_hash,
+            log_unhandled_dialogs=config.telegram.log_unhandled_dialogs,
         )
 
         discord_config = DiscordConfig(
-            bot_token=self.config.discord.bot_token,
-            built_in_roles=self.config.discord.built_in_roles,
-            max_latency=self.config.discord.max_latency,
+            bot_token=config.discord.bot_token,
+            built_in_roles=config.discord.built_in_roles,
+            max_latency=config.discord.max_latency,
         )
 
         openai_config = OpenAIConfig(
-            api_key=self.config.openai.api_key,
-            enabled=self.config.openai.enabled,
-            organization=self.config.openai.organization,
-            sentiment_analysis_prompt=self.config.openai.sentiment_analysis_prompt,
+            api_key=config.openai.api_key,
+            enabled=config.openai.enabled,
+            organization=config.openai.organization,
+            sentiment_analysis_prompt=config.openai.sentiment_analysis_prompt,
         )
 
         telegram_forwarders = []
-        for forwarder in self.config.telegram_forwarders:
+        for forwarder in config.telegram_forwarders:
             telegram_forwarders.append(
                 ForwarderConfig(
                     forwarder_name=forwarder["forwarder_name"],
@@ -98,9 +123,15 @@ class ConfigRouter:
                     mention_everyone=forwarder["mention_everyone"],
                     forward_everything=forwarder["forward_everything"],
                     strip_off_links=forwarder["strip_off_links"],
-                    forward_hashtags=forwarder["forward_hashtags"] if "forward_hashtags" in forwarder else [],
-                    excluded_hashtags=forwarder["excluded_hashtags"] if "excluded_hashtags" in forwarder else [],
-                    mention_override=forwarder["mention_override"] if "mention_override" in forwarder else None,
+                    forward_hashtags=forwarder["forward_hashtags"]
+                    if forwarder["forward_hashtags"]
+                    else [],
+                    excluded_hashtags=forwarder["excluded_hashtags"]
+                    if forwarder["excluded_hashtags"] in forwarder
+                    else [],
+                    mention_override=forwarder["mention_override"]
+                    if forwarder["mention_override"] in forwarder
+                    else None,
                 )
             )
 
@@ -116,15 +147,16 @@ class ConfigRouter:
             )
         )
 
-
-    async def upload_config(self, file: UploadFile = File(...)) -> BaseResponse: # pylint: disable=too-many-locals
+    async def upload_config(
+        self, file: UploadFile = File(...)
+    ) -> BaseResponse:  # pylint: disable=too-many-locals
         """Upload a new config file."""
 
-        process_state, pid = determine_process_state()
+        process_state, pid = self.forwarder.determine_process_state()
 
         response = BaseResponse(
             resource="config",
-            config_version=self.config.app.version,
+            config_version=config.application.version,
             request_type=RequestTypeEnum.UPLOAD_CONFIG,
             bridge_status=process_state,
             bridge_pid=pid,
@@ -136,31 +168,38 @@ class ConfigRouter:
         mime_type = mime.from_buffer(content)
 
         response.operation_status["mime_type"] = mime_type
-        response.operation_status["file_name"] = file.filename if file.filename else "unknown"
+        response.operation_status["file_name"] = (
+            file.filename if file.filename else "unknown"
+        )
 
         if not file.filename:
-            raise HTTPException(
-                status_code=400, detail="Invalid file name.")
+            raise HTTPException(status_code=400, detail="Invalid file name.")
 
-        if file.filename.startswith(".") or not file.filename.endswith(".yaml") and not file.filename.endswith(".yml"):
-            raise HTTPException(
-                status_code=400, detail="Invalid file name.")
+        if (
+            file.filename.startswith(".")
+            or not file.filename.endswith(".yaml")
+            and not file.filename.endswith(".yml")
+        ):
+            raise HTTPException(status_code=400, detail="Invalid file name.")
 
         if file.size is None or file.size > 1024 * 1024 * 1:
             raise HTTPException(
-                status_code=400, detail="Invalid file size. Only file size less than 1MB is accepted.")
-
+                status_code=400,
+                detail="Invalid file size. Only file size less than 1MB is accepted.",
+            )
 
         logger.debug("Uploaded file type: %s", mime_type)
-        if mime_type != 'text/plain':
+        if mime_type != "text/plain":
             raise HTTPException(
-                status_code=400, detail="Invalid file type. Only YAML file is accepted.")
+                status_code=400, detail="Invalid file type. Only YAML file is accepted."
+            )
 
         try:
             new_config_file_content = yaml.safe_load(content)
         except yaml.YAMLError as exc:
             raise HTTPException(
-                status_code=400, detail='Invalid YAML structure in the config file.') from exc
+                status_code=400, detail="Invalid YAML structure in the config file."
+            ) from exc
 
         try:
             _ = ConfigYAMLSchema(**new_config_file_content)
@@ -168,15 +207,12 @@ class ConfigRouter:
             for error in exc.errors():
                 logger.error(error)
             raise HTTPException(
-                status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
+                status_code=400, detail=f"Invalid configuration: {exc.errors}"
+            ) from exc
 
-        # validate here
-        valid, errors = self.config.validate_config(new_config_file_content)
-        if not valid:
-            raise HTTPException(
-                status_code=400, detail=f'{errors}')
-
-        new_config_file_name = f'config-{new_config_file_content["application"]["version"]}.yml'
+        new_config_file_name = (
+            f'config-{new_config_file_content["application"]["version"]}.yml'
+        )
 
         response.operation_status["new_config_file_name"] = new_config_file_name
 
@@ -192,36 +228,32 @@ class ConfigRouter:
 
         return response
 
-    async def post_config(self, config: ConfigSchema) -> BaseResponse:
+    async def post_config(self, config_schema: ConfigSchema) -> BaseResponse:
         """Post a new config file."""
 
-        process_state, pid = determine_process_state()
+        process_state, pid = self.forwarder.determine_process_state()
 
         response = BaseResponse(
             resource="config",
-            config_version=self.config.app.version,
+            config_version=config_schema.config.application.version,
             request_type=RequestTypeEnum.POST_CONFIG,
             bridge_status=process_state,
             bridge_pid=pid,
         )
 
-        valid, errors = self.config.validate_config(config.config.dict())
-        if not valid:
-            raise HTTPException(
-                status_code=400, detail=f'{errors}')
-
-        config_file_name = f'config-{config.config.application.version}.yml'
+        config_file_name = f"config-{config_schema.config.application.version}.yml"
 
         response.operation_status["new_config_file_name"] = config_file_name
 
         # validate the config with pydantic
         try:
-            _ = ConfigYAMLSchema(**config.config.dict())
+            _ = ConfigYAMLSchema(**config_schema.config.dict())
         except ValidationError as exc:
             for error in exc.errors():
                 logger.error(error)
             raise HTTPException(
-                status_code=400, detail=f'Invalid configuration: {exc.errors}') from exc
+                status_code=400, detail=f"Invalid configuration: {exc.errors}"
+            ) from exc
 
         if os.path.exists(config_file_name):
             backup_filename = f"{config_file_name}_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.yml"
@@ -229,9 +261,16 @@ class ConfigRouter:
             response.operation_status["config_backup_filename"] = backup_filename
 
         with open(config_file_name, "w", encoding="utf-8") as new_config_file:
-            yaml.dump(config.config.dict(), new_config_file,
-                       allow_unicode=False, encoding="utf-8",
-                       explicit_start=True, sort_keys=False, indent=2, default_flow_style=False)
+            yaml.dump(
+                config_schema.config.dict(),
+                new_config_file,
+                allow_unicode=False,
+                encoding="utf-8",
+                explicit_start=True,
+                sort_keys=False,
+                indent=2,
+                default_flow_style=False,
+            )
 
         response.success = True
 

@@ -8,11 +8,12 @@ from typing import Any, Callable, Dict, List
 
 from bridge.config import Config
 from bridge.logger import Logger
+from core import SingletonMeta
 
-logger = Logger.get_logger(Config.get_config_instance().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
 
 
-class EventDispatcher:
+class EventDispatcher(metaclass=SingletonMeta):
     """Event dispatcher class."""
 
     def __init__(self, subscribers=None):
@@ -21,7 +22,7 @@ class EventDispatcher:
 
     def add_subscriber(self, event: str, subscriber):
         """Add a subscriber to the event dispatcher.
-        
+
         Args:
             event: The event to subscribe to.
             subscriber: The subscriber to add.
@@ -50,8 +51,6 @@ class EventDispatcher:
 
     def notify(self, event, data=None):
         """Notify subscribers of an event."""
-        logger.debug("Event dispatcher notified of event: %s - data: %s", event, data)
-
         if event in self.subscribers:
             for subscriber in self.subscribers[event]:
                 logger.debug("Event dispatcher notifying subscriber: %s", subscriber)
@@ -62,31 +61,49 @@ class EventDispatcher:
                         subscriber.update(event, data)
                 except EventDispatcherException as ex:
                     message = "The event dispatcher failed to notify its subscribers"
-                    logger.error("%s - event: %s - error: %s",  message, event, ex, exc_info=Config.get_config_instance().app.debug)
+                    logger.error(
+                        "%s - event: %s - error: %s",
+                        message,
+                        event,
+                        ex,
+                        exc_info=Config.get_instance().application.debug,
+                    )
                     # raise EventDispatcherException(message=message) from ex
-                except Exception as ex: # pylint: disable=broad-except
+                except Exception as ex:  # pylint: disable=broad-except
                     message = "The event dispatcher failed to notify its subscribers"
-                    logger.error("%s - event: %s - error: %s",  message, event, ex, exc_info=Config.get_config_instance().app.debug)
+                    logger.error(
+                        "%s - event: %s - error: %s",
+                        message,
+                        event,
+                        ex,
+                        exc_info=Config.get_instance().application.debug,
+                    )
                     # raise EventDispatcherException(message=message) from ex
                 else:
-                    logger.debug("Event dispatcher successfully notified subscriber: %s", subscriber)
+                    logger.debug(
+                        "Event dispatcher successfully notified subscriber: %s",
+                        subscriber,
+                    )
                 finally:
-                    logger.debug("Event dispatcher finished notifying subscriber: %s", subscriber)
+                    logger.debug(
+                        "Event dispatcher finished notifying subscriber: %s", subscriber
+                    )
         else:
-            logger.info("Event dispatcher has no subscribers for event: %s", event)
+            logger.debug("Event dispatcher has no subscribers for event: %s", event)
 
     def stop(self):
         """Stop the event dispatcher."""
-        logger.debug("Stopping event dispatcher")
+        logger.warning("Stopping event dispatcher")
         self.subscribers.clear()
         logger.info("Event dispatcher stopped")
+
 
 class EventDispatcherException(Exception):
     """Event dispatcher exception class."""
 
     def __init__(self, message):
         """Initialize the event dispatcher exception.
-        
+
         Args:
             message: The message of the event dispatcher exception.
         """
@@ -103,7 +120,7 @@ class EventDispatcherException(Exception):
 
     def __eq__(self, other):
         """Return whether this event dispatcher exception is equal to another object.
-        
+
         Args:
             other: The other object.
         """
@@ -113,7 +130,7 @@ class EventDispatcherException(Exception):
 
     def __ne__(self, other):
         """Return whether this event dispatcher exception is not equal to another object.
-        
+
         Args:
             other: The other object.
         """
@@ -124,7 +141,7 @@ class EventDispatcherException(Exception):
         return hash(self.message)
 
 
-class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
+class EventSubscriber(ABC):  # pylint: disable=too-few-public-methods
     """Event subscriber abstract base class."""
 
     def __init__(self, name, dispatcher: EventDispatcher, subscribers=None):
@@ -134,7 +151,7 @@ class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
         self.subscribers: Dict[str, Dict[str, List[Callable]]] = subscribers or {}
 
     @abstractmethod
-    def update(self, event:str, data:Any | None = None):
+    def update(self, event: str, data: Any | None = None):
         """
         Update the event subscriber with a new event.
 
@@ -146,12 +163,16 @@ class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
             for func in self.subscribers[event]:
                 try:
                     if asyncio.iscoroutinefunction(func) and hasattr(func, "update"):
-                        logger.debug("Event subscriber %s updating with coroutine function %s", self.name, func)
+                        logger.debug(
+                            "Event subscriber %s updating with coroutine function %s",
+                            self.name,
+                            func,
+                        )
                         # asyncio.ensure_future(func(data))
-                        func(data) # type: ignore
+                        func(data)  # type: ignore
                 except EventDispatcherException as ex:
                     message = "The event subscriber failed to update"
-                    logger.error("%s - event: %s",  message, event)
+                    logger.error("%s - event: %s", message, event)
                     raise EventDispatcherException(message=message) from ex
 
     # Create an on_update decorator for the event subscriber.
@@ -162,7 +183,10 @@ class EventSubscriber(ABC): # pylint: disable=too-few-public-methods
             def decorator(func):
                 def wrapper(*args, **kwargs):
                     logger.debug(
-                        "Decorator %s called with args %s and kwargs %s", event, args, kwargs
+                        "Decorator %s called with args %s and kwargs %s",
+                        event,
+                        args,
+                        kwargs,
                     )
                     result = func(*args, **kwargs)
                     if asyncio.iscoroutine(result):

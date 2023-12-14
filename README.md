@@ -83,7 +83,7 @@ telegram:
   # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
   api_hash: "<your api hash>"
   # Whether to log the conversations that aren't available for forwarding (private chats, etc.)
-  log_unhandled_conversations: False
+  log_unhandled_dialogs: False
 
 # Discord configuration
 discord:
@@ -184,7 +184,7 @@ This project is a masked vigilante inspired by the base idea of [Telegram-To-Dis
 ## Author
 
 I'm a surfer, a crypto trader, and a software architect with 15 years of experience designing highly available distributed production environments and developing cloud-native apps in public and private clouds. Just your average bloke. Feel free to connect with me on LinkedIn, but no funny business, alright?
-  
+
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/francesco-cosentino/)
 
 [pylint_badge]: https://github.com/hyp3rd/telegram-discord-bridge/actions/workflows/pylint.yml

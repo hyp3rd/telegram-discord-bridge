@@ -1,16 +1,15 @@
 """Utility functions."""
-from typing import List
+from typing import List, Tuple
 
-from discord import utils
-from telethon.tl.types import (MessageEntityBold, MessageEntityCode,
-                               MessageEntityItalic, MessageEntityPre,
-                               MessageEntityStrike, MessageEntityTextUrl)
-
-from bridge.config import Config
-from bridge.logger import Logger
-
-config = Config()
-logger = Logger.get_logger(config.app.name)
+from telethon.tl.types import (
+    Message,
+    MessageEntityBold,
+    MessageEntityCode,
+    MessageEntityItalic,
+    MessageEntityPre,
+    MessageEntityStrike,
+    MessageEntityTextUrl,
+)
 
 
 def split_message(message: str, max_length: int = 2000) -> List[str]:
@@ -20,8 +19,10 @@ def split_message(message: str, max_length: int = 2000) -> List[str]:
 
     message_parts = []
     while len(message) > max_length:
+        # Find the last newline before the max length.
         split_index = message[:max_length].rfind("\n")
         if split_index == -1:
+            # If a newline wasn't found, split at the max length.
             split_index = max_length
 
         message_parts.append(message[:split_index])
@@ -33,32 +34,19 @@ def split_message(message: str, max_length: int = 2000) -> List[str]:
     return message_parts
 
 
-def apply_markdown(markdown_text, start, end, markdown_delimiters):
-    """Apply Markdown delimiters to a text range."""
-    return (
-        markdown_text[:start]
-        + markdown_delimiters[0]
-        + markdown_text[start:end]
-        + markdown_delimiters[1]
-        + markdown_text[end:],
-        # return added length
-        len(markdown_delimiters[0]) + len(markdown_delimiters[1]),
-    )
-
-
-def telegram_entities_to_markdown(message_text: str, message_entities: list, strip_off_links: bool) -> str:
+def telegram_entities_to_markdown(message: Message, strip_off_links: bool) -> str:
     """Convert Telegram entities to Markdown.
 
     Args:
-        message_text: The text of the message.
-        message_entities: The entities of the message.
+        message: A Telethon Message object.
         strip_off_links: Whether to strip off links.
 
     Returns:
         The message text in Markdown format.
     """
+    message_text = message.message
 
-    if not message_entities:
+    if not message.entities:
         return message_text
 
     markdown_map = {
@@ -71,38 +59,68 @@ def telegram_entities_to_markdown(message_text: str, message_entities: list, str
 
     # Create a list of tuples with start offset, end offset, entity type, and associated data.
     entities = [
-        (entity.offset, entity.offset + entity.length, type(entity),
-         entity.url if isinstance(entity, MessageEntityTextUrl) else None)
-        for entity in message_entities
+        (
+            entity.offset,
+            entity.offset + entity.length,
+            type(entity),
+            entity.url if isinstance(entity, MessageEntityTextUrl) else None,
+        )
+        for entity in message.entities
     ]
 
-    # Sort entities by start offset in ascending order, and by end offset in descending order.
-    sorted_entities = sorted(entities, key=lambda e: (e[0], -e[1]))
-
-    message_text = utils.remove_markdown(
-        message_text, ignore_links=False)
-
-    offset_correction = 0
+    # Sort entities by start offset in descending order.
+    entities = sorted(entities, key=lambda e: e[0], reverse=True)
 
     links = []  # To hold link text and URLs
+    link_count = 0  # To count the links and assign reference numbers
 
-    for start, end, entity_type, url in sorted_entities:
-        start += offset_correction
-        end += offset_correction
-        markdown_delimiters = markdown_map.get(entity_type)
+    for start, end, entity_type, url in entities:
+        markdown_delimiters = markdown_map.get(entity_type)  # type: ignore
 
         if markdown_delimiters:
-            message_text, correction = apply_markdown(
+            message_text, _ = apply_markdown(
                 message_text, start, end, markdown_delimiters
             )
-            offset_correction += correction
         elif url:  # This is a MessageEntityTextUrl.
-            logger.debug("processing url: %s", url)
-            links.append(f"<{url}>")
-            # No need to do anything here as we're only replacing the text with itself.
+            link_count += 1
+            links.append((link_count, message_text[start:end], url))
+            # Replace the link text with plain text followed by the reference number
+            message_text = (
+                message_text[:start]
+                + message_text[start:end]
+                + f" [{link_count}]"
+                + message_text[end:]
+            )
 
     # Append the links at the end of the message
     if links and not strip_off_links:
-        message_text += "\n\n**Links**\n" + "\n".join(links)
+        message_text += "\n\nLinks:"
+        for link_number, link_text, link in links:
+            message_text += f"\n[{link_number}] {link_text}: {link}"  # Each link on a new line for Discord to parse as embeds
 
     return message_text
+
+
+def apply_markdown(
+    text: str, start: int, end: int, delimiters: Tuple[str, str]
+) -> Tuple[str, int]:
+    """Applies markdown delimiters to a portion of the text.
+
+    Args:
+        text: The text to modify.
+        start: The start index where to apply the markdown.
+        end: The end index where to apply the markdown.
+        delimiters: A tuple with the opening and closing delimiters.
+
+    Returns:
+        A tuple with the modified text and the offset correction.
+    """
+    opening_delimiter, closing_delimiter = delimiters
+    return (
+        text[:start]
+        + opening_delimiter
+        + text[start:end]
+        + closing_delimiter
+        + text[end:],
+        len(opening_delimiter) + len(closing_delimiter),
+    )

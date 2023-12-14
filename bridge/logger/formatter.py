@@ -1,4 +1,4 @@
-"""Logger formatters."""""
+"""Logger formatters.""" ""
 import logging
 import sys
 from copy import copy
@@ -49,6 +49,7 @@ class ColourizedFormatter(logging.Formatter):
 
     def color_level_name(self, level_name: str, level_no: int) -> str:
         """Colorize the level name."""
+
         def default(level_name: str) -> str:
             return str(level_name)  # pragma: no cover
 
@@ -91,5 +92,6 @@ class ColourizedFormatter(logging.Formatter):
 
 class DefaultFormatter(ColourizedFormatter):
     """The default formatter for the logger."""
+
     def should_use_colors(self) -> bool:
         return sys.stderr.isatty()  # pragma: no cover

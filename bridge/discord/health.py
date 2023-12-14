@@ -7,10 +7,12 @@ import discord
 from bridge.config import Config
 from bridge.logger import Logger
 
-logger = Logger.get_logger(Config.get_config_instance().app.name)
+logger = Logger.get_logger(Config.get_instance().application.name)
+
 
 class DiscordClientHealth:
     """A simple class to keep context for the client handler function"""
+
     _instance = None
 
     def __new__(cls, *args):  # pylint: disable=unused-argument
@@ -19,12 +21,18 @@ class DiscordClientHealth:
         return cls._instance
 
     @staticmethod
-    def report_status(client: discord.Client, bot_max_latency: float) -> Tuple[str, bool]:
+    def report_status(
+        client: discord.Client, bot_max_latency: float
+    ) -> Tuple[str, bool]:
         """Report the health status of a Discord Client"""
         status: str = "Discord Client is healthy and connected"
 
         if client.latency > bot_max_latency:
-            logger.debug("Discord Client's latency: %s - Expected: %s", client.latency, bot_max_latency)
+            logger.debug(
+                "Discord Client's latency: %s - Expected: %s",
+                client.latency,
+                bot_max_latency,
+            )
             status = "Discord Client's latency is too high"
             return status, False
 
