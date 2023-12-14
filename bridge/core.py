@@ -81,7 +81,8 @@ class Bridge:
                     continue
 
                 for forwarder in config.telegram_forwarders:
-                    if forwarder.tg_channel_id in {dialog.name, dialog.entity.id}:  # type: ignore
+                    # type: ignore
+                    if forwarder.tg_channel_id in {dialog.name, dialog.entity.id}:
                         self.input_channels_entities.append(
                             InputChannel(dialog.entity.id, dialog.entity.access_hash)
                         )  # type: ignore
@@ -124,7 +125,9 @@ class Bridge:
             )
             logger.info("Subscribed to Telegram delete events")
 
-    async def _handle_new_message(self, event):  # pylint: disable=too-many-locals
+    async def _handle_new_message(
+        self, event
+    ):  # pylint: disable=too-many-locals # pylint: disable=too-many-statements # pylint: disable=too-many-branches
         """Handle the processing of a new Telegram message."""
         logger.debug("processing Telegram message: %s", event)
 
@@ -197,7 +200,9 @@ class Bridge:
             if not should_forward_message:
                 continue
 
-            discord_channel = self.discord_client.get_channel(forwarder.discord_channel_id)  # type: ignore
+            discord_channel = self.discord_client.get_channel(
+                forwarder.discord_channel_id
+            )  # type: ignore
             server_roles = discord_channel.guild.roles  # type: ignore
 
             mention_roles = self.discord_handler.get_mention_roles(
@@ -321,7 +326,10 @@ class Bridge:
             logger.debug("Discord channel: %s", discord_channel)
 
             try:
-                discord_message = await discord_channel.fetch_message(discord_message_id)  # type: ignore
+                # type: ignore
+                discord_message = await discord_channel.fetch_message(
+                    discord_message_id
+                )
 
                 if discord_message is None:
                     logger.error("Discord message not found, skipping...")
@@ -388,7 +396,10 @@ class Bridge:
                     return
 
                 try:
-                    discord_message = await discord_channel.fetch_message(discord_message_id)  # type: ignore
+                    # type: ignore
+                    discord_message = await discord_channel.fetch_message(
+                        discord_message_id
+                    )
                 except discord.errors.NotFound:
                     logger.debug("Discord message %s not found", discord_message_id)
                     return
