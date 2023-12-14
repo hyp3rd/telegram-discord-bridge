@@ -23,7 +23,7 @@ __command_exists() {
 #   None
 #######################################
 build() {
-  if __command_exists uvicorn; then
+  if __command_exists docker; then
     docker build -t ghcr.io/hyp3rd/bridge:"$(git describe --tags)" .
 
     docker push ghcr.io/hyp3rd/bridge:"$(git describe --tags)"
