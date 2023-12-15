@@ -13,7 +13,8 @@ repos:
         language: system
         entry: ./bump-version.bash
         types: [python]
-        modify_output: true
+        stages:
+          - "pre-commit"
 
   - repo: local
     hooks:
