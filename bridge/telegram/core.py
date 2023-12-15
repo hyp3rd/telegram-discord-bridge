@@ -5,10 +5,12 @@ import os
 from asyncio.events import AbstractEventLoop
 
 from telethon import TelegramClient
-from telethon.errors.rpcerrorlist import (FloodWaitError,
-                                          PhoneCodeInvalidError,
-                                          SessionPasswordNeededError,
-                                          SessionRevokedError)
+from telethon.errors.rpcerrorlist import (
+    FloodWaitError,
+    PhoneCodeInvalidError,
+    SessionPasswordNeededError,
+    SessionRevokedError,
+)
 
 from bridge.config import Config
 from bridge.events import EventDispatcher
@@ -207,7 +209,8 @@ class TelegramHandler(metaclass=SingletonMeta):
                     json.dump(auth_data, auth_file)
             raise
 
-        # os.remove(config.telegram.auth_file)
+        if os.path.isfile(config.api.telegram_auth_file):
+            os.remove(config.api.telegram_auth_file)
 
         bot_identity = await telegram_client.get_me(input_peer=False)
         logger.info(
