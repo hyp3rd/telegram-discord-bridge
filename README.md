@@ -1,10 +1,11 @@
 # Telegram - Discord Bridge
 
 [![Pylint](https://github.com/hyp3rd/telegram-discord-bridge/actions/workflows/pylint.yml/badge.svg)][pylint_badge]
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-A `Python` bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not? It is highly customizable and allows you to configure various settings, such as forwarding messages with specific hashtags, mentioning roles or users in Discord, and more.
+A `Python` bridge to forward messages from any Telegram **channel** to your **Discord** server, because why not? It is highly customizable and allows you to configure various settings, such as forwarding messages with specific hashtags, mentioning roles or users in Discord, and more.
 
-## Cunning Features
+## Features
 
 - Relocate messages from a multitude of Telegram channels
 - Shove forwarded messages into a designated Discord channel
@@ -41,7 +42,7 @@ Now craft a new `config.yml` file in the root directory, starting from the `conf
 # Basic application configuration
 application:
   name: "hyp3rbridg3"
-  version: "1.1.9"
+  version: "1.2.0"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
@@ -84,6 +85,10 @@ telegram:
   api_hash: "<your api hash>"
   # Whether to log the conversations that aren't available for forwarding (private chats, etc.)
   log_unhandled_dialogs: False
+  # Subscribe to EditMessage events to update the message on Discord
+  subscribe_to_edit_events: True
+  # Subscribe to DeleteMessage events to delete the message on Discord
+  subscribe_to_delete_events: True
 
 # Discord configuration
 discord:
@@ -166,7 +171,7 @@ In addition to text messages, the bridge can forward media files such as photos,
 You can run the bridge in a Docker container. The Docker image is available on [GitHub Packages](https://github.com/hyp3rd/telegram-discord-bridge/pkgs/container/bridge).
 
 ```bash
-docker run -p:8000:8000 -v $(pwd)/config.yml:/app/config.yml:ro -it ghcr.io/hyp3rd/bridge:v1.1.10
+docker run -p:8000:8000 -v $(pwd)/config.yml:/app/config.yml:ro -it ghcr.io/hyp3rd/bridge:"v1.2.1"
 ```
 
 ### Limitations
@@ -181,9 +186,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 This project is a masked vigilante inspired by the base idea of [Telegram-To-Discord-Forward-Bot](https://github.com/kkapuria3/Telegram-To-Discord-Forward-Bot) by [kkapuria3](https://github.com/kkapuria3/).
 
+## DISCLAIMER
+
+This project is not affiliated with Telegram or Discord. It is an open-source project developed by a single person in their spare time. It is provided as-is, with no warranty whatsoever.
+**Use it at your own risk.**
+
 ## Author
 
-I'm a surfer, a crypto trader, and a software architect with 15 years of experience designing highly available distributed production environments and developing cloud-native apps in public and private clouds. Just your average bloke. Feel free to connect with me on LinkedIn, but no funny business, alright?
+I'm a surfer, a crypto trader, and a software architect with 15 years of experience designing highly available distributed production environments and developing cloud-native apps in public and private clouds. Just your average bloke. Feel free to connect with me on LinkedIn, but no funny business.
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/francesco-cosentino/)
 

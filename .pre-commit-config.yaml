@@ -6,14 +6,24 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
-  # - repo: local
-  #   hooks:
-  #     - id: pylint
-  #       name: pylint
-  #       entry: pylint
-  #       language: system
-  #       types: [python]
-  #       require_serial: true
+  - repo: local
+    hooks:
+      - id: bump-version
+        name: bump the version
+        language: system
+        entry: ./tools/bump-version.bash
+        types: [python]
+        stages:
+          - "pre-commit"
+
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        require_serial: true
 
   - repo: https://github.com/psf/black
     rev: 23.3.0

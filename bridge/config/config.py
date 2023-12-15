@@ -4,8 +4,10 @@ import os
 from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel  # pylint: disable=import-error
-from pydantic import SecretStr, StrictInt, model_validator, validator
+
+# from pydantic import RootModel  # pylint: disable=import-error
+from pydantic import SecretStr  # pylint: disable=import-error
+from pydantic import BaseModel, StrictInt, model_validator, validator
 
 _instances: Dict[str, "Config"] = {}
 _file_path = os.path.join(
@@ -224,7 +226,6 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Telegram config."""
 
     phone: str
-    # password: str
     password: SecretStr
     api_id: StrictInt
     api_hash: str
@@ -385,6 +386,12 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
     openai: OpenAIConfig
     telegram_forwarders: List[ForwarderConfig]
 
+    # def __getattr__(self, item):
+    #     try:
+    #         return self[item]
+    #     except KeyError:
+    #         raise AttributeError(f"{item} not found in ConfigYAMLSchema")
+
     @model_validator(mode="before")
     def forwarder_validator(cls, values):
         """Validate forwarder combinations to avoid duplicates."""
@@ -401,13 +408,15 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
 
     @model_validator(mode="after")
     def shared_forward_hashtags_validator(cls, values):
-        """Ensure that hashtags are not shared between forwarders with the same telegram_id chaannel."""
+        """Ensure that hashtags are not shared between forwarders with the same telegram_id channel."""
         tg_channel_hashtags = {}
-        for forwarder in values.get("telegram_forwarders"):
-            tg_channel_id = forwarder["tg_channel_id"]
+
+        # Access telegram_forwarders using dot notation
+        for forwarder in values.telegram_forwarders:
+            tg_channel_id = forwarder.tg_channel_id
             forward_hashtags = (
-                {tag["name"].lower() for tag in forwarder["forward_hashtags"]}
-                if forwarder["forward_hashtags"]
+                {tag["name"].lower() for tag in forwarder.forward_hashtags}
+                if forwarder.forward_hashtags
                 else set()
             )
 
