@@ -9,4 +9,4 @@ bump_version() {
     git describe --tags --abbrev=0 | awk -F. -v OFS=. '{$NF = $NF + 1;} 1' | sed 's/ /./g' | xargs -I {} sed -i '' 's/__version__ = .*/__version__ = "'{}'"/' bridge/release.py
 }
 
-bump_version
+bump_version && git add bridge/release.py
