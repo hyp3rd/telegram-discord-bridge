@@ -16,7 +16,7 @@ bump_version() {
     sed -i '' 's/__version__ = .*/__version__ = "'"$new_version"'"/' bridge/release.py
 
     # Replace the version number in README.md with the new version number
-    sed -i '' 's/ghcr.io\/hyp3rd\/bridge:.*/ghcr.io\/hyp3rd\/bridge:"'"$new_version"'"/' README.md
+    sed -i '' 's/ghcr.io\/hyp3rd\/bridge:.*/ghcr.io\/hyp3rd\/bridge:'"$new_version"'/' README.md
 }
 
 bump_version && git add bridge/release.py README.md
