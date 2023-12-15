@@ -1,10 +1,10 @@
 repos:
-  # - repo: https://github.com/pre-commit/pre-commit-hooks
-  #   rev: v2.3.0
-  #   hooks:
-  #     - id: check-yaml
-  #     - id: end-of-file-fixer
-  #     - id: trailing-whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
 
   - repo: local
     hooks:
@@ -15,17 +15,17 @@ repos:
         types: [python]
         modify_output: true
 
-  # - repo: local
-  #   hooks:
-  #     - id: pylint
-  #       name: pylint
-  #       entry: pylint
-  #       language: system
-  #       types: [python]
-  #       require_serial: true
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        require_serial: true
 
-  # - repo: https://github.com/psf/black
-  #   rev: 23.3.0
-  #   hooks:
-  #     - id: black
-  #       language_version: python3.10.2
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        language_version: python3.10.2
