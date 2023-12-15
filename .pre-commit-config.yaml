@@ -11,7 +11,7 @@ repos:
       - id: bump-version
         name: bump the version
         language: system
-        entry: ./bump-version.bash
+        entry: ./tools/bump-version.bash
         types: [python]
         stages:
           - "pre-commit"
