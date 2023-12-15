@@ -2,7 +2,7 @@
 # Basic application configuration
 application:
   name: "hyp3rbridg3"
-  version: "1.2.1"
+  version: "1.0.0"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
