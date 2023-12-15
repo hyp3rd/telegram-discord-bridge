@@ -226,7 +226,6 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Telegram config."""
 
     phone: str
-    # password: str
     password: SecretStr
     api_id: StrictInt
     api_hash: str
@@ -431,7 +430,7 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
                         )
                         if shared_hashtags:
                             raise ValueError(
-                                f"Shared hashtags {shared_hashtags} found for forwarders with tg_channel_id {tg_channel_id}. The same message will be forwarded multiple times."
+                                f"Shared hashtags {shared_hashtags} found for forwarders with tg_channel_id {tg_channel_id}. The same message will be forwarded multiple times."  # pylint: disable=line-too-long
                             )
 
                     tg_channel_hashtags[tg_channel_id].append(forward_hashtags)
@@ -497,8 +496,8 @@ class Config(BaseModel):
             api=self.api,
         )
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    # def __init__(self, **data):
+    #     super().__init__(**data)
 
     @classmethod
     def load_instance(cls, yaml_file: str) -> "Config":

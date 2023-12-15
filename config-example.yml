@@ -2,7 +2,7 @@
 # Basic application configuration
 application:
   name: "hyp3rbridg3"
-  version: "1.1.9"
+  version: "1.2.1"
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
@@ -44,7 +44,11 @@ telegram:
   # Long 32 characters hash identifier. Read more [here](https://core.telegram.org/api/obtaining_api_id) | With quotes
   api_hash: "<your api hash>"
   # Whether to log the conversations that aren't available for forwarding (private chats, etc.)
-  log_unhandled_conversations: False
+  log_unhandled_conversations: True
+  # Subscribe to EditMessage events to update the message on Discord
+  subscribe_to_edit_events: True
+  # Subscribe to DeleteMessage events to delete the message on Discord
+  subscribe_to_delete_events: True
 
 # Discord configuration
 discord:
