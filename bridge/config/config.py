@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 import yaml
 
 # from pydantic import RootModel  # pylint: disable=import-error
-from pydantic import SecretStr  # pylint: disable=import-error
+# from pydantic import SecretStr  # pylint: disable=import-error
 from pydantic import BaseModel, StrictInt, model_validator, validator
 
 _instances: Dict[str, "Config"] = {}
@@ -226,7 +226,7 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Telegram config."""
 
     phone: str
-    password: SecretStr
+    password: str
     api_id: StrictInt
     api_hash: str
     log_unhandled_dialogs: bool = False
@@ -237,9 +237,9 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     class Config:
         """Telegram config."""
 
-        json_encoders = {
-            SecretStr: lambda val: val.get_secret_value(),
-        }
+        # json_encoders = {
+        #     SecretStr: lambda val: val.get_secret_value(),
+        # }
 
     @validator("api_hash")
     def api_hash_alphanumeric(cls, val):
