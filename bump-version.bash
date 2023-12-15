@@ -10,3 +10,10 @@ bump_version() {
 }
 
 bump_version && git add bridge/release.py
+
+
+readme() {
+    git describe --tags --abbrev=0 | awk -F. -v OFS=. '{$NF = $NF + 1;} 1' | sed 's/ /./g' | xargs -I {} sed -i '' 's/ghcr.io/hyp3rd/bridge:.*/ghcr.io/hyp3rd/bridge:"'{}'"/' README.md
+}
+
+readme && git add README.md
