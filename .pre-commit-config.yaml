@@ -8,6 +8,15 @@ repos:
 
   - repo: local
     hooks:
+      - id: bump-version
+        name: bump the version
+        language: system
+        entry: ./bump-version.bash
+        types: [python]
+        modify_output: true
+
+  - repo: local
+    hooks:
       - id: pylint
         name: pylint
         entry: pylint

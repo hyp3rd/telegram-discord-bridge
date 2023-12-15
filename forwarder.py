@@ -20,6 +20,7 @@ from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
 from bridge.healtcheck import HealthHandler
 from bridge.logger import Logger
+from bridge.release import __version__
 from bridge.telegram import TelegramHandler
 from core import SingletonMeta
 
@@ -576,6 +577,9 @@ if __name__ == "__main__":
     parser.add_argument("--start", action="store_true", help="Start the bridge.")
 
     parser.add_argument("--stop", action="store_false", help="Stop the bridge.")
+    parser.add_argument(
+        "--version", action="store_true", help="Output The Bridghe Version."
+    )
 
     parser.add_argument(
         "--background",
@@ -588,6 +592,11 @@ if __name__ == "__main__":
     __start: bool = cmd_args.start
     __stop: bool = cmd_args.stop
     __background: bool = cmd_args.background
+    __version: bool = cmd_args.version
+
+    if __version:
+        print(__version__)
+        sys.exit(0)
 
     if __background:
         daemonize_process()
