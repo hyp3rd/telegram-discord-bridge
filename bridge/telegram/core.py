@@ -64,7 +64,7 @@ class TelegramHandler(metaclass=SingletonMeta):
         if telegram_password is not None:
             return telegram_password
         if not config.api.telegram_login_enabled:
-            return config.telegram.password.get_secret_value()
+            return config.telegram.password
 
         telegram_password = await self._get_creds_from_file("password")
         return str(telegram_password)
