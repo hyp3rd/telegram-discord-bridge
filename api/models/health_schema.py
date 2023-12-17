@@ -1,10 +1,12 @@
 """Health Schema.""" ""
 
-from typing import Dict
 from multiprocessing.managers import BaseManager
+from typing import Dict
+
 from pydantic import BaseModel
-from bridge.enums import ProcessStateEnum
+
 from bridge.config import Config
+from bridge.enums import ProcessStateEnum
 from bridge.logger import Logger
 
 logger = Logger.get_logger(Config.get_instance().application.name)
@@ -71,5 +73,5 @@ class HealthHistory:
         return self.health_history
 
 
-class HealtHistoryManager(BaseManager):
+class HealthHistoryManager(BaseManager):
     """Health History Manager."""

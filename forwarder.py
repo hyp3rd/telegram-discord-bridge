@@ -33,6 +33,18 @@ OperationStatus: TypeAlias = Tuple[ProcessStateEnum, str]
 
 config = Config.get_instance()
 
+# A list of tasks that should be cancelled on shutdown fron API
+forwarder_tasks = [
+    "forwarder_task",
+    "shutdown_task",
+    "on_shutdown_task",
+    "bridge_start_task",
+    "telegram_wait_task",
+    "discord_wait_task",
+    "api_healthcheck_task",
+    "on_restored_connectivity_task",
+]
+
 
 class Forwarder(metaclass=SingletonMeta):
     """The forwarder class."""
@@ -86,7 +98,7 @@ class Forwarder(metaclass=SingletonMeta):
 
     async def api_controller(self, start_forwarding: bool = True) -> OperationStatus:
         """Run the forwarder from the API controller."""
-        self.logger.debug("Starting the API controller.")
+        self.logger.debug("API controller invoked.")
 
         if not config.api.enabled:
             self.logger.error(ERR_API_DISABLED)
@@ -190,9 +202,6 @@ class Forwarder(metaclass=SingletonMeta):
                     and not discord_client.is_ready()
                 ):
                     clients = ()
-                else:
-                    await self.on_shutdown()
-                    clients = ()
 
     def __start(self):
         """Start the bridge."""
@@ -217,7 +226,9 @@ class Forwarder(metaclass=SingletonMeta):
         _ = self.create_pid_file()
 
         # Create a task for the __forwarder coroutine.
-        __forwarder_task = self.event_loop.create_task(self.__forwarder_task())
+        __forwarder_task = self.event_loop.create_task(
+            self.__forwarder_task(), name="forwarder_task"
+        )
 
         try:
             if self.event_loop.is_running():
@@ -263,7 +274,9 @@ class Forwarder(metaclass=SingletonMeta):
             return
 
         try:
+            self.logger.info("Stopping the %s...", config.application.name)
             os.kill(pid, signal.SIGINT)
+
             self.logger.warning(
                 "Sent SIGINT to the %s process with PID %s.",
                 config.application.name,
@@ -398,12 +411,18 @@ class Forwarder(metaclass=SingletonMeta):
         if os.name != "nt" and not config.api.enabled:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 event_loop.add_signal_handler(
-                    sig, lambda sig=sig: asyncio.create_task(self.shutdown(sig))
+                    sig,
+                    lambda sig=sig: asyncio.create_task(
+                        self.shutdown(sig), name="shutdown_task"
+                    ),
                 )  # type: ignore
         if config.api.enabled:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 event_loop.add_signal_handler(
-                    sig, lambda: asyncio.create_task(self.on_shutdown())
+                    sig,
+                    lambda: asyncio.create_task(
+                        self.api_shutdown(), name="on_shutdown_task"
+                    ),
                 )
 
         try:
@@ -411,20 +430,23 @@ class Forwarder(metaclass=SingletonMeta):
             await lock.acquire()
             bridge = Bridge(self.telegram_client, self.discord_client)
             # Create tasks for starting the main logic and waiting for clients to disconnect
-            start_task = event_loop.create_task(bridge.start())
+            start_task = event_loop.create_task(
+                bridge.start(), name="bridge_start_task"
+            )
             telegram_wait_task = event_loop.create_task(
-                self.telegram_client.run_until_disconnected()  # type: ignore
+                self.telegram_client.run_until_disconnected(), name="telegram_wait_task"  # type: ignore
             )
             discord_wait_task = event_loop.create_task(
-                self.discord_client.wait_until_ready()
+                self.discord_client.wait_until_ready(), name="discord_wait_task"
             )
             api_healthcheck_task = event_loop.create_task(
                 HealthHandler(
                     self.dispatcher, self.telegram_client, self.discord_client
-                ).check(config.application.healthcheck_interval)
+                ).check(config.application.healthcheck_interval),
+                name="api_healthcheck_task",
             )
             on_restored_connectivity_task = event_loop.create_task(
-                bridge.on_restored_connectivity()
+                bridge.on_restored_connectivity(), name="on_restored_connectivity_task"
             )
             lock.release()
 
@@ -445,16 +467,14 @@ class Forwarder(metaclass=SingletonMeta):
                 ex,
                 exc_info=config.application.debug,
             )
-        finally:
-            await self.on_shutdown()
 
         return self.telegram_client, self.discord_client
 
-    async def on_shutdown(self):
+    async def api_shutdown(self):
         """Shutdown the bridge."""
         self.logger.info("Starting shutdown process...")
         task = asyncio.current_task()
-        all_tasks = asyncio.all_tasks()
+        all_tasks = asyncio.all_tasks(self.event_loop)
 
         try:
             self.logger.info("Disconnecting Telegram client...")
@@ -484,26 +504,26 @@ class Forwarder(metaclass=SingletonMeta):
                 and not running_task.done()
                 and not running_task.cancelled()
             ):
-                if task is not None:
-                    self.logger.debug("Cancelling task %s...", {running_task})
+                if (
+                    running_task is not None
+                    and running_task.get_name() in forwarder_tasks
+                ):
+                    self.logger.debug(
+                        "Cancelling task %s...", {running_task.get_name()}
+                    )
                     try:
-                        task.cancel()
+                        running_task.cancel()
                     except Exception as ex:  # pylint: disable=broad-except
                         self.logger.error(
                             "Error cancelling task %s: %s", {running_task}, {ex}
                         )
 
-        if not config.api.enabled:
-            self.logger.debug("Stopping event loop...")
-            asyncio.get_running_loop().stop()
-        else:
-            self.remove_pid_file()
-
+        self.remove_pid_file()
         self.logger.info("Shutdown process completed.")
 
     async def shutdown(self, sig):
         """Shutdown the application gracefully."""
-        self.logger.warning("shutdown received signal %s, shutting down...", {sig})
+        self.logger.warning("Shutdown received signal %s, shutting down...", {sig})
 
         # Cancel all tasks
         tasks = [
@@ -525,10 +545,10 @@ class Forwarder(metaclass=SingletonMeta):
             if isinstance(result, Exception):
                 self.logger.error("Error during shutdown: %s", result)
 
-        if not config.api.enabled:
-            # Stop the loop
-            if self.event_loop is not None:
-                self.event_loop.stop()
+        # if not config.api.enabled:
+        # Stop the loop
+        if self.event_loop is not None:
+            self.event_loop.stop()
 
         self.remove_pid_file()
 

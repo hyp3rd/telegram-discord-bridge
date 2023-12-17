@@ -9,7 +9,7 @@ from api.models import (
     BridgeResponseSchema,
     Health,
     HealthHistory,
-    HealtHistoryManager,
+    HealthHistoryManager,
     HealthSchema,
 )
 from api.routers.health import HealthcheckSubscriber, WSConnectionManager
@@ -37,9 +37,9 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
         self.telegram_handler: TelegramHandler
 
         self.dispatcher: EventDispatcher
-        HealtHistoryManager.register("HealthHistory", HealthHistory)
+        HealthHistoryManager.register("HealthHistory", HealthHistory)
 
-        self.health_history_manager_instance = HealtHistoryManager()
+        self.health_history_manager_instance = HealthHistoryManager()
         self.health_history_manager_instance.start()  # pylint: disable=consider-using-with # the server must stay alive as long as we want the shared object to be accessible
         self.health_history: HealthHistory = self.health_history_manager_instance.HealthHistory()  # type: ignore # pylint: disable=no-member
 
@@ -84,34 +84,6 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
         process_state, pid = self.forwarder.determine_process_state()
 
         try:
-            # if the pid file is empty and the process is None,
-            # # then start the bridge
-            # if pid == 0 and self.bridge_process is not ProcessStateEnum.RUNNING:
-            #     # create a shared list of subscribers
-            #     manager = Manager()
-            #     # create a list of subscribers to pass to the event dispatcher and the healthcheck subscriber
-            #     healthcheck_subscribers: ListProxy[HealthcheckSubscriber] = manager.list()
-
-            #     self.ws_connection_manager = WSConnectionManager(self.health_history)
-
-            #     # create the event dispatcher
-            #     self.dispatcher = EventDispatcher(subscribers=healthcheck_subscribers)
-            #     self.healthcheck_subscriber = HealthcheckSubscriber('healthcheck_subscriber',
-            #                                                    self.dispatcher,
-            #                                                    self.health_history,
-            #                                                    self.ws_connection_manager,
-            #                                                    self.websocket_queue)
-            #     self.dispatcher.add_subscriber("healthcheck", self.healthcheck_subscriber)
-
-            #     self.on_update = self.healthcheck_subscriber.create_on_update_decorator()
-
-            #     self.bridge_process = Process(
-            #         target=controller, args=(self.dispatcher, True, False, False,))
-
-            #     # start the bridge process
-            #     self.bridge_process.start()
-            #     # self.bridge_process.join()
-
             if pid == 0 or process_state not in [
                 ProcessStateEnum.RUNNING,
                 ProcessStateEnum.STARTING,
@@ -216,9 +188,19 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
         if process_state == ProcessStateEnum.RUNNING and pid > 0:
             try:
                 # await run_controller(dispatcher=self.dispatcher, boot=False, background=False, stop=True)
-                await self.forwarder.api_controller(start_forwarding=False)
+                # await self.forwarder.api_controller(start_forwarding=False)
                 self.health_history_manager_instance.shutdown()
-                self.dispatcher.stop()
+                # self.healthcheck_subscriber.unsubscribe(
+                #     "healthcheck", self.healthcheck_subscriber
+                # )
+                # self.healthcheck_subscriber.subscribers = []
+                # self.healthcheck_subscriber = None
+                self.dispatcher.remove_subscriber(
+                    "healthcheck", self.healthcheck_subscriber
+                )
+                # self.dispatcher = None
+                await self.forwarder.api_controller(start_forwarding=False)
+
             except asyncio.exceptions.CancelledError:
                 logger.info("Bridge process stopped.")
             except Exception as ex:  # pylint: disable=broad-except
