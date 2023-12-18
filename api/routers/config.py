@@ -73,6 +73,7 @@ class ConfigRouter:
             debug=config.application.debug,
             healthcheck_interval=config.application.healthcheck_interval,
             recoverer_delay=config.application.recoverer_delay,
+            anti_spam_enabled=config.application.anti_spam_enabled,
         )
 
         api_config = APIConfig(

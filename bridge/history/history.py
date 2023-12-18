@@ -6,6 +6,7 @@ from typing import Any, List, Optional
 
 import aiofiles
 from telethon import TelegramClient
+from telethon.tl.types import Message
 
 from bridge.config import Config
 from bridge.logger import Logger
@@ -176,3 +177,23 @@ class MessageHistoryHandler:
             logger.debug("Fetched message: %s", message.id)
             messages.append(message)
         return messages
+
+    async def is_duplicate_message(
+        self, telegram_message: Message, channel_id: int, tgc: TelegramClient
+    ) -> bool:
+        """Detect if a message with the same text was already sent based in the past 30 seconds."""
+        logger.info("Checking if message is duplicate")
+        async for message in tgc.iter_messages(channel_id, limit=10, reverse=False):
+            logger.debug("Checking message: %s", message.id)
+            logger.debug("Message text: %s", message.text)
+            logger.debug("Current message text: %s", telegram_message.text)
+            if (
+                message.text == telegram_message.text
+                and message.id != telegram_message.id
+            ):
+                if message.date.timestamp() > (asyncio.get_event_loop().time() - 30):
+                    logger.debug("Message is duplicate")
+                    return True
+                break
+        logger.debug("Message is not duplicate")
+        return False

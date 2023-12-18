@@ -134,6 +134,9 @@ class Forwarder(metaclass=SingletonMeta):
             self.logger.info("Version: %s", config.application.version)
             self.logger.info("Description: %s", config.application.description)
             self.logger.info("Log level: %s", config.logger.level)
+            self.logger.info(
+                "Anti-Spam enabled: %s", config.application.anti_spam_enabled
+            )
             self.logger.info("Debug enabled: %s", config.application.debug)
             self.logger.info("API enabled: %s", config.api.enabled)
             self.logger.info(
@@ -256,10 +259,6 @@ class Forwarder(metaclass=SingletonMeta):
                 ex,
                 exc_info=config.application.debug,
             )
-        finally:
-            # Remove the PID file.
-            if not config.api.enabled:
-                self.remove_pid_file()
 
     def __stop(self):
         """Stop the bridge."""
