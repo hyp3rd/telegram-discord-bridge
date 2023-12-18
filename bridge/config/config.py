@@ -4,9 +4,6 @@ import os
 from typing import Dict, List, Optional
 
 import yaml
-
-# from pydantic import RootModel  # pylint: disable=import-error
-# from pydantic import SecretStr  # pylint: disable=import-error
 from pydantic import BaseModel, StrictInt, model_validator, validator
 
 _instances: Dict[str, "Config"] = {}
@@ -44,9 +41,6 @@ class ForwarderConfig(BaseModel):
         """Forwarder config."""
 
         str_max_length = 64
-        # error_msg_templates = {
-        #     "value_error.any_str.max_length": "max_length:{limit_value}",
-        # }
 
     @model_validator(mode="before")
     def forward_everything_validator(cls, values):
@@ -237,10 +231,6 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     class Config:
         """Telegram config."""
 
-        # json_encoders = {
-        #     SecretStr: lambda val: val.get_secret_value(),
-        # }
-
     @validator("api_hash")
     def api_hash_alphanumeric(cls, val):
         """API hash alphanumeric validator."""
@@ -301,6 +291,8 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     recoverer_delay: float = 60.0
     internet_connected: bool = False
     anti_spam_enabled: bool = False
+    anti_spam_similarity_timeframe: float = 60.0
+    anti_spam_similarity_threshold: float = 1.0
 
     @validator("version")
     def version_validator(cls, val):
@@ -335,6 +327,24 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
             assert val < 10, "recoverer_delay must be > 10"
         if val > 3600:
             assert val > 3600, "recoverer_delay must be < 3600"
+        return val
+
+    @validator("anti_spam_similarity_timeframe")
+    def anti_spam_similarity_timeframe_validator(cls, val):
+        """Anti-Spam similarity timeframe validator."""
+        if val < 10:
+            assert val < 10, "anti_spam_similarity_timeframe must be > 10"
+        if val > 3600:
+            assert val > 3600, "anti_spam_similarity_timeframe must be < 3600"
+        return val
+
+    @validator("anti_spam_similarity_threshold")
+    def anti_spam_similarity_threshold_validator(cls, val):
+        """Anti-Spam similarity threshold validator."""
+        if val < 0:
+            assert val < 0, "anti_spam_similarity_threshold must be > 0"
+        if val > 1:
+            assert val > 1, "anti_spam_similarity_threshold must be < 1"
         return val
 
 

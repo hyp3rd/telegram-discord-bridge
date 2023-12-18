@@ -54,6 +54,10 @@ application:
   recoverer_delay: 60
   # Enable the anti-spam feature
   anti_spam_enabled: True
+  # The time in seconds to wait before forwarding a message with the same content
+  anti_spam_similarity_timeframe: 60
+  # Anti spam similarity threshold (set 0 to 1, with 1 being identical)
+  anti_spam_similarity_threshold: 0.8
 
 # Management API configuration
 api:
