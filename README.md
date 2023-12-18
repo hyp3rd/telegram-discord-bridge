@@ -17,6 +17,8 @@ A `Python` bridge to forward messages from any Telegram **channel** to your **Di
 - **It supports OpenAI's API to generate suggestions and sentiment analyses based on the text you're forwarding.**
 - It can run as a daemon and handle any shutdown gracefully, including `SIGTERM` and `SIGINT` signals. It will also save the state of the bridge, so you can resume from where you left off
 - You can enable logging to the file system, which will handle the rotation for you.
+- You can enable the management API to control the bridge remotely, including the ability to log in to Telegram via MFA.
+- You can enable the anti-spam feature to prevent the bridge from forwarding the same message multiple times.
 
 ## Installation
 
@@ -50,6 +52,8 @@ application:
   healthcheck_interval: 10
   # The time in seconds to wait before forwarding each missed message
   recoverer_delay: 60
+  # Enable the anti-spam feature
+  anti_spam_enabled: True
 
 # Management API configuration
 api:
@@ -71,7 +75,8 @@ logger:
   # format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
   format: "%(asctime)s %(levelprefix)s %(message)s"
   date_format: "%Y-%m-%d %H:%M:%S"
-  console: False # set to true to enable console logging and disable file based logging
+  # Whether to log to console or not
+  console: True # set to true to enable console logging and disable file based logging
 
 # Telegram configuration
 telegram:
