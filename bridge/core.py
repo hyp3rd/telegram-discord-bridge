@@ -142,6 +142,16 @@ class Bridge:
 
         tg_channel_id = message.peer_id.channel_id  # type: ignore
 
+        if config.application.anti_spam_enabled:
+            # check for duplicate messages
+            if await self.history_manager.is_duplicate_message(
+                telegram_message=message,
+                channel_id=tg_channel_id,
+                tgc=self.telegram_client,
+            ):
+                logger.debug("Duplicate message found, skipping...")
+                return
+
         matching_forwarders: List[ForwarderConfig] = self.get_matching_forwarders(
             tg_channel_id
         )

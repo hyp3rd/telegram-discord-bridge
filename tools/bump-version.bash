@@ -19,4 +19,5 @@ bump_version() {
     sed -i '' 's/ghcr.io\/hyp3rd\/bridge:.*/ghcr.io\/hyp3rd\/bridge:'"$new_version"'/' README.md
 }
 
-bump_version && git add bridge/release.py README.md
+# bump_version && git add bridge/release.py README.md
+bump_version

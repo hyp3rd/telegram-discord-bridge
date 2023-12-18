@@ -300,6 +300,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     healthcheck_interval: int = 60
     recoverer_delay: float = 60.0
     internet_connected: bool = False
+    anti_spam_enabled: bool = False
 
     @validator("version")
     def version_validator(cls, val):
@@ -385,12 +386,6 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
     discord: DiscordConfig
     openai: OpenAIConfig
     telegram_forwarders: List[ForwarderConfig]
-
-    # def __getattr__(self, item):
-    #     try:
-    #         return self[item]
-    #     except KeyError:
-    #         raise AttributeError(f"{item} not found in ConfigYAMLSchema")
 
     @model_validator(mode="before")
     def forwarder_validator(cls, values):
