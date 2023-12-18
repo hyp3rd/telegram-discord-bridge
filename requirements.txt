@@ -11,3 +11,4 @@ uvicorn[standard]==0.24.0.post1
 ulid-py==1.1.0
 python-magic==0.4.27
 python-multipart==0.0.6
+levenshtein==0.23.0

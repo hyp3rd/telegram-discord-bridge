@@ -2,9 +2,11 @@
 
 import asyncio
 import json
+import time
 from typing import Any, List, Optional
 
 import aiofiles
+import Levenshtein
 from telethon import TelegramClient
 from telethon.tl.types import Message
 
@@ -181,19 +183,35 @@ class MessageHistoryHandler:
     async def is_duplicate_message(
         self, telegram_message: Message, channel_id: int, tgc: TelegramClient
     ) -> bool:
-        """Detect if a message with the same text was already sent based in the past 30 seconds."""
-        logger.info("Checking if message is duplicate")
+        """Detect if a message is similar to another message sent in the past 30 seconds."""
+        logger.info("Checking if message is similar to a previous message")
+        threshold = (
+            config.application.anti_spam_similarity_threshold  # Set a threshold for similarity (0 to 1, with 1 being identical)
+        )
+        current_unix_timestamp = time.time()
+
         async for message in tgc.iter_messages(channel_id, limit=10, reverse=False):
             logger.debug("Checking message: %s", message.id)
             logger.debug("Message text: %s", message.text)
             logger.debug("Current message text: %s", telegram_message.text)
-            if (
-                message.text == telegram_message.text
-                and message.id != telegram_message.id
-            ):
-                if message.date.timestamp() > (asyncio.get_event_loop().time() - 30):
-                    logger.debug("Message is duplicate")
+
+            if message.id != telegram_message.id:
+                similarity = 1 - Levenshtein.distance(
+                    message.text, telegram_message.text
+                ) / max(len(message.text), len(telegram_message.text))
+                logger.debug("Similarity: %f", similarity)
+
+                if (
+                    similarity > threshold
+                    and current_unix_timestamp - message.date.timestamp()
+                    <= config.application.anti_spam_similarity_timeframe
+                ):
+                    logger.warning(
+                        "Message with ID %s is similar to a message previously sent with ID %s",
+                        telegram_message.id,
+                        message.id,
+                    )
                     return True
                 break
-        logger.debug("Message is not duplicate")
+        logger.debug("Message is not similar to previous messages")
         return False

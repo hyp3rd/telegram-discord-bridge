@@ -74,6 +74,8 @@ class ConfigRouter:
             healthcheck_interval=config.application.healthcheck_interval,
             recoverer_delay=config.application.recoverer_delay,
             anti_spam_enabled=config.application.anti_spam_enabled,
+            anti_spam_similarity_timeframe=config.application.anti_spam_similarity_timeframe,
+            anti_spam_similarity_threshold=config.application.anti_spam_similarity_threshold,
         )
 
         api_config = APIConfig(
