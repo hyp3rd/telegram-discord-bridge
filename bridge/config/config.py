@@ -293,6 +293,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     anti_spam_enabled: bool = False
     anti_spam_similarity_timeframe: float = 60.0
     anti_spam_similarity_threshold: float = 1.0
+    anti_spam_contextual_analysis: bool = False
 
     @validator("version")
     def version_validator(cls, val):

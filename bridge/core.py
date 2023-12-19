@@ -144,7 +144,7 @@ class Bridge:
 
         if config.application.anti_spam_enabled:
             # check for duplicate messages
-            if await self.history_manager.is_duplicate_message(
+            if await self.history_manager.spam_filter(
                 telegram_message=message,
                 channel_id=tg_channel_id,
                 tgc=self.telegram_client,

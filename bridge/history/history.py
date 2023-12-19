@@ -11,6 +11,7 @@ from telethon import TelegramClient
 from telethon.tl.types import Message
 
 from bridge.config import Config
+from bridge.history.contextual_analysis import ContextualAnalysis
 from bridge.logger import Logger
 
 config = Config.get_instance()
@@ -180,7 +181,7 @@ class MessageHistoryHandler:
             messages.append(message)
         return messages
 
-    async def is_duplicate_message(
+    async def spam_filter(
         self, telegram_message: Message, channel_id: int, tgc: TelegramClient
     ) -> bool:
         """Detect if a message is similar to another message sent in the past 30 seconds."""
@@ -188,6 +189,7 @@ class MessageHistoryHandler:
         threshold = (
             config.application.anti_spam_similarity_threshold  # Set a threshold for similarity (0 to 1, with 1 being identical)
         )
+
         current_unix_timestamp = time.time()
 
         async for message in tgc.iter_messages(channel_id, limit=10, reverse=False):
@@ -211,7 +213,30 @@ class MessageHistoryHandler:
                         telegram_message.id,
                         message.id,
                     )
+
                     return True
-                break
-        logger.debug("Message is not similar to previous messages")
+
+        if config.application.anti_spam_contextual_analysis:
+            # If no duplicate found, optionally check for contextual relevance
+            contextual_analysis = ContextualAnalysis()
+            is_relevant = await contextual_analysis.is_relevant_message(
+                telegram_message, channel_id, tgc
+            )
+            if is_relevant:
+                logger.debug(
+                    "Message with ID %s is not a duplicate and is contextually relevant",
+                    telegram_message.id,
+                )
+                return False
+
+            logger.warning(
+                "Message with ID %s is neither a duplicate nor contextually relevant",
+                telegram_message.id,
+            )
+            return True
+
+        logger.debug(
+            "Message is not similar or contextually relevant to previous messages"
+        )
+
         return False
