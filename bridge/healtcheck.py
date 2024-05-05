@@ -62,7 +62,7 @@ class HealthHandler(metaclass=SingletonMeta):
             return False
         except OSError as ex:
             logger.error(
-                "Unable to reach the internetL %s",
+                "Unable to reach the internet: %s",
                 ex,
                 exc_info=config.application.debug,
             )
