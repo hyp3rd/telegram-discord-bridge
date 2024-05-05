@@ -76,6 +76,7 @@ class ConfigRouter:
             anti_spam_enabled=config.application.anti_spam_enabled,
             anti_spam_similarity_timeframe=config.application.anti_spam_similarity_timeframe,
             anti_spam_similarity_threshold=config.application.anti_spam_similarity_threshold,
+            anti_spam_contextual_analysis=config.application.anti_spam_contextual_analysis,
         )
 
         api_config = APIConfig(

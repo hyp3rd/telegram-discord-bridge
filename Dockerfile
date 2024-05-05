@@ -1,5 +1,5 @@
 # The Bridge - Telegram - Discord
-FROM docker.io/bitnami/python:3.11
+FROM docker.io/bitnami/python:3.12.3
 
 LABEL org.opencontainers.image.authors="F." \
     org.opencontainers.image.vendor="hyp3rd" \
