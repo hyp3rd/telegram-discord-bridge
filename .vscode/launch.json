@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "API",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": ["api.api:app", "--host", "0.0.0.0", "--port", "8000"],
+        },
+        {
+            "name": "Credentials",
+            "type": "bashdb",
+            "request": "launch",
+            "program": "${workspaceRoot}/tools/startup.sh",
+            "terminalKind": "integrated"
+        }
+    ],
+    "compounds": [
+        {
+          "name": "API/Creds",
+          "configurations": ["API", "Credentials"],
+          "stopAll": true
+        }
+    ]
+}

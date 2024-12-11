@@ -24,6 +24,11 @@ class ForwarderConfig(BaseModel):
     strip_off_links: bool = False
     mention_everyone: bool = False
     forward_everything: bool = True
+    send_embed: Optional[bool] = True
+    messagedb: Optional[bool] = False
+    embed_sidebar_color: Optional[str] = "0x1ABC9C"
+    embed_skip_color: Optional[str] = "#CCCC00"
+    embed_openai_color: Optional[str] = "#FF0000"
     forward_hashtags: Optional[List[dict]] = None
     excluded_hashtags: Optional[List[dict]] = None
     mention_override: Optional[List[dict]] = None
@@ -144,9 +149,13 @@ class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """OpenAI config."""
 
     enabled: bool = False
+    min_msg_len: int = 20
+    model: str = "gpt-4o-mini"
+    temperature: int = 0
+    filter: bool = False
     api_key: str
     organization: str
-    sentiment_analysis_prompt: List[str]
+    sentiment_analysis_prompt: List[dict]
     is_healthy: bool = True  # FIX: This is a hack to make the health check pass
 
     @model_validator(mode="before")
@@ -166,6 +175,8 @@ class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
                 raise ValueError("sentiment_analysis_prompt must not be empty")
         return values
 
+    # Removed validator since im using a different openai API
+    '''
     @validator("sentiment_analysis_prompt")
     def sentiment_analysis_prompt_validator(cls, val):
         """Sentiment analysis prompt validator."""
@@ -181,6 +192,7 @@ class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
                     "sentiment_analysis_prompt must contain #text_to_parse placeholder"
                 )
         return val
+    '''
 
 
 class DiscordConfig(BaseModel):  # pylint: disable=too-few-public-methods
@@ -294,6 +306,10 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     anti_spam_similarity_timeframe: float = 60.0
     anti_spam_similarity_threshold: float = 1.0
     anti_spam_contextual_analysis: bool = False
+    media_store_location: str = "media"
+    media_max_size_bytes: int = 1048576
+    media_max_size_photo: str = "https://www.safetysuppliesunlimited.net/wp-content/uploads/2020/06/ISO472AP.jpg"
+    messagedb_dir: str = "forward-history/forwards"
 
     @validator("version")
     def version_validator(cls, val):

@@ -1,5 +1,6 @@
 """Messages history handler"""
 
+import os
 import asyncio
 import json
 import time
@@ -68,6 +69,11 @@ class MessageHistoryHandler:
             mapping_data[forwarder_name] = {}
 
         mapping_data[forwarder_name][tg_message_id] = discord_message_id
+
+        # Rotate oldest entries if file is too large
+        if os.stat(MESSAGES_HISTORY_FILE).st_size >= config.logger.file_max_bytes:
+            mapping_data[forwarder_name].pop(next(iter(mapping_data[forwarder_name])))
+            logger.debug("Reached max size on %s, starting to rotate entries", MESSAGES_HISTORY_FILE)
         try:
             async with aiofiles.open(
                 MESSAGES_HISTORY_FILE, "w", encoding="utf-8"
@@ -198,6 +204,9 @@ class MessageHistoryHandler:
             logger.debug("Current message text: %s", telegram_message.text)
 
             if message.id != telegram_message.id:
+                # New channels can have previous messages that are None or when a meta message appears like a photo change for a channel
+                if message.text is None or (message.text == "" and telegram_message.text == "") :
+                    continue
                 similarity = 1 - Levenshtein.distance(
                     message.text, telegram_message.text
                 ) / max(len(message.text), len(telegram_message.text))

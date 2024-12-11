@@ -19,8 +19,10 @@ from telethon.tl.types import (
 
 from bridge.config import Config, ForwarderConfig
 from bridge.discord import DiscordHandler
+from bridge.discord.embed import DiscordeEmbedHandler
 from bridge.history import MessageHistoryHandler
 from bridge.logger import Logger
+from bridge.mediahandler import MediaHandler
 from bridge.openai.handler import OpenAIHandler
 from bridge.utils import telegram_entities_to_markdown
 
@@ -35,6 +37,7 @@ class Bridge:
         self.telegram_client = telegram_client
         self.discord_client = discord_client
         self.discord_handler = DiscordHandler()
+        self.discord_embed_handler = DiscordeEmbedHandler()
         self.history_manager = MessageHistoryHandler()
         self.input_channels_entities = []
 
@@ -142,16 +145,6 @@ class Bridge:
 
         tg_channel_id = message.peer_id.channel_id  # type: ignore
 
-        if config.application.anti_spam_enabled:
-            # check for duplicate messages
-            if await self.history_manager.spam_filter(
-                telegram_message=message,
-                channel_id=tg_channel_id,
-                tgc=self.telegram_client,
-            ):
-                logger.debug("Duplicate message found, skipping...")
-                return
-
         matching_forwarders: List[ForwarderConfig] = self.get_matching_forwarders(
             tg_channel_id
         )
@@ -164,7 +157,22 @@ class Bridge:
         logger.debug("Matching forwarders: %s", matching_forwarders)
 
         for forwarder in matching_forwarders:
+            embedcolor = forwarder.embed_sidebar_color
             logger.debug("Forwarder config: %s", forwarder)
+
+            if config.application.anti_spam_enabled:
+                # check for duplicate messages
+                if await self.history_manager.spam_filter(
+                    telegram_message=message,
+                    channel_id=tg_channel_id,
+                    tgc=self.telegram_client,
+                ):
+                    if forwarder.send_embed:
+                        embedcolor = forwarder.embed_skip_color
+                        logger.debug("Duplicate message found, MARKING...")
+                    else:
+                        logger.debug("Duplicate message found, SKIPPING...")
+                        return
 
             should_forward_message = forwarder.forward_everything
             mention_everyone = forwarder.mention_everyone
@@ -222,13 +230,19 @@ class Bridge:
                 server_roles,
             )
 
-            message_text = await self.process_message_text(
+            message_text, suggestion = await self.process_message_text(
                 message,
                 forwarder.strip_off_links,
                 mention_everyone,
                 mention_roles,
                 config.openai.enabled,
             )
+
+            if suggestion == "True" and config.openai.enabled:
+                if config.openai.filter:
+                    return
+                else:
+                    embedcolor = forwarder.embed_openai_color
 
             if message.reply_to and message.reply_to.reply_to_msg_id:
                 discord_reference = (
@@ -241,7 +255,10 @@ class Bridge:
             else:
                 discord_reference = None
 
-            if message.media:
+            if forwarder.send_embed:
+                sent_discord_messages = await DiscordeEmbedHandler.forward_embed(self.telegram_client, discord_channel, event, embedcolor, discord_reference)
+
+            elif event.message.media:
                 sent_discord_messages = await self.handle_message_media(
                     message, discord_channel, message_text, discord_reference
                 )
@@ -271,6 +288,10 @@ class Bridge:
                     message.id,
                     main_sent_discord_message.id,
                 )
+                MediaHandler.clean_old_media()
+                if forwarder.messagedb:
+                    await MediaHandler.append_message_to_file(os.path.join(config.application.messagedb_dir,forwarder.forwarder_name), sent_discord_messages)
+
             else:
                 await self.history_manager.save_missed_message(
                     forwarder.forwarder_name,
@@ -481,7 +502,8 @@ class Bridge:
 
         if openai_enabled:
             suggestions = await OpenAIHandler.analyze_message_sentiment(message.message)
-            message_text = f"{message_text}\n{suggestions}"
+        else:
+            suggestions = "False"
 
         if mention_everyone:
             message_text += "\n" + "@everyone"
@@ -490,7 +512,7 @@ class Bridge:
             mention_text = ", ".join(role for role in mention_roles)
             message_text = f"{mention_text}\n{message_text}"
 
-        return message_text
+        return message_text, suggestions
 
     async def process_media_message(
         self, message: Message, discord_channel, message_text, discord_reference
