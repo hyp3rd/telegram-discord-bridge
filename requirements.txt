@@ -12,4 +12,4 @@ ulid-py==1.1.0
 python-magic==0.4.27
 python-multipart==0.0.9
 Levenshtein==0.25.1
-nltk==3.8.1
+nltk==3.9
