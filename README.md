@@ -20,6 +20,19 @@ A `Python` bridge to forward messages from any Telegram **channel** to your **Di
 - You can enable the management API to control the bridge remotely, including the ability to log in to Telegram via MFA.
 - You can enable the anti-spam feature to prevent the bridge from forwarding the same message multiple times.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    TG[Telegram] -->|messages| BRIDGE
+    BRIDGE -->|forwards| DC[Discord]
+    BRIDGE --> API[Management API]
+    API --> CFG[Config]
+```
+
+The bridge listens to Telegram channels and relays content to Discord. A management API exposes runtime controls and interacts
+with the configuration layer.
+
 ## Installation
 
 First, you need to clone this repository:
@@ -176,17 +189,62 @@ Once the script gets going, it will eavesdrop on new messages in the specified T
 
 In addition to text messages, the bridge can forward media files such as photos, videos, and documents from Telegram to Discord. The bridge also handles replies to messages and embeds them as Discord replies, maintaining a mapping of forwarded messages for easier correspondence tracking between the two platforms.
 
-## Run it in Docker
+## Management API
 
-You can run the bridge in a Docker container. The Docker image is available on [GitHub Packages](https://github.com/hyp3rd/telegram-discord-bridge/pkgs/container/bridge).
+When `api.enabled` is set, the bridge exposes a FastAPI service on port `8000` for basic process control and configuration.
 
 ```bash
-docker run -p:8000:8000 -v $(pwd)/config.yml:/app/config.yml:ro -it ghcr.io/hyp3rd/bridge:v1.2.5
+# Check health
+curl http://localhost:8000/api/v1/bridge/health
+
+# Start or stop the bridge
+curl -X POST http://localhost:8000/api/v1/bridge/start
+curl -X POST http://localhost:8000/api/v1/bridge/stop
+
+# Fetch current configuration summary
+curl http://localhost:8000/
+```
+
+## Run it in Docker
+
+You can run the bridge in a Docker container. Pre-built images are published to [GitHub Packages](https://github.com/hyp3rd/telegram-discord-bridge/pkgs/container/bridge).
+
+```bash
+# pull the latest published image
+docker pull ghcr.io/hyp3rd/bridge:v1.2.5
+
+# run the bridge mounting your configuration
+docker run -p 8000:8000 -v $(pwd)/config.yml:/app/config.yml:ro ghcr.io/hyp3rd/bridge:v1.2.5
+```
+
+To build the image from source:
+
+```bash
+docker build -t ghcr.io/hyp3rd/bridge:v1.2.5 .
+```
+
+Or spin it up with Docker Compose:
+
+```bash
+docker compose up -d
 ```
 
 ### Limitations
 
 The bridge now ships with pluggable storage backends for message history. By default it keeps mappings in a local JSON file but you can switch to a SQLite database via configuration. JSON files are automatically rotated when they exceed the configured size, and log files honour the same rotation and optional compression settings.
+
+## Versioning and Release Notes
+
+This project adheres to [Semantic Versioning](https://semver.org). Release changes are documented in [CHANGELOG.md](CHANGELOG.md).
+Docker images are tagged with the same version number and published to GitHub's container registry.
+
+## Contributing
+
+Contributions are welcome! Read the [CONTRIBUTING](CONTRIBUTING.md) guidelines for details on setting up your environment and
+submitting pull requests. Feature requests can be filed through GitHub issues using the "enhancement" label.
+
+If you're new to the project, look for issues marked `good first issue` or `help wanted` in the tracker—they're perfect entry
+points for newcomers.
 
 ## License
 

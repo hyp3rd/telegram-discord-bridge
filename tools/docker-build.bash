@@ -26,8 +26,9 @@ build() {
   if __command_exists docker; then
     latest_version=$(git describe --tags --abbrev=0)
 
-    docker build -t ghcr.io/hyp3rd/bridge:"$latest_version" .
+    docker build -t ghcr.io/hyp3rd/bridge:"$latest_version" -t ghcr.io/hyp3rd/bridge:latest .
     docker push ghcr.io/hyp3rd/bridge:"$latest_version"
+    docker push ghcr.io/hyp3rd/bridge:latest
   else
     echo "docker is not installed or not running'"
   fi

@@ -17,6 +17,9 @@ bump_version() {
 
     # Replace the version number in README.md with the new version number
     sed -i '' 's/ghcr.io\/hyp3rd\/bridge:.*/ghcr.io\/hyp3rd\/bridge:'"$new_version"'/' README.md
+
+    # Replace the version number in docker-compose.yml with the new version number
+    sed -i '' 's/ghcr.io\/hyp3rd\/bridge:.*/ghcr.io\/hyp3rd\/bridge:'"$new_version"'/' docker-compose.yml
 }
 
 # bump_version && git add bridge/release.py README.md
