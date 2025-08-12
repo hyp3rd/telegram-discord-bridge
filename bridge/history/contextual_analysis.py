@@ -1,10 +1,5 @@
 """Contextual analysis of the anti-spam of the bridge."""
 
-import nltk
-from nltk import pos_tag
-from nltk.corpus import stopwords, wordnet
-from nltk.stem import WordNetLemmatizer
-from nltk.tokenize import RegexpTokenizer
 from telethon import TelegramClient
 from telethon.tl.types import Message
 
@@ -21,21 +16,30 @@ class ContextualAnalysis(metaclass=SingletonMeta):
     """Contextual analysis class."""
 
     def __init__(self):
-        """Initialize the class."""
+        """Initialize the class and lazily import NLTK resources."""
+        # pylint: disable=import-outside-toplevel
+        import nltk
+        from nltk import pos_tag
+        from nltk.corpus import stopwords, wordnet
+        from nltk.stem import WordNetLemmatizer
+        from nltk.tokenize import RegexpTokenizer
+
         nltk.download("punkt")
         nltk.download("stopwords")
         nltk.download("averaged_perceptron_tagger")
         nltk.download("wordnet")
 
+        self.pos_tag = pos_tag
         self.stop_words = set(stopwords.words("english"))
         self.tokenizer = RegexpTokenizer(r"\w+")
         self.lemmatizer = WordNetLemmatizer()
+        self.wordnet = wordnet
 
     def __extract_keywords(self, text):
         """Extract keywords from a text using advanced techniques."""
 
         word_tokens = self.tokenizer.tokenize(text)
-        pos_tags = pos_tag(word_tokens)
+        pos_tags = self.pos_tag(word_tokens)
 
         keywords = [
             self.lemmatizer.lemmatize(word, pos=self.__get_wordnet_pos(pos))
@@ -73,16 +77,15 @@ class ContextualAnalysis(metaclass=SingletonMeta):
             messages[i : i + window_size] for i in range(0, len(messages), window_size)
         ]
 
-    @staticmethod
-    def __get_wordnet_pos(treebank_tag):
+    def __get_wordnet_pos(self, treebank_tag):
         """Convert treebank POS tags to WordNet POS tags."""
         if treebank_tag.startswith("J"):
-            return wordnet.ADJ
+            return self.wordnet.ADJ
         if treebank_tag.startswith("V"):
-            return wordnet.VERB
+            return self.wordnet.VERB
         if treebank_tag.startswith("N"):
-            return wordnet.NOUN
+            return self.wordnet.NOUN
         if treebank_tag.startswith("R"):
-            return wordnet.ADV
+            return self.wordnet.ADV
 
-        return wordnet.NOUN  # Default to NOUN
+        return self.wordnet.NOUN  # Default to NOUN

@@ -127,15 +127,21 @@ class ConfigRouter:
                     mention_everyone=forwarder["mention_everyone"],
                     forward_everything=forwarder["forward_everything"],
                     strip_off_links=forwarder["strip_off_links"],
-                    forward_hashtags=forwarder["forward_hashtags"]
-                    if forwarder["forward_hashtags"]
-                    else [],
-                    excluded_hashtags=forwarder["excluded_hashtags"]
-                    if forwarder["excluded_hashtags"] in forwarder
-                    else [],
-                    mention_override=forwarder["mention_override"]
-                    if forwarder["mention_override"] in forwarder
-                    else None,
+                    forward_hashtags=(
+                        forwarder["forward_hashtags"]
+                        if forwarder["forward_hashtags"]
+                        else []
+                    ),
+                    excluded_hashtags=(
+                        forwarder["excluded_hashtags"]
+                        if forwarder["excluded_hashtags"] in forwarder
+                        else []
+                    ),
+                    mention_override=(
+                        forwarder["mention_override"]
+                        if forwarder["mention_override"] in forwarder
+                        else None
+                    ),
                 )
             )
 
