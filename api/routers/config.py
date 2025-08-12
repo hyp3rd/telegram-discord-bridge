@@ -135,6 +135,7 @@ class ConfigRouter:
                     mention_everyone=forwarder["mention_everyone"],
                     forward_everything=forwarder["forward_everything"],
                     strip_off_links=forwarder["strip_off_links"],
+                    send_as_embed=forwarder["send_as_embed"],
                     forward_hashtags=(
                         forwarder["forward_hashtags"]
                         if forwarder["forward_hashtags"]
