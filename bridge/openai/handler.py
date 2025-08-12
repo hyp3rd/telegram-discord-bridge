@@ -1,4 +1,5 @@
 """This module handles the communication with the OpenAI API."""
+
 import asyncio
 import functools
 

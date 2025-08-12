@@ -1,4 +1,5 @@
 """Discord handler."""
+
 import asyncio
 import sys
 from typing import List, Optional, Sequence
