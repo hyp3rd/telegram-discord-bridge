@@ -150,9 +150,7 @@ class TelegramHandler(metaclass=SingletonMeta):
             )
             if config.api.telegram_login_enabled:
                 manager = SecretManager.get_instance()
-                await manager.set(
-                    "error", "The current session was revoked"
-                )
+                await manager.set("error", "The current session was revoked")
                 await manager.set("session_revoked", True)
             raise
         except PhoneCodeInvalidError:
@@ -163,9 +161,7 @@ class TelegramHandler(metaclass=SingletonMeta):
             )
             if config.api.telegram_login_enabled:
                 manager = SecretManager.get_instance()
-                await manager.set(
-                    "error", "The phone code is invalid"
-                )
+                await manager.set("error", "The phone code is invalid")
                 await manager.set("phone_code_invalid", True)
             raise
         manager = SecretManager.get_instance()
