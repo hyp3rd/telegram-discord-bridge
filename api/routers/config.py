@@ -251,9 +251,15 @@ class ConfigRouter:
 
         process_state, pid = self.forwarder.determine_process_state()
 
-        Config.reload_instance()
-        global config  # pylint: disable=global-statement
-        config = Config.get_instance()
+        try:
+            Config.reload_instance()
+            global config  # pylint: disable=global-statement
+            config = Config.get_instance()
+        except (FileNotFoundError, ValidationError, ValueError) as exc:
+            logger.error("Failed to reload config: %s", exc)
+            raise HTTPException(
+                status_code=400, detail=f"Config reload failed: {exc}"
+            ) from exc
 
         return BaseResponse(
             resource="config",
