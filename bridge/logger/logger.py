@@ -1,10 +1,35 @@
 """Create a logger for the application.""" ""
+import gzip
 import logging
-from logging.handlers import RotatingFileHandler
+import os
+import shutil
 from logging import StreamHandler
+from logging.handlers import RotatingFileHandler
+
 from bridge.config import LoggerConfig
 
 import bridge.logger.formatter as log_formatter
+
+
+class GZipRotatingFileHandler(RotatingFileHandler):
+    """RotatingFileHandler that optionally gzips old logs."""
+
+    def __init__(self, *args, compress: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.compress = compress
+
+    def doRollover(self) -> None:
+        super().doRollover()
+        if not self.compress:
+            return
+        for i in range(1, self.backupCount + 1):
+            filename = f"{self.baseFilename}.{i}"
+            if os.path.exists(filename) and not filename.endswith(".gz"):
+                with open(filename, "rb") as f_in, gzip.open(
+                    filename + ".gz", "wb"
+                ) as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+                os.remove(filename)
 
 
 class Logger(logging.Logger):
@@ -54,13 +79,11 @@ class Logger(logging.Logger):
         )
 
         if not logger_config.console:
-            # The log files will rotate when they reach 10 MB in size.
-            # The backupCount parameter is set to 5,
-            # which means that up to 5 backup files will be kept.
-            handler = RotatingFileHandler(
+            handler = GZipRotatingFileHandler(
                 f"{file_name}.log",
                 maxBytes=logger_config.file_max_bytes,
                 backupCount=logger_config.file_backup_count,
+                compress=logger_config.compress,
             )
         else:
             handler = logging.StreamHandler()
