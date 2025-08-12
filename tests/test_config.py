@@ -9,7 +9,8 @@ from bridge.config.config import Config
 
 def test_config_loads(tmp_path):
     """Config can be loaded from a YAML file."""
-    config_data = {
+def get_config_data():
+    return {
         "application": {
             "name": "bridge",
             "version": "0.0",
