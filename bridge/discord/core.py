@@ -1,6 +1,7 @@
 """Discord handler."""
 
 import asyncio
+import re
 import sys
 from typing import List, Optional, Sequence
 
@@ -173,8 +174,8 @@ class DiscordHandler(metaclass=SingletonMeta):
             tag = mention_override_tag["tag"].lower()
             logger.debug("Checking mention override for tag %s", tag)
 
-            if (tag.startswith("#") and tag in lowered_hashtags) or (
-                tag in lowered_text
+            if self._should_trigger_mention_override(
+                tag, lowered_text, lowered_hashtags
             ):
                 logger.debug(
                     "Found mention override for tag %s: %s",
@@ -198,3 +199,19 @@ class DiscordHandler(metaclass=SingletonMeta):
     ) -> bool:
         """Check if a role name is a Discord built-in mention."""
         return role_name.lower() in discord_built_in_roles
+
+    @staticmethod
+    def _should_trigger_mention_override(
+        tag: str, message_text: str, hashtags: List[str]
+    ) -> bool:
+        """Return ``True`` if a mention override tag should trigger."""
+
+        if tag.startswith("#"):
+            return tag in hashtags or tag in message_text
+
+        pattern = (
+            rf"(?<!\w){re.escape(tag)}(?!\w)"
+            if re.search(r"^[\w-]+$", tag)
+            else rf"(?<!\S){re.escape(tag)}(?!\S)"
+        )
+        return bool(re.search(pattern, message_text))
