@@ -129,10 +129,7 @@ class ForwarderConfig(BaseModel):
         """Mention override validator."""
         if val:
             for mention_override in val:
-                if not mention_override["tag"].startswith("#"):
-                    assert mention_override["tag"].startswith(
-                        "#"
-                    ), "mention_override tag must start with @"
+                assert mention_override["tag"], "mention_override tag must not be empty"
                 if not mention_override["roles"]:
                     assert mention_override[
                         "roles"

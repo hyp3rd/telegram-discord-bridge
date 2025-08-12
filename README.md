@@ -138,10 +138,10 @@ telegram_forwarders:
     strip_off_links: False # whether to strip off links from the message
     mention_everyone: False
     forward_everything: False # whether forwarding everything regardless the hashtag
-    mention_override:
+    mention_override: # tags can be hashtags or any substring
       - tag: "#important"
         roles: ["everyone", "here", "@Admin"]
-      - tag: "#trading"
+      - tag: "+++"
         roles: ["Trading", "here"]
     forward_hashtags:
       - name: "#example3"

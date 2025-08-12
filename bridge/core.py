@@ -221,6 +221,7 @@ class Bridge:
                 forwarder.mention_override,
                 config.discord.built_in_roles,
                 server_roles,
+                message.message or "",
             )
 
             message_text = await self.process_message_text(
