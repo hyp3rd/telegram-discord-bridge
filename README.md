@@ -64,8 +64,7 @@ api:
   enabled: True
   # Enable the Telegram MFA login via the management API
   telegram_login_enabled: True
-  # The file to store the Telegram code and MFA password
-  telegram_auth_file: "telegram_auth.json"
+  # Credentials are handled via the in-memory secret manager
   # The Telegram auth request expiration in seconds
   telegram_auth_request_expiration: 300
   # Allow CORS requests from these origins
@@ -185,7 +184,7 @@ docker run -p:8000:8000 -v $(pwd)/config.yml:/app/config.yml:ro -it ghcr.io/hyp3
 
 ### Limitations
 
-A local `JSON` file is the sole storage supported to maintain the correspondence between Telegram and Discord. It implies that you figure out how to rotate the file, or it will grow out of proportion. **I'm working on a solution to store the history in databases, Redis, and KV storage, but it still needs to be prepared.**
+The bridge now ships with pluggable storage backends for message history. By default it keeps mappings in a local JSON file but you can switch to a SQLite database via configuration. JSON files are automatically rotated when they exceed the configured size, and log files honour the same rotation and optional compression settings.
 
 ## License
 

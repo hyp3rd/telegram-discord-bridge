@@ -83,7 +83,6 @@ class ConfigRouter:
             enabled=config.api.enabled,
             cors_origins=config.api.cors_origins,
             telegram_login_enabled=config.api.telegram_login_enabled,
-            telegram_auth_file=config.api.telegram_auth_file,
             telegram_auth_request_expiration=config.api.telegram_auth_request_expiration,
         )
 

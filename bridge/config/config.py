@@ -255,6 +255,7 @@ class LoggerConfig(BaseModel):  # pylint: disable=too-few-public-methods
     format: str = "%(asctime)s %(levelprefix)s %(message)s"
     date_format: str = "%Y-%m-%d %H:%M:%S"
     console: bool = True
+    compress: bool = False
 
     @validator("level")
     def level_validator(cls, val):
@@ -275,6 +276,29 @@ class LoggerConfig(BaseModel):  # pylint: disable=too-few-public-methods
 
         if val > 104857600:
             raise ValueError("file_max_bytes must be < 104857600")
+        return val
+
+
+class HistoryConfig(BaseModel):  # pylint: disable=too-few-public-methods
+    """History storage config."""
+
+    backend: str = "json"
+    db_url: Optional[str] = None
+    file_max_bytes: StrictInt = 10485760
+    file_backup_count: StrictInt = 5
+
+    @validator("backend")
+    def backend_validator(cls, val):
+        """Ensure the configured backend is supported."""
+        if val not in ["json", "sqlite"]:
+            raise ValueError("backend must be one of json, sqlite")
+        return val
+
+    @validator("file_max_bytes")
+    def history_file_max_bytes_validator(cls, val):
+        """Validate the maximum history file size."""
+        if val < 0:
+            raise ValueError("file_max_bytes must be > 0")
         return val
 
 
@@ -355,7 +379,7 @@ class APIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     enabled: bool = True
     cors_origins: List[str] = ["*"]
     telegram_login_enabled: bool = True
-    telegram_auth_file: str = "telegram_auth.json"
+    telegram_auth_file: str | None = None
     telegram_auth_request_expiration: int = 300
 
     @model_validator(mode="before")
@@ -392,6 +416,7 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
 
     application: ApplicationConfig
     logger: LoggerConfig
+    history: HistoryConfig
     api: APIConfig
     telegram: TelegramConfig
     discord: DiscordConfig
@@ -454,6 +479,7 @@ class Config(BaseModel):
 
     application: ApplicationConfig
     logger: LoggerConfig
+    history: HistoryConfig
     api: APIConfig
     telegram: TelegramConfig
     discord: DiscordConfig

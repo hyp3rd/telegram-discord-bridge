@@ -39,6 +39,14 @@ logger:
   date_format: "%Y-%m-%d %H:%M:%S"
   # Whether to log to console or not
   console: True # set to true to enable console logging and disable file based logging
+  compress: False # compress rotated logs
+
+# History storage configuration
+history:
+  backend: "json" # json or sqlite
+  db_url: null
+  file_max_bytes: 10485760 # 10MB
+  file_backup_count: 5
 
 # Telegram configuration
 telegram:

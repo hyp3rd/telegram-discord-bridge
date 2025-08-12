@@ -85,7 +85,6 @@ class BridgeAPI:  # pylint: disable=too-few-public-methods
                 enabled=config_instance.api.enabled,
                 cors_origins=config_instance.api.cors_origins,
                 telegram_login_enabled=config_instance.api.telegram_login_enabled,
-                telegram_auth_file=config_instance.api.telegram_auth_file,
                 telegram_auth_request_expiration=config_instance.api.telegram_auth_request_expiration,
             ),
         )
