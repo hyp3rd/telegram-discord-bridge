@@ -146,22 +146,26 @@ class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     enabled: bool = False
     api_key: str
     organization: str
+    model: str = "gpt-4o-mini"
     sentiment_analysis_prompt: List[str]
     is_healthy: bool = True  # FIX: This is a hack to make the health check pass
 
     @model_validator(mode="before")
     def openai_validator(cls, values):
         """OpenAI validator."""
-        enabled, api_key, organization = (
+        enabled, api_key, organization, model = (
             values.get("enabled"),
             values.get("api_key"),
             values.get("organization"),
+            values.get("model"),
         )
         if enabled:
             if not api_key:
                 raise ValueError("api_key must not be empty")
             if not organization:
                 raise ValueError("organization must not be empty")
+            if not model:
+                raise ValueError("model must not be empty")
             if not values.get("sentiment_analysis_prompt"):
                 raise ValueError("sentiment_analysis_prompt must not be empty")
         return values
@@ -318,6 +322,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     anti_spam_similarity_timeframe: float = 60.0
     anti_spam_similarity_threshold: float = 1.0
     anti_spam_contextual_analysis: bool = False
+    anti_spam_strategy: str = "heuristic"
 
     @validator("version")
     def version_validator(cls, val):
@@ -370,6 +375,13 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
             assert val < 0, "anti_spam_similarity_threshold must be > 0"
         if val > 1:
             assert val > 1, "anti_spam_similarity_threshold must be < 1"
+        return val
+
+    @validator("anti_spam_strategy")
+    def anti_spam_strategy_validator(cls, val):
+        """Validate anti spam strategy."""
+        if val not in {"heuristic", "ml"}:
+            raise ValueError("anti_spam_strategy must be 'heuristic' or 'ml'")
         return val
 
 
@@ -549,6 +561,12 @@ class Config(BaseModel):
         """Get config instance."""
         if version not in _instances.items():
             _instances[version] = cls.load_instance(_file_path)
+        return _instances[version]
+
+    @classmethod
+    def reload_instance(cls, version: str = "default") -> "Config":
+        """Reload config instance from disk."""
+        _instances[version] = cls.load_instance(_file_path)
         return _instances[version]
 
     def get_telegram_channel_by_forwarder_name(self, forwarder_name: str):

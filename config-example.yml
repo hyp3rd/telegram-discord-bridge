@@ -16,6 +16,8 @@ application:
   anti_spam_similarity_timeframe: 60
   # Anti spam similarity threshold (set 0 to 1, with 1 being identical)
   anti_spam_similarity_threshold: 0.8
+  # Strategy for anti-spam: heuristic or ml
+  anti_spam_strategy: heuristic
 
 # Management API configuration
 api:
@@ -80,6 +82,7 @@ openai:
   # OpenAI API Key and Organization. Read more [here](https://beta.openai.com/docs/api-reference)
   api_key: "<your openai api key>"
   organization: "<your openai organization>"
+  model: "gpt-4o-mini"
   # The prompt to use for OpenAI, the #text_to_parse will be appended to this prompt
   sentiment_analysis_prompt:
     - "Analyze the following text to determine its sentiment: #text_to_parse.\n\n"
