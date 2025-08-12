@@ -12,16 +12,16 @@ from api.models import (
     HealthHistory,
     HealthHistoryManager,
     HealthSchema,
+    StatsResponse,
 )
 from api.routers.health import HealthcheckSubscriber, WSConnectionManager
 from bridge.config import Config
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
 from bridge.logger import Logger
+from bridge.stats import StatsTracker
 from bridge.telegram import TelegramHandler
 from forwarder import Forwarder, OperationStatus
-
-# from typing import List
 
 
 config = Config.get_instance()
@@ -74,6 +74,13 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
             description="Determines the Bridge process status, and the Telegram, Discord, and OpenAI connections health.",
             response_model=HealthSchema,
         )(self.health)
+
+        self.bridge_router.get(
+            "/stats",
+            name="Get per-channel statistics",
+            summary="Return the number of messages forwarded per forwarder.",
+            response_model=StatsResponse,
+        )(self.stats)
 
         self.bridge_router.websocket(
             "/health/ws", name="Get the health status of the Bridge."
@@ -258,6 +265,10 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
                 status=health_status.status,
             )
         )
+
+    async def stats(self) -> StatsResponse:
+        """Return forwarding statistics."""
+        return StatsResponse(stats=StatsTracker().get_stats())
 
     async def health_data_sender(self, websocket: WebSocket):
         """Send health data to the WS client."""

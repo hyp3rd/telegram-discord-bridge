@@ -16,6 +16,7 @@ TEST_CONFIG_DATA = {
         "anti_spam_enabled": False,
         "anti_spam_similarity_timeframe": 60,
         "anti_spam_similarity_threshold": 0.8,
+        "anti_spam_strategy": "heuristic",
     },
     "api": {
         "enabled": False,
@@ -57,6 +58,7 @@ TEST_CONFIG_DATA = {
         "enabled": False,
         "api_key": "",
         "organization": "",
+        "model": "gpt-4o-mini",
         "sentiment_analysis_prompt": ["Analyze #text_to_parse"],
     },
     "telegram_forwarders": [

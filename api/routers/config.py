@@ -63,6 +63,13 @@ class ConfigRouter:
             description="POST a new config in JSON payload. The file will be versioned `version` field.",
         )(self.post_config)
 
+        self.router.post(
+            "/reload",
+            response_model=BaseResponse,
+            summary="Reload the current config",
+            description="Reload the config from disk without restarting the bridge.",
+        )(self.reload_config)
+
     async def get_config(self) -> ConfigSchema:
         """Get the current config."""
 
@@ -77,6 +84,7 @@ class ConfigRouter:
             anti_spam_similarity_timeframe=config.application.anti_spam_similarity_timeframe,
             anti_spam_similarity_threshold=config.application.anti_spam_similarity_threshold,
             anti_spam_contextual_analysis=config.application.anti_spam_contextual_analysis,
+            anti_spam_strategy=config.application.anti_spam_strategy,
         )
 
         api_config = APIConfig(
@@ -113,6 +121,7 @@ class ConfigRouter:
             api_key=config.openai.api_key,
             enabled=config.openai.enabled,
             organization=config.openai.organization,
+            model=config.openai.model,
             sentiment_analysis_prompt=config.openai.sentiment_analysis_prompt,
         )
 
@@ -236,6 +245,30 @@ class ConfigRouter:
         response.success = True
 
         return response
+
+    async def reload_config(self) -> BaseResponse:
+        """Reload the current config from disk."""
+
+        process_state, pid = self.forwarder.determine_process_state()
+
+        try:
+            Config.reload_instance()
+            global config  # pylint: disable=global-statement
+            config = Config.get_instance()
+        except (FileNotFoundError, ValidationError, ValueError) as exc:
+            logger.error("Failed to reload config: %s", exc)
+            raise HTTPException(
+                status_code=400, detail=f"Config reload failed: {exc}"
+            ) from exc
+
+        return BaseResponse(
+            resource="config",
+            config_version=config.application.version,
+            request_type=RequestTypeEnum.RELOAD,
+            bridge_status=process_state,
+            bridge_pid=pid,
+            success=True,
+        )
 
     async def post_config(self, config_schema: ConfigSchema) -> BaseResponse:
         """Post a new config file."""
