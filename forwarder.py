@@ -10,7 +10,6 @@ from sqlite3 import OperationalError
 from typing import Tuple, TypeAlias
 
 import discord
-import psutil  # pylint: disable=import-error
 from telethon import TelegramClient
 
 from bridge.config import Config
@@ -22,6 +21,7 @@ from bridge.healthcheck import HealthHandler
 from bridge.logger import Logger
 from bridge.release import __version__
 from bridge.telegram import TelegramHandler
+from bridge.pid import PidManager, PidFileError
 from core import SingletonMeta
 
 ERR_API_DISABLED = "API mode is disabled, please use the CLI to start the bridge, or enable it in the config file."
@@ -81,6 +81,7 @@ class Forwarder(metaclass=SingletonMeta):
         self.is_background = is_background
 
         self.is_running = True
+        self.pid_manager = PidManager(self.logger)
         self.logger.debug("Forwarder initialized.")
 
     def get_instance(self) -> "Forwarder":
@@ -226,7 +227,11 @@ class Forwarder(metaclass=SingletonMeta):
                 sys.exit(1)
 
         # Create a PID file.
-        _ = self.create_pid_file()
+        try:
+            _ = self.pid_manager.create_pid_file()
+        except PidFileError as ex:
+            self.logger.error("PID file error: %s", ex)
+            sys.exit(1)
 
         # Create a task for the __forwarder coroutine.
         __forwarder_task = self.event_loop.create_task(
@@ -264,7 +269,7 @@ class Forwarder(metaclass=SingletonMeta):
         """Stop the bridge."""
         self.logger.info("Stopping the %s...", config.application.name)
 
-        process_state, pid = self.determine_process_state()
+        process_state, pid = self.pid_manager.determine_process_state()
         if process_state == ProcessStateEnum.STOPPED:
             self.logger.warning(
                 "PID file not found. The %s may not be running.",
@@ -288,112 +293,6 @@ class Forwarder(metaclass=SingletonMeta):
                 config.application.name,
                 pid,
             )
-
-    def create_pid_file(self) -> str:
-        """Create a PID file."""
-        try:
-            self.logger.debug("Creating PID file.")
-            # Get the process ID.
-            pid = os.getpid()
-
-            # Create the PID file.
-            forwarder_pid_file = f"{config.application.name}.pid"
-            process_state, _ = self.determine_process_state(forwarder_pid_file)
-
-            if process_state == ProcessStateEnum.RUNNING:
-                self.logger.error(
-                    "Unable to create PID file: %s is already running.",
-                    config.application.name,
-                )
-                sys.exit(1)
-
-            try:
-                with open(forwarder_pid_file, "w", encoding="utf-8") as pid_file:
-                    pid_file.write(str(pid))
-            except OSError as err:
-                self.logger.error("Unable to create PID file: %s", err)
-                print(f"Unable to create PID file: {err}", flush=True)
-                sys.exit(0)
-
-            return forwarder_pid_file
-        except Exception as ex:  # pylint: disable=broad-except
-            self.logger.exception(ex)
-            self.logger.error("Failed to create PID file.")
-            sys.exit(1)
-
-    def remove_pid_file(self, pid_file: str | None = None):
-        """Remove a PID file."""
-        self.logger.debug("Removing PID file.")
-        if pid_file is None:
-            pid_file = f"{config.application.name}.pid"
-
-        # determine if the pid file exists
-        if not os.path.isfile(pid_file):
-            self.logger.debug("PID file '%s' not found.", pid_file)
-            return
-
-        try:
-            os.remove(pid_file)
-        except FileNotFoundError:
-            self.logger.error("PID file '%s' not found.", pid_file)
-        except Exception as ex:  # pylint: disable=broad-except
-            self.logger.exception(ex)
-            self.logger.error("Failed to remove PID file '%s'.", pid_file)
-
-    def determine_process_state(
-        self, pid_file: str | None = None
-    ) -> Tuple[ProcessStateEnum, int]:
-        """
-        Determine the state of the process.
-
-        The state of the process is determined by looking for the PID file. If the
-        PID file does not exist, the process is considered stopped. If the PID file
-        does exist, the process is considered running.
-
-        If the PID file exists and the PID of the process that created it is not
-        running, the process is considered stopped. If the PID file exists and the
-        PID of the process that created it is running, the process is considered
-        running.
-
-        :param pid_file: The path to the PID file.
-        :type pid_file: str
-        :return: A tuple containing the process state and the PID of the process
-        that created the PID file.
-        :rtype: Tuple[str, int]
-        """
-
-        if pid_file is None:
-            pid_file = f"{config.application.name}.pid"
-
-        if not os.path.isfile(pid_file):
-            # The PID file does not exist, so the process is considered stopped.
-            return ProcessStateEnum.STOPPED, 0
-
-        pid = 0
-        try:
-            # Read the PID from the PID file.
-            with open(pid_file, "r", encoding="utf-8") as forwarder_pid_file:
-                pid = int(forwarder_pid_file.read().strip())
-
-                # If the PID file exists and the PID of the process that created it
-                # is not running, the process is considered stopped.
-                if not psutil.pid_exists(pid):
-                    return ProcessStateEnum.STOPPED, 0
-
-                # If the PID file exists and the PID of the process that created it
-                # is running, the process is considered running.
-                return ProcessStateEnum.RUNNING, pid
-        except ProcessLookupError:
-            # If the PID file exists and the PID of the process that created it is
-            # not running, the process is considered stopped.
-            return ProcessStateEnum.ORPHANED, 0
-        except PermissionError:
-            # If the PID file exists and the PID of the process that created it is
-            # running, the process is considered running.
-            return ProcessStateEnum.RUNNING, pid
-        except FileNotFoundError:
-            # The PID file does not exist, so the process is considered stopped.
-            return ProcessStateEnum.STOPPED, 0
 
     async def init_clients(self) -> Tuple[TelegramClient, discord.Client]:
         """Handle the initialization of the bridge's clients."""
@@ -517,7 +416,7 @@ class Forwarder(metaclass=SingletonMeta):
                             "Error cancelling task %s: %s", {running_task}, {ex}
                         )
 
-        self.remove_pid_file()
+        self.pid_manager.remove_pid_file()
         self.logger.info("Shutdown process completed.")
 
     async def shutdown(self, sig):
@@ -549,7 +448,7 @@ class Forwarder(metaclass=SingletonMeta):
         if self.event_loop is not None:
             self.event_loop.stop()
 
-        self.remove_pid_file()
+        self.pid_manager.remove_pid_file()
 
 
 def daemonize_process():
