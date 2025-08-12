@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+from types import SimpleNamespace
 from typing import List
 
 import discord
@@ -13,7 +14,6 @@ from telethon.tl.types import (
     InputChannel,
     Message,
     MessageEntityHashtag,
-    MessageEntityTextUrl,
     MessageEntityUrl,
 )
 
@@ -22,7 +22,7 @@ from bridge.discord import DiscordHandler
 from bridge.history import MessageHistoryHandler
 from bridge.logger import Logger
 from bridge.openai.handler import OpenAIHandler
-from bridge.utils import telegram_entities_to_markdown
+from bridge.utils import extract_urls, telegram_entities_to_markdown, transform_urls
 from bridge.stats import StatsTracker
 
 config = Config.get_instance()
@@ -223,13 +223,31 @@ class Bridge:
                 server_roles,
             )
 
+            links: List[str] = []
+            message_to_process = message
+            if forwarder.send_as_embed:
+                cleaned_text, links = extract_urls(message)
+                message_entities = []
+                if message.entities:
+                    message_entities = [
+                        entity
+                        for entity in message.entities
+                        if not isinstance(entity, MessageEntityUrl)
+                    ]
+                message_to_process = SimpleNamespace(
+                    message=cleaned_text, entities=message_entities
+                )
+
             message_text = await self.process_message_text(
-                message,
+                message_to_process,
                 forwarder.strip_off_links,
                 mention_everyone,
                 mention_roles,
                 config.openai.enabled,
             )
+
+            if forwarder.send_as_embed:
+                links = transform_urls(links)
 
             if message.reply_to and message.reply_to.reply_to_msg_id:
                 discord_reference = (
@@ -244,13 +262,20 @@ class Bridge:
 
             if message.media:
                 sent_discord_messages = await self.handle_message_media(
-                    message, discord_channel, message_text, discord_reference
+                    message,
+                    discord_channel,
+                    message_text,
+                    discord_reference,
+                    forwarder.send_as_embed,
+                    links,
                 )
             else:
                 sent_discord_messages = await self.discord_handler.forward_message(
                     discord_channel,  # type: ignore
                     message_text,
                     reference=discord_reference,
+                    embed=forwarder.send_as_embed,
+                    links=links,
                 )  # type: ignore
 
             if sent_discord_messages:
@@ -496,8 +521,13 @@ class Bridge:
 
         return message_text
 
-    async def process_media_message(
-        self, message: Message, discord_channel, message_text, discord_reference
+    async def process_media_message(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        message: Message,
+        discord_channel,
+        message_text,
+        discord_reference,
+        send_as_embed: bool,
     ) -> List[DiscordMessage] | None:
         """Process a message that contains media."""
         file_path = await self.telegram_client.download_media(message)
@@ -508,6 +538,7 @@ class Bridge:
                     message_text,
                     image_file=image_file,
                     reference=discord_reference,
+                    embed=send_as_embed,
                 )
                 if not sent_discord_messages:
                     logger.error("Failed to send message to Discord")
@@ -523,34 +554,49 @@ class Bridge:
 
         return sent_discord_messages
 
-    async def handle_message_media(
-        self, message: Message, discord_channel, message_text, discord_reference
+    async def handle_message_media(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        message: Message,
+        discord_channel,
+        message_text,
+        discord_reference,
+        send_as_embed: bool,
+        links: List[str],
     ) -> List[DiscordMessage] | None:
         """Handle a message that contains media."""
-        contains_url = any(
-            isinstance(entity, (MessageEntityTextUrl, MessageEntityUrl))
-            for entity in message.entities or []
-        )
 
         sent_discord_messages: List[DiscordMessage] | None = None
 
-        if contains_url:
+        if links:
             sent_discord_messages = await self.process_url_message(
-                discord_channel, message_text, discord_reference
+                discord_channel, message_text, discord_reference, send_as_embed, links
             )
         else:
             sent_discord_messages = await self.process_media_message(
-                message, discord_channel, message_text, discord_reference
+                message,
+                discord_channel,
+                message_text,
+                discord_reference,
+                send_as_embed,
             )
 
         return sent_discord_messages
 
-    async def process_url_message(
-        self, discord_channel, message_text, discord_reference
+    async def process_url_message(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        discord_channel,
+        message_text,
+        discord_reference,
+        send_as_embed: bool,
+        links: List[str],
     ) -> List[DiscordMessage]:
         """Process a message that contains a URL."""
         sent_discord_messages = await self.discord_handler.forward_message(
-            discord_channel, message_text, reference=discord_reference
+            discord_channel,
+            message_text,
+            reference=discord_reference,
+            embed=send_as_embed,
+            links=links,
         )
         return sent_discord_messages
 
