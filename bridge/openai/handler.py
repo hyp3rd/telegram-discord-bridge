@@ -51,6 +51,7 @@ class OpenAIHandler(metaclass=SingletonMeta):
 
             content = response.choices[0].message.content
             suggestion = content.strip() if content else ""
+
             return suggestion
         except Exception as ex:  # pylint: disable=broad-except
             logger.error("Error generating suggestion: %s", {ex})
@@ -82,6 +83,7 @@ class OpenAIHandler(metaclass=SingletonMeta):
 
             content = response.choices[0].message.content
             suggestion = content.strip() if content else ""
+
             return suggestion
         except Exception as ex:  # pylint: disable=broad-except
             logger.error("Error generating suggestion: %s", {ex})
