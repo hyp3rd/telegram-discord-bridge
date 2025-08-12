@@ -22,6 +22,7 @@ class ForwarderConfig(BaseModel):
     tg_channel_id: StrictInt
     discord_channel_id: StrictInt
     strip_off_links: bool = False
+    send_as_embed: bool = False
     mention_everyone: bool = False
     forward_everything: bool = True
     forward_hashtags: Optional[List[dict]] = None

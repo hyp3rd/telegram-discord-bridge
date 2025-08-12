@@ -6,7 +6,10 @@ import asyncio
 import importlib
 from types import SimpleNamespace
 
+from telethon.tl.types import MessageEntityUrl
+
 from bridge.config import config as config_module
+from bridge.utils import extract_urls, transform_urls
 
 from tests.fixtures import write_config
 
@@ -31,3 +34,18 @@ def test_process_message_text(tmp_path, monkeypatch):
 
     assert "@everyone" in result
     assert result.startswith("Admin")
+
+
+def test_extract_urls_and_transform():
+    """URLs are extracted and Twitter links are converted."""
+    url = "https://x.com/test"
+    message = SimpleNamespace(
+        message=f"check {url}",
+        entities=[MessageEntityUrl(offset=6, length=len(url))],
+    )
+
+    cleaned, urls = extract_urls(message)
+    assert cleaned == "check"
+    assert urls == [url]
+
+    assert transform_urls(urls) == ["https://fixupx.com/test"]

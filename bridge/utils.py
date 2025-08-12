@@ -2,6 +2,8 @@
 
 from typing import List, Tuple
 
+from urllib.parse import urlparse, urlunparse
+
 from telethon.tl.types import (
     Message,
     MessageEntityBold,
@@ -10,6 +12,7 @@ from telethon.tl.types import (
     MessageEntityPre,
     MessageEntityStrike,
     MessageEntityTextUrl,
+    MessageEntityUrl,
 )
 
 
@@ -125,3 +128,74 @@ def apply_markdown(
         + text[end:],
         len(opening_delimiter) + len(closing_delimiter),
     )
+
+
+def extract_urls(message: Message) -> Tuple[str, List[str]]:
+    """Extract URLs from a Telegram message.
+
+    Removes plain URLs from the message text and returns the cleaned text
+    along with a list of extracted URLs. Hyperlink entities keep their text
+    intact.
+
+    Args:
+        message: A Telethon Message object.
+
+    Returns:
+        Tuple of cleaned message text and list of URLs.
+    """
+
+    message_text = message.message or ""
+    if not message.entities:
+        return message_text, []
+
+    urls: List[str] = []
+    entities = sorted(message.entities, key=lambda e: e.offset, reverse=True)
+    for entity in entities:
+        if isinstance(entity, MessageEntityTextUrl):
+            if entity.url:
+                urls.append(entity.url)
+        elif isinstance(entity, MessageEntityUrl):
+            url_text = message_text[entity.offset : entity.offset + entity.length]
+            urls.append(url_text)
+            message_text = (
+                message_text[: entity.offset]
+                + message_text[entity.offset + entity.length :]
+            )
+
+    urls.reverse()
+    return message_text.strip(), urls
+
+
+def transform_urls(urls: List[str]) -> List[str]:
+    """Rewrite URLs for better Discord embedding.
+
+    Currently converts Twitter/X links to ``fixupx.com`` so that Discord
+    can render them as embeds.
+
+    Args:
+        urls: List of URLs to transform.
+
+    Returns:
+        List of transformed URLs.
+    """
+
+    transformed = []
+    for url in urls:
+        parsed = urlparse(url)
+        host = parsed.netloc.lower()
+        if host in {"x.com", "twitter.com", "www.twitter.com"}:
+            transformed.append(
+                urlunparse(
+                    (
+                        parsed.scheme,
+                        "fixupx.com",
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    )
+                )
+            )
+        else:
+            transformed.append(url)
+    return transformed

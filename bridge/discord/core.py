@@ -18,6 +18,9 @@ from core import SingletonMeta
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
 
+DISCORD_EMBED_MAX_LENGTH = 4096
+DISCORD_MESSAGE_MAX_LENGTH = 2000
+
 
 class DiscordHandler(metaclass=SingletonMeta):
     """Discord handler class."""
@@ -65,27 +68,48 @@ class DiscordHandler(metaclass=SingletonMeta):
         return discord_client
 
     @staticmethod
-    async def forward_message(
+    async def forward_message(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         discord_channel: TextChannel,
         message_text: str,
         image_file=None,
         reference: MessageReference = ...,
+        embed: bool = False,
+        links: List[str] | None = None,
     ) -> List[Message]:
         """Send a message to Discord."""
-        sent_messages = []
-        message_parts = split_message(message_text)
+        sent_messages: List[Message] = []
+        message_parts = split_message(
+            message_text,
+            DISCORD_EMBED_MAX_LENGTH if embed else DISCORD_MESSAGE_MAX_LENGTH,
+        )
         try:
             if image_file:
                 discord_file = discord.File(image_file)
-                sent_message = await discord_channel.send(
-                    message_parts[0], file=discord_file, reference=reference
-                )
+                if embed:
+                    embed_obj = discord.Embed(description=message_parts[0])
+                    sent_message = await discord_channel.send(
+                        embed=embed_obj, file=discord_file, reference=reference
+                    )
+                else:
+                    sent_message = await discord_channel.send(
+                        message_parts[0], file=discord_file, reference=reference
+                    )
                 sent_messages.append(sent_message)
                 message_parts.pop(0)
 
             for part in message_parts:
-                sent_message = await discord_channel.send(part, reference=reference)
+                if embed:
+                    embed_obj = discord.Embed(description=part)
+                    sent_message = await discord_channel.send(
+                        embed=embed_obj, reference=reference
+                    )
+                else:
+                    sent_message = await discord_channel.send(part, reference=reference)
                 sent_messages.append(sent_message)
+
+            if links:
+                for url in links:
+                    sent_messages.append(await discord_channel.send(url))
         except discord.Forbidden:
             logger.error(
                 "Discord client doesn't have permission to send messages to channel %s",
