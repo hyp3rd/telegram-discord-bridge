@@ -140,10 +140,10 @@ telegram_forwarders:
     send_as_embed: False # whether to send messages as Discord embeds
     mention_everyone: False
     forward_everything: False # whether forwarding everything regardless the hashtag
-    mention_override:
+    mention_override: # tags can be hashtags or any substring
       - tag: "#important"
         roles: ["everyone", "here", "@Admin"]
-      - tag: "#trading"
+      - tag: "+++"
         roles: ["Trading", "here"]
     forward_hashtags:
       - name: "#example3"

@@ -221,6 +221,7 @@ class Bridge:
                 forwarder.mention_override,
                 config.discord.built_in_roles,
                 server_roles,
+                message.message or "",
             )
 
             links: List[str] = []

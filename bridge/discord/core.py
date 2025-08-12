@@ -1,6 +1,7 @@
 """Discord handler."""
 
 import asyncio
+import re
 import sys
 from typing import List, Optional, Sequence
 
@@ -177,34 +178,42 @@ class DiscordHandler(metaclass=SingletonMeta):
         mention_override_tags: Optional[List[dict]],
         discord_built_in_roles: List[str],
         server_roles: Sequence[discord.Role],
+        message_text: str,
     ) -> List[str]:
-        """Get the roles to mention."""
+        """Get the roles to mention.
+
+        Mention override tags can be either hashtags or any string contained in the
+        message text.
+        """
+        # pylint: disable=too-many-arguments,too-many-positional-arguments
         mention_roles = set()
 
-        for tag in message_forward_hashtags:  # pylint: disable=too-many-nested-blocks
+        if not mention_override_tags:
+            return []
+
+        lowered_hashtags = [tag.lower() for tag in message_forward_hashtags]
+        lowered_text = message_text.lower()
+
+        for mention_override_tag in mention_override_tags:
+            tag = mention_override_tag["tag"].lower()
             logger.debug("Checking mention override for tag %s", tag)
-            logger.debug("mention_override tags %s", mention_override_tags)
 
-            if not mention_override_tags:
-                continue
+            if self._should_trigger_mention_override(
+                tag, lowered_text, lowered_hashtags
+            ):
+                logger.debug(
+                    "Found mention override for tag %s: %s",
+                    tag,
+                    mention_override_tag["roles"],
+                )
 
-            for mention_override_tag in mention_override_tags:
-                if tag.lower() == mention_override_tag["tag"].lower():
-                    logger.debug(
-                        "Found mention override for tag %s: %s",
-                        tag,
-                        mention_override_tag["roles"],
-                    )
-
-                    for role_name in mention_override_tag["roles"]:
-                        if self.is_builtin_mention_role(
-                            role_name, discord_built_in_roles
-                        ):
-                            mention_roles.add("@" + role_name)
-                        else:
-                            role = discord.utils.get(server_roles, name=role_name)
-                            if role:
-                                mention_roles.add(role.mention)
+                for role_name in mention_override_tag["roles"]:
+                    if self.is_builtin_mention_role(role_name, discord_built_in_roles):
+                        mention_roles.add("@" + role_name)
+                    else:
+                        role = discord.utils.get(server_roles, name=role_name)
+                        if role:
+                            mention_roles.add(role.mention)
 
         return list(mention_roles)
 
@@ -214,3 +223,19 @@ class DiscordHandler(metaclass=SingletonMeta):
     ) -> bool:
         """Check if a role name is a Discord built-in mention."""
         return role_name.lower() in discord_built_in_roles
+
+    @staticmethod
+    def _should_trigger_mention_override(
+        tag: str, message_text: str, hashtags: List[str]
+    ) -> bool:
+        """Return ``True`` if a mention override tag should trigger."""
+
+        if tag.startswith("#"):
+            return tag in hashtags or tag in message_text
+
+        pattern = (
+            rf"(?<!\w){re.escape(tag)}(?!\w)"
+            if re.search(r"^[\w-]+$", tag)
+            else rf"(?<!\S){re.escape(tag)}(?!\S)"
+        )
+        return bool(re.search(pattern, message_text))
