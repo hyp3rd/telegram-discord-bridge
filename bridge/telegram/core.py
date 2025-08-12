@@ -1,4 +1,5 @@
 """Telegram handler."""
+
 import asyncio
 import json
 import os

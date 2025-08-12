@@ -1,4 +1,5 @@
 """Rate Limiter for the Bridge API"""
+
 from collections import defaultdict
 from time import time
 
