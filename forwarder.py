@@ -18,7 +18,7 @@ from bridge.core import Bridge
 from bridge.discord import DiscordHandler
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
-from bridge.healtcheck import HealthHandler
+from bridge.healthcheck import HealthHandler
 from bridge.logger import Logger
 from bridge.release import __version__
 from bridge.telegram import TelegramHandler
