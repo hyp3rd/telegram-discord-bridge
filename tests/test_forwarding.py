@@ -67,7 +67,10 @@ def _write_config(tmp_path):
                 "forward_everything": True,
             }
         ],
-    }
+from tests.fixtures import TEST_CONFIG_DATA
+
+def _write_config(tmp_path):
+    data = TEST_CONFIG_DATA
     cfg_file = tmp_path / "config.yml"
     with cfg_file.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(data, handle)
