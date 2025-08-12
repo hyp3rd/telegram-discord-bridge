@@ -51,7 +51,7 @@ class WSConnectionManager:
         """Send health data to the WS client."""
         logger.debug("Sending health data to %s", websocket)
 
-        process_state, pid = Forwarder().get_instance().determine_process_state()
+        process_state, pid = Forwarder().determine_process_state()
 
         health_status = None
 

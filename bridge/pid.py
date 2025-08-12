@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
-import psutil  # pylint: disable=import-error
 from typing import Tuple
+
+import psutil  # pylint: disable=import-error
 
 from bridge.config import Config
 from bridge.enums import ProcessStateEnum
@@ -29,9 +30,7 @@ class PidManager(metaclass=SingletonMeta):
         pid_file = f"{self.config.application.name}.pid"
         state, _ = self.determine_process_state(pid_file)
         if state == ProcessStateEnum.RUNNING:
-            raise PidFileError(
-                f"{self.config.application.name} is already running"
-            )
+            raise PidFileError(f"{self.config.application.name} is already running")
         try:
             with open(pid_file, "w", encoding="utf-8") as handle:
                 handle.write(str(pid))

@@ -1,3 +1,5 @@
+"""In-memory secret manager for ephemeral credentials."""
+
 import asyncio
 from typing import Any, Dict
 

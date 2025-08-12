@@ -54,8 +54,8 @@ class Forwarder(metaclass=SingletonMeta):
     is_background: bool
     telegram_client: TelegramClient
     discord_client: discord.Client
-    is_running: bool = False
     logger: Logger
+    pid_manager: PidManager
 
     def __init__(
         self, event_loop: AbstractEventLoop | None = None, is_background: bool = False
@@ -63,12 +63,6 @@ class Forwarder(metaclass=SingletonMeta):
         """Initialize the forwarder."""
 
         self.logger = Logger.init_logger(config.application.name, config.logger)
-
-        if self.is_running:
-            self.logger.warning(
-                "The forwarder %s is already running.", config.application.name
-            )
-            return
 
         self.logger.info("Initializing the forwarder %s", config.application.name)
         self.dispatcher = EventDispatcher()
@@ -80,22 +74,12 @@ class Forwarder(metaclass=SingletonMeta):
 
         self.is_background = is_background
 
-        self.is_running = True
         self.pid_manager = PidManager(self.logger)
         self.logger.debug("Forwarder initialized.")
 
-    def get_instance(self) -> "Forwarder":
-        """
-        Get the forwarder instance.
-        """
-        self.logger.info("Getting the forwarder instance")
-        if self.is_running:
-            return self
-        self.logger.warning(
-            "The forwarder %s is not running, can't return an instance",
-            config.application.name,
-        )
-        return Forwarder()
+    def determine_process_state(self) -> Tuple[ProcessStateEnum, int]:
+        """Proxy to the PID manager's process state check."""
+        return self.pid_manager.determine_process_state()
 
     async def api_controller(self, start_forwarding: bool = True) -> OperationStatus:
         """Run the forwarder from the API controller."""
