@@ -1,9 +1,9 @@
 """A `bridge` to forward messages from Telegram to a Discord server."""
 
 import asyncio
-import copy
 import os
 import sys
+from types import SimpleNamespace
 from typing import List
 
 import discord
@@ -227,14 +227,16 @@ class Bridge:
             message_to_process = message
             if forwarder.send_as_embed:
                 cleaned_text, links = extract_urls(message)
-                message_to_process = copy.copy(message)
-                message_to_process.message = cleaned_text
+                message_entities = []
                 if message.entities:
-                    message_to_process.entities = [
+                    message_entities = [
                         entity
                         for entity in message.entities
                         if not isinstance(entity, MessageEntityUrl)
                     ]
+                message_to_process = SimpleNamespace(
+                    message=cleaned_text, entities=message_entities
+                )
 
             message_text = await self.process_message_text(
                 message_to_process,

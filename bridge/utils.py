@@ -184,8 +184,18 @@ def transform_urls(urls: List[str]) -> List[str]:
         parsed = urlparse(url)
         host = parsed.netloc.lower()
         if host in {"x.com", "twitter.com", "www.twitter.com"}:
-            parsed = parsed._replace(netloc="fixupx.com")
-            transformed.append(urlunparse(parsed))
+            transformed.append(
+                urlunparse(
+                    (
+                        parsed.scheme,
+                        "fixupx.com",
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    )
+                )
+            )
         else:
             transformed.append(url)
     return transformed

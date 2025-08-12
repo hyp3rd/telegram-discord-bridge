@@ -17,6 +17,9 @@ from core import SingletonMeta
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
 
+DISCORD_EMBED_MAX_LENGTH = 4096
+DISCORD_MESSAGE_MAX_LENGTH = 2000
+
 
 class DiscordHandler(metaclass=SingletonMeta):
     """Discord handler class."""
@@ -74,7 +77,10 @@ class DiscordHandler(metaclass=SingletonMeta):
     ) -> List[Message]:
         """Send a message to Discord."""
         sent_messages: List[Message] = []
-        message_parts = split_message(message_text, 4096 if embed else 2000)
+        message_parts = split_message(
+            message_text,
+            DISCORD_EMBED_MAX_LENGTH if embed else DISCORD_MESSAGE_MAX_LENGTH,
+        )
         try:
             if image_file:
                 discord_file = discord.File(image_file)
