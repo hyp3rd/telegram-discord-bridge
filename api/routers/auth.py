@@ -1,4 +1,5 @@
 """Bridge Auth Router."""
+
 import json
 import os
 

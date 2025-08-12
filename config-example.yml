@@ -6,7 +6,7 @@ application:
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
-  # healtcheck interval in seconds
+  # healthcheck interval in seconds
   healthcheck_interval: 10
   # The time in seconds to wait before forwarding each missed message
   recoverer_delay: 60

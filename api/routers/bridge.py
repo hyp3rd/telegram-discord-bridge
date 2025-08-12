@@ -1,4 +1,5 @@
 """Bridge controller router."""
+
 import asyncio
 from typing import List
 
