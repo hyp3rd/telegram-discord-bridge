@@ -1,4 +1,5 @@
 """Utility functions."""
+
 from typing import List, Tuple
 
 from telethon.tl.types import (
