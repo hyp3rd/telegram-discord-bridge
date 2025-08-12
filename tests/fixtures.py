@@ -31,6 +31,13 @@ TEST_CONFIG_DATA = {
         "format": "%(message)s",
         "date_format": "%Y-%m-%d",
         "console": True,
+        "compress": False,
+    },
+    "history": {
+        "backend": "json",
+        "db_url": None,
+        "file_max_bytes": 1024,
+        "file_backup_count": 1,
     },
     "telegram": {
         "phone": "+10000000000",

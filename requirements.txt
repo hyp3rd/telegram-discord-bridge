@@ -14,3 +14,4 @@ python-multipart==0.0.20
 Levenshtein==0.27.1
 nltk==3.9.1
 prometheus-client==0.21.0
+aiosqlite==0.20.0
