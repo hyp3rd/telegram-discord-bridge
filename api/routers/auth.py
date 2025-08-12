@@ -1,8 +1,6 @@
 """Bridge Auth Router."""
 
-import json
 import os
-
 from fastapi import APIRouter
 
 from api.models import (
@@ -11,6 +9,7 @@ from api.models import (
     TelegramAuthSchema,
 )
 from bridge.config import Config
+from bridge.security.secret_manager import SecretManager
 
 router = APIRouter(
     prefix="/auth",
@@ -30,24 +29,10 @@ async def telegram_auth(auth: TelegramAuthSchema):
     config = Config.get_instance()
 
     try:
-        # Temporarily write the auth data to the Telegram auth file.
-        with open(config.api.telegram_auth_file, "w", encoding="utf-8") as auth_file:
-            json.dump(
-                {
-                    "identity": config.telegram.phone,
-                    "code": auth.code,
-                    "password": auth.password,
-                },
-                auth_file,
-            )
-    except OSError as ex:
-        return TelegramAuthResponseSchema(
-            auth=TelegramAuthResponse(
-                status="authentication interrupted",
-                message="failed to initialize the authentication with the Telegram API.",
-                error=ex.strerror,
-            )
-        )
+        manager = SecretManager.get_instance()
+        await manager.set("identity", config.telegram.phone)
+        await manager.set("code", auth.code)
+        await manager.set("password", auth.password)
     except Exception as ex:  # pylint: disable=broad-except
         return TelegramAuthResponseSchema(
             auth=TelegramAuthResponse(
@@ -78,11 +63,11 @@ async def telegram_deauth():
     config = Config.get_instance()
 
     try:
-        # Remove the Telegram auth file.
-        if os.path.isfile(config.api.telegram_auth_file):
-            os.remove(config.api.telegram_auth_file)
+        manager = SecretManager.get_instance()
+        manager.clear("identity")
+        manager.clear("code")
+        manager.clear("password")
 
-        # Remove the session file.
         if os.path.isfile(f"{config.application.name}.session"):
             os.remove(f"{config.application.name}.session")
 

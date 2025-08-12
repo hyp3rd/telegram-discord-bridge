@@ -64,8 +64,7 @@ api:
   enabled: True
   # Enable the Telegram MFA login via the management API
   telegram_login_enabled: True
-  # The file to store the Telegram code and MFA password
-  telegram_auth_file: "telegram_auth.json"
+  # Credentials are handled via the in-memory secret manager
   # The Telegram auth request expiration in seconds
   telegram_auth_request_expiration: 300
   # Allow CORS requests from these origins
