@@ -182,4 +182,8 @@ class MessageHistoryHandler:
             "Message is not similar or contextually relevant to previous messages"
         )
 
+        if config.application.anti_spam_strategy == "ml":
+            logger.debug("ML anti-spam strategy selected but not implemented")
+            return False
+
         return False

@@ -23,6 +23,7 @@ from bridge.history import MessageHistoryHandler
 from bridge.logger import Logger
 from bridge.openai.handler import OpenAIHandler
 from bridge.utils import telegram_entities_to_markdown
+from bridge.stats import StatsTracker
 
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
@@ -266,6 +267,7 @@ class Bridge:
                 await self.history_manager.save_mapping_data(
                     forwarder.forwarder_name, message.id, main_sent_discord_message.id
                 )
+                StatsTracker().increment(forwarder.forwarder_name)
                 logger.info(
                     "Forwarded TG message %s to Discord message %s",
                     message.id,
