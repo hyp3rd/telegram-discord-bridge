@@ -355,7 +355,6 @@ class APIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     enabled: bool = True
     cors_origins: List[str] = ["*"]
     telegram_login_enabled: bool = True
-    telegram_auth_file: str = "telegram_auth.json"
     telegram_auth_request_expiration: int = 300
 
     @model_validator(mode="before")

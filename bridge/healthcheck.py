@@ -1,10 +1,12 @@
 """Handler for healthchecks"""
 
 import asyncio
+import logging
 import socket
 from concurrent.futures import ThreadPoolExecutor
 
 import discord
+from prometheus_client import Counter, Gauge
 from telethon import TelegramClient
 
 from bridge.config import Config
@@ -15,6 +17,13 @@ from core import SingletonMeta
 
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
+
+INTERNET_UP = Gauge("bridge_internet_up", "Internet connectivity status")
+TELEGRAM_UP = Gauge("bridge_telegram_up", "Telegram API status")
+DISCORD_UP = Gauge("bridge_discord_up", "Discord API status")
+HEALTH_FAILURES = Counter(
+    "bridge_healthcheck_failures_total", "Total health check failures", ["component"]
+)
 
 
 class HealthHandler(metaclass=SingletonMeta):
@@ -42,6 +51,14 @@ class HealthHandler(metaclass=SingletonMeta):
         self.discord_client_health = DiscordClientHealth()
 
         self.executor = ThreadPoolExecutor()
+        self.log = logging.LoggerAdapter(logger, {"component": "health"})
+
+    def _alert(self, component: str, error: Exception | str) -> None:
+        """Emit an alert for a failed health check."""
+        HEALTH_FAILURES.labels(component=component).inc()
+        message = str(error)
+        self.log.error("%s health check failed: %s", component, message)
+        self.dispatcher.notify("alert", {"component": component, "error": message})
 
     async def internet_connectivity_check(self) -> bool:
         """Check if the bridge has internet connectivity."""
@@ -54,18 +71,15 @@ class HealthHandler(metaclass=SingletonMeta):
             await loop.run_in_executor(
                 self.executor, socket.create_connection, (host, 443), 5
             )
+            INTERNET_UP.set(1)
             return True
         except socket.gaierror as ex:
-            logger.error(
-                "Unable to resolve hostname: %s", ex, exc_info=config.application.debug
-            )
+            self._alert("internet", ex)
+            INTERNET_UP.set(0)
             return False
         except OSError as ex:
-            logger.error(
-                "Unable to reach the internet: %s",
-                ex,
-                exc_info=config.application.debug,
-            )
+            self._alert("internet", ex)
+            INTERNET_UP.set(0)
             return False
 
     async def check(self, interval: int = 30):
@@ -75,43 +89,33 @@ class HealthHandler(metaclass=SingletonMeta):
             try:
                 has_connectivity = await self.internet_connectivity_check()
                 if has_connectivity:
-                    logger.debug("The bridge is online.")
-                    # set the internet connectivity status to True
+                    self.log.debug("The bridge is online.")
                     config.application.internet_connected = True
                 else:
-                    logger.warning("Unable to reach the internet.")
-                    # set the internet connectivity status to False
+                    self.log.warning("Unable to reach the internet.")
                     config.application.internet_connected = False
                     # wait for the specified interval
                     await asyncio.sleep(interval)
                     await self.check(interval)
 
             except Exception as ex:  # pylint: disable=broad-except
-                logger.error(
-                    "An error occurred while checking internet connectivity: %s",
-                    ex,
-                    exc_info=config.application.debug,
-                )
+                self._alert("internet", ex)
 
             # Check Telegram API status
             try:
                 if self.telegram_client.is_connected():
                     await self.telegram_client.get_me()
-                    logger.debug("Telegram API is healthy.")
-                    # set the Telegram availability status to True
+                    self.log.debug("Telegram API is healthy.")
                     config.telegram.is_healthy = True
+                    TELEGRAM_UP.set(1)
             except ConnectionError as ex:
-                logger.error("Unable to reach the Telegram API: %s", ex)
-                # set the Telegram availability status to False
+                self._alert("telegram", ex)
                 config.telegram.is_healthy = False
+                TELEGRAM_UP.set(0)
             except Exception as ex:  # pylint: disable=broad-except
-                logger.error(
-                    "An error occurred while connecting to the Telegram API: %s",
-                    ex,
-                    exc_info=config.application.debug,
-                )
-                # set the Telegram availability status to False
+                self._alert("telegram", ex)
                 config.telegram.is_healthy = False
+                TELEGRAM_UP.set(0)
 
             # Check Discord API status
             try:
@@ -119,21 +123,17 @@ class HealthHandler(metaclass=SingletonMeta):
                     self.discord_client, config.discord.max_latency
                 )
                 if is_healthy:
-                    logger.debug("Discord API is healthy.")
-                    # set the Discord availability status to True
+                    self.log.debug("Discord API is healthy.")
                     config.discord.is_healthy = True
+                    DISCORD_UP.set(1)
                 else:
-                    logger.warning(discord_status)
-                    # set the Discord availability status to False
+                    self.log.warning(discord_status)
                     config.discord.is_healthy = False
+                    DISCORD_UP.set(0)
             except Exception as ex:  # pylint: disable=broad-except
-                logger.error(
-                    "An error occurred while connecting to the Discord API: %s",
-                    ex,
-                    exc_info=config.application.debug,
-                )
-                # set the Discord availability status to False
+                self._alert("discord", ex)
                 config.discord.is_healthy = False
+                DISCORD_UP.set(0)
 
             self.dispatcher.notify("healthcheck", config)
             # Sleep for the given interval and retry

@@ -1,6 +1,6 @@
 """Telegram handler."""
+
 import asyncio
-import json
 import os
 from asyncio.events import AbstractEventLoop
 
@@ -15,6 +15,7 @@ from telethon.errors.rpcerrorlist import (
 from bridge.config import Config
 from bridge.events import EventDispatcher
 from bridge.logger import Logger
+from bridge.telegram.credentials import credential_store
 from core import SingletonMeta
 
 config = Config.get_instance()
@@ -31,30 +32,17 @@ class TelegramHandler(metaclass=SingletonMeta):
 
         self.dispatcher = dispatcher
 
-    # Check if the session file and the auth file exist
-    # to estabils the user has an active session
     def has_session_file(self) -> bool:
         """Check if the Telegram session file exists."""
-        if os.path.isfile(f"{config.application.name}.session") and os.path.isfile(
-            config.api.telegram_auth_file
-        ):
-            return True
-        return False
+        return os.path.isfile(f"{config.application.name}.session")
 
-    async def _get_creds_from_file(self, key: str) -> str | int:
-        """Wait for the auth file to be created and then read a value from it."""
-        # Wait for the auth file to be created with a timeout of 120 seconds
-        for _ in range(config.api.telegram_auth_request_expiration):
-            if os.path.isfile(config.api.telegram_auth_file):
-                with open(
-                    config.api.telegram_auth_file, "r", encoding="utf-8"
-                ) as auth_file:
-                    value = json.load(auth_file).get(key)
-                if value:
-                    logger.debug("Got the Telegram %s", key)
-                    return value
-            await asyncio.sleep(1)
-        raise TimeoutError(f"Timeout waiting for {key}")
+    async def _get_secret(self, key: str) -> str | int:
+        """Retrieve a secret from the in-memory store."""
+        value = await credential_store.get(
+            key, config.api.telegram_auth_request_expiration
+        )
+        logger.debug("Got the Telegram %s", key)
+        return value
 
     async def get_password(self) -> str:
         """Get the Telegram password from the API payload,
@@ -66,14 +54,14 @@ class TelegramHandler(metaclass=SingletonMeta):
         if not config.api.telegram_login_enabled:
             return config.telegram.password
 
-        telegram_password = await self._get_creds_from_file("password")
+        telegram_password = await self._get_secret("password")
         return str(telegram_password)
 
     async def get_auth_code(self) -> str | int:
         """Get the Telegram auth code from the API payload, or the user's input."""
         logger.debug("Attempting to get the Telegram auth code")
         if config.api.enabled and config.api.telegram_login_enabled:
-            return await self._get_creds_from_file("code")
+            return await self._get_secret("code")
 
         code = input("Enter the Telegram 2FA code: ")
         if not code:
@@ -148,20 +136,6 @@ class TelegramHandler(metaclass=SingletonMeta):
                 exc_info=config.application.debug,
             )
             # append to the json file that 2FA is enabled
-            if (
-                os.path.isfile(config.api.telegram_auth_file)
-                and config.api.telegram_login_enabled
-            ):
-                with open(
-                    config.api.telegram_auth_file, "r", encoding="utf-8"
-                ) as auth_file:
-                    auth_data = json.load(auth_file)
-                auth_data["mfa_required"] = True
-                auth_data["error"] = "2FA is enabled but no password was provided"
-                with open(
-                    config.api.telegram_auth_file, "w", encoding="utf-8"
-                ) as auth_file:
-                    json.dump(auth_data, auth_file)
             raise
 
         except SessionRevokedError:
@@ -170,21 +144,6 @@ class TelegramHandler(metaclass=SingletonMeta):
                 "The current session was revoked",
                 exc_info=config.application.debug,
             )
-            if (
-                os.path.isfile(config.api.telegram_auth_file)
-                and config.api.telegram_login_enabled
-            ):
-                # append to the json file that the session was revoked
-                with open(
-                    config.api.telegram_auth_file, "r", encoding="utf-8"
-                ) as auth_file:
-                    auth_data = json.load(auth_file)
-                auth_data["session_revoked"] = True
-                auth_data["error"] = "The current session was revoked"
-                with open(
-                    config.api.telegram_auth_file, "w", encoding="utf-8"
-                ) as auth_file:
-                    json.dump(auth_data, auth_file)
             raise
         except PhoneCodeInvalidError:
             logger.error(
@@ -192,25 +151,7 @@ class TelegramHandler(metaclass=SingletonMeta):
                 "The phone code is invalid",
                 exc_info=config.application.debug,
             )
-            if (
-                os.path.isfile(config.api.telegram_auth_file)
-                and config.api.telegram_login_enabled
-            ):
-                # append to the json file that the phone code is invalid
-                with open(
-                    config.api.telegram_auth_file, "r", encoding="utf-8"
-                ) as auth_file:
-                    auth_data = json.load(auth_file)
-                auth_data["phone_code_invalid"] = True
-                auth_data["error"] = "The phone code is invalid"
-                with open(
-                    config.api.telegram_auth_file, "w", encoding="utf-8"
-                ) as auth_file:
-                    json.dump(auth_data, auth_file)
             raise
-
-        if os.path.isfile(config.api.telegram_auth_file):
-            os.remove(config.api.telegram_auth_file)
 
         bot_identity = await telegram_client.get_me(input_peer=False)
         logger.info(

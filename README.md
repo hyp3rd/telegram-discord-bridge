@@ -17,7 +17,7 @@ A `Python` bridge to forward messages from any Telegram **channel** to your **Di
 - **It supports OpenAI's API to generate suggestions and sentiment analyses based on the text you're forwarding.**
 - It can run as a daemon and handle any shutdown gracefully, including `SIGTERM` and `SIGINT` signals. It will also save the state of the bridge, so you can resume from where you left off
 - You can enable logging to the file system, which will handle the rotation for you.
-- You can enable the management API to control the bridge remotely, including the ability to log in to Telegram via MFA.
+- You can enable the management API to control the bridge remotely, including the ability to log in to Telegram via MFA without writing codes to disk.
 - You can enable the anti-spam feature to prevent the bridge from forwarding the same message multiple times.
 
 ## Installation
@@ -48,7 +48,7 @@ application:
   description: "A Python bridge to forward messages from those pesky Telegram channels to a shiny Discord channel, because why not?"
   # Whether to enable debug mode, it will increase the verbosity of the logs and the exceptions will be raised instead of being logged
   debug: True
-  # healtcheck interval in seconds
+  # healthcheck interval in seconds
   healthcheck_interval: 10
   # The time in seconds to wait before forwarding each missed message
   recoverer_delay: 60
@@ -64,8 +64,6 @@ api:
   enabled: True
   # Enable the Telegram MFA login via the management API
   telegram_login_enabled: True
-  # The file to store the Telegram code and MFA password
-  telegram_auth_file: "telegram_auth.json"
   # The Telegram auth request expiration in seconds
   telegram_auth_request_expiration: 300
   # Allow CORS requests from these origins

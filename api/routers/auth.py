@@ -1,5 +1,5 @@
 """Bridge Auth Router."""
-import json
+
 import os
 
 from fastapi import APIRouter
@@ -10,6 +10,7 @@ from api.models import (
     TelegramAuthSchema,
 )
 from bridge.config import Config
+from bridge.telegram.credentials import credential_store
 
 router = APIRouter(
     prefix="/auth",
@@ -26,27 +27,12 @@ router = APIRouter(
 )
 async def telegram_auth(auth: TelegramAuthSchema):
     """Handles the Telegram authentication and authorization."""
-    config = Config.get_instance()
+    Config.get_instance()  # ensure config is loaded
 
     try:
-        # Temporarily write the auth data to the Telegram auth file.
-        with open(config.api.telegram_auth_file, "w", encoding="utf-8") as auth_file:
-            json.dump(
-                {
-                    "identity": config.telegram.phone,
-                    "code": auth.code,
-                    "password": auth.password,
-                },
-                auth_file,
-            )
-    except OSError as ex:
-        return TelegramAuthResponseSchema(
-            auth=TelegramAuthResponse(
-                status="authentication interrupted",
-                message="failed to initialize the authentication with the Telegram API.",
-                error=ex.strerror,
-            )
-        )
+        credential_store.set("code", auth.code)
+        if auth.password:
+            credential_store.set("password", auth.password)
     except Exception as ex:  # pylint: disable=broad-except
         return TelegramAuthResponseSchema(
             auth=TelegramAuthResponse(
@@ -77,13 +63,12 @@ async def telegram_deauth():
     config = Config.get_instance()
 
     try:
-        # Remove the Telegram auth file.
-        if os.path.isfile(config.api.telegram_auth_file):
-            os.remove(config.api.telegram_auth_file)
+        credential_store.clear()
 
         # Remove the session file.
-        if os.path.isfile(f"{config.application.name}.session"):
-            os.remove(f"{config.application.name}.session")
+        session_file = f"{config.application.name}.session"
+        if os.path.isfile(session_file):
+            os.remove(session_file)
 
         return TelegramAuthResponseSchema(
             auth=TelegramAuthResponse(
@@ -92,7 +77,6 @@ async def telegram_deauth():
                 error="",
             )
         )
-
     except OSError as ex:
         return TelegramAuthResponseSchema(
             auth=TelegramAuthResponse(

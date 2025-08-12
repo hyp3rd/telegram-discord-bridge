@@ -1,10 +1,6 @@
-"""the bridge."""
+"""Bridge package."""
 
-try:
-    import bridge.discord
-    import bridge.openai.handler
-    import bridge.release
-    import bridge.telegram.core
-    import bridge.utils
-except ImportError as ex:
-    raise ex
+# Modules are not eagerly imported to avoid side effects during package
+# initialization, especially when configuration files are missing.
+
+__all__ = []
