@@ -1,4 +1,5 @@
 """Simple statistics tracker for forwarded messages."""
+
 from collections import defaultdict
 from typing import Dict
 

@@ -12,18 +12,16 @@ from api.models import (
     HealthHistory,
     HealthHistoryManager,
     HealthSchema,
+    StatsResponse,
 )
 from api.routers.health import HealthcheckSubscriber, WSConnectionManager
 from bridge.config import Config
 from bridge.enums import ProcessStateEnum
 from bridge.events import EventDispatcher
 from bridge.logger import Logger
+from bridge.stats import StatsTracker
 from bridge.telegram import TelegramHandler
 from forwarder import Forwarder, OperationStatus
-from bridge.stats import StatsTracker
-from api.models import StatsResponse
-
-# from typing import List
 
 
 config = Config.get_instance()

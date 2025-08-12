@@ -482,7 +482,9 @@ class Bridge:
             message_text = message.message
 
         if openai_enabled:
-            suggestions = await OpenAIHandler.analyze_message_sentiment(message.message)
+            suggestions = await OpenAIHandler().analyze_message_sentiment(
+                message.message
+            )
             message_text = f"{message_text}\n{suggestions}"
 
         if mention_everyone:
