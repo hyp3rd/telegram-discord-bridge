@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# pylint: disable=protected-access
+# pylint: disable=protected-access,import-error
 
 import asyncio
 import importlib
@@ -10,10 +10,7 @@ from copy import deepcopy
 from datetime import datetime
 from types import SimpleNamespace
 
-import yaml
-
-from bridge.config import config as config_module
-from tests.fixtures import TEST_CONFIG_DATA
+from tests.fixtures import TEST_CONFIG_DATA, patch_config
 
 
 class DummyClient:  # pylint: disable=too-few-public-methods
@@ -35,12 +32,7 @@ def test_spam_filter_ml(tmp_path, monkeypatch):
     cfg["openai"]["api_key"] = "key"
     cfg["openai"]["organization"] = "org"
 
-    cfg_file = tmp_path / "config.yml"
-    with cfg_file.open("w", encoding="utf-8") as handle:
-        yaml.safe_dump(cfg, handle)
-
-    monkeypatch.setattr(config_module, "_file_path", str(cfg_file))
-    config_module._instances.clear()
+    patch_config(cfg, tmp_path, monkeypatch)
     history_module = importlib.reload(importlib.import_module("bridge.history.history"))
 
     async def fake_is_spam(self, text):  # pylint: disable=unused-argument

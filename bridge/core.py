@@ -5,7 +5,10 @@ import os
 import sys
 from collections import deque
 from types import SimpleNamespace
-from typing import Deque, List
+from typing import Deque, List, Dict, Tuple
+from urllib.parse import quote
+
+import aiohttp
 
 import discord
 from discord import Message as DiscordMessage
@@ -314,6 +317,10 @@ class Bridge:
                     message.id,
                     main_sent_discord_message.id,
                 )
+                if config.openai.enabled and config.openai.enrich_with_sources:
+                    asyncio.create_task(
+                        self.enrich_and_send_sources(message.message, discord_channel)
+                    )
             else:
                 await self.history_manager.save_missed_message(
                     forwarder.forwarder_name,
@@ -619,6 +626,50 @@ class Bridge:
             links=links,
         )
         return sent_discord_messages
+
+    async def lookup_sources(
+        self, claim_queries: List[Dict[str, str]]
+    ) -> List[Tuple[str, str]]:
+        """Search structured sources for each provided query."""
+
+        results: List[Tuple[str, str]] = []
+        async with aiohttp.ClientSession() as session:
+            for item in claim_queries:
+                claim = item.get("claim")
+                query = item.get("query")
+                if not claim or not query:
+                    continue
+                url = (
+                    "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&utf8=1&srlimit=1&srsearch="
+                    f"{quote(query)}"
+                )
+                try:
+                    async with session.get(url, timeout=10) as resp:
+                        data = await resp.json()
+                    search = data.get("query", {}).get("search")
+                    if search:
+                        title = search[0]["title"].replace(" ", "_")
+                        link = f"https://en.wikipedia.org/wiki/{title}"
+                        results.append((claim, link))
+                except Exception as ex:  # pylint: disable=broad-except
+                    logger.error("Error fetching sources for query %s: %s", query, ex)
+        return results
+
+    async def enrich_and_send_sources(self, text: str, discord_channel) -> None:
+        """Generate source links for message ``text`` and send them to Discord."""
+
+        claim_queries = await OpenAIHandler().analyze_message_and_generate_suggestions(
+            text
+        )
+        if not claim_queries:
+            return
+        sources = await self.lookup_sources(claim_queries)
+        if not sources:
+            return
+        lines = [f"{claim} - {url}" for claim, url in sources]
+        await self.discord_handler.forward_message(
+            discord_channel, "\n".join(lines), embed=False
+        )
 
     async def on_restored_connectivity(self):
         """Check and restore internet connectivity."""

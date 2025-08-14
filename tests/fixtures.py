@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# pylint: disable=import-error,import-outside-toplevel
+
 import yaml
 
 # Central configuration sample reused across tests
@@ -78,3 +80,14 @@ def write_config(tmp_path) -> str:
     with cfg_file.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(TEST_CONFIG_DATA, handle)
     return str(cfg_file)
+
+
+def patch_config(cfg, tmp_path, monkeypatch) -> None:
+    """Write ``cfg`` to ``tmp_path`` and patch the config module."""
+    from bridge.config import config as config_module
+
+    cfg_file = tmp_path / "config.yml"
+    with cfg_file.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(cfg, handle)
+    monkeypatch.setattr(config_module, "_file_path", str(cfg_file))
+    config_module._instances.clear()  # pylint: disable=protected-access

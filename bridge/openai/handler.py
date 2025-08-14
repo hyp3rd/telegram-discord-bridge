@@ -2,7 +2,8 @@
 
 import asyncio
 import functools
-from typing import List
+import json
+from typing import List, Dict
 
 from openai import OpenAI
 
@@ -24,8 +25,16 @@ class OpenAIHandler(metaclass=SingletonMeta):
         )
         self.model = config.openai.model
 
-    async def analyze_message_and_generate_suggestions(self, text: str) -> str:
-        """Analyze the message text and seek for suggestions."""
+    async def analyze_message_and_generate_suggestions(
+        self, text: str
+    ) -> List[Dict[str, str]]:
+        """Identify factual claims and matching search queries.
+
+        The model is asked to return a JSON array of objects with two keys:
+
+        - ``claim``: the potential factual statement found in the text
+        - ``query``: a suggested search query to verify that claim
+        """
 
         loop = asyncio.get_event_loop()
         try:
@@ -36,27 +45,25 @@ class OpenAIHandler(metaclass=SingletonMeta):
                     {
                         "role": "user",
                         "content": (
-                            f"Given the message: '{text}', suggest related actions and correlated articles with links:\n"
-                            "Related Actions:\n- ACTION1\n- ACTION2\n- ACTION3\n"
-                            "Correlated Articles:\n1. ARTICLE1_TITLE - ARTICLE1_LINK\n"
-                            "2. ARTICLE2_TITLE - ARTICLE2_LINK\n"
-                            "3. ARTICLE3_TITLE - ARTICLE3_LINK\n"
+                            "For the following message, list factual claims and a search query "
+                            "for each to verify it. Respond with JSON array of objects "
+                            "with 'claim' and 'query' fields.\n"
+                            f"Message: {text}"
                         ),
                     }
                 ],
                 temperature=0,
-                max_tokens=60,
+                max_tokens=300,
             )
 
             response = await loop.run_in_executor(None, create_completion)
-
             content = response.choices[0].message.content
-            suggestion = content.strip() if content else ""
-
-            return suggestion
+            if content is None:
+                return []
+            return json.loads(content)
         except Exception as ex:  # pylint: disable=broad-except
-            logger.error("Error generating suggestion: %s", {ex})
-            return "Error generating suggestion."
+            logger.error("Error generating fact check suggestions: %s", ex)
+            return []
 
     async def analyze_message_sentiment(self, text: str) -> str:
         """Analyze the message text and seek for suggestions."""
