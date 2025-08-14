@@ -4,7 +4,7 @@ import os
 from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, StrictInt, model_validator, validator
+from pydantic import BaseModel, ConfigDict, StrictInt, field_validator, model_validator
 
 _instances: Dict[str, "Config"] = {}
 _file_path = os.path.join(
@@ -38,10 +38,7 @@ class ForwarderConfig(BaseModel):
     def __iter__(self):
         return iter(self.__dict__)
 
-    class Config:
-        """Forwarder config."""
-
-        str_max_length = 64
+    model_config = ConfigDict(str_max_length=64)
 
     @model_validator(mode="before")
     def forward_everything_validator(cls, values):
@@ -82,28 +79,28 @@ class ForwarderConfig(BaseModel):
             )
         return values
 
-    @validator("forwarder_name")
+    @field_validator("forwarder_name")
     def forwarder_name_validator(cls, val):
         """Forwarder name validator."""
         if not val:
             assert val, "forwarder_name must not be empty"
         return val
 
-    @validator("tg_channel_id")
+    @field_validator("tg_channel_id")
     def tg_channel_id_validator(cls, val):
         """Telegram channel id validator."""
         if val < 0:
             assert val < 0, "tg_channel_id must be > 0"
         return val
 
-    @validator("discord_channel_id")
+    @field_validator("discord_channel_id")
     def discord_channel_id_validator(cls, val):
         """Discord channel id validator."""
         if val < 0:
             assert val < 0, "discord_channel_id must be > 0"
         return val
 
-    @validator("forward_hashtags")
+    @field_validator("forward_hashtags")
     def forward_hashtags_validator(cls, val):
         """Forward hashtags validator."""
         if val:
@@ -114,7 +111,7 @@ class ForwarderConfig(BaseModel):
                     ), "forward_hashtags name must start with #"
         return val
 
-    @validator("excluded_hashtags")
+    @field_validator("excluded_hashtags")
     def excluded_hashtags_validator(cls, val):
         """Excluded hashtags validator."""
         if val:
@@ -125,7 +122,7 @@ class ForwarderConfig(BaseModel):
                     ), "excluded_hashtags name must start with #"
         return val
 
-    @validator("mention_override")
+    @field_validator("mention_override")
     def mention_override_validator(cls, val):
         """Mention override validator."""
         if val:
@@ -169,7 +166,7 @@ class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
                 raise ValueError("sentiment_analysis_prompt must not be empty")
         return values
 
-    @validator("sentiment_analysis_prompt")
+    @field_validator("sentiment_analysis_prompt")
     def sentiment_analysis_prompt_validator(cls, val):
         """Sentiment analysis prompt validator."""
         if val:
@@ -202,14 +199,14 @@ class DiscordConfig(BaseModel):  # pylint: disable=too-few-public-methods
             raise ValueError("bot_token must not be empty")
         return values
 
-    @validator("built_in_roles")
+    @field_validator("built_in_roles")
     def built_in_roles_validator(cls, val):
         """Built in roles validator."""
         if not val:
             assert val, "built_in_roles must not be empty"
         return val
 
-    @validator("max_latency")
+    @field_validator("max_latency")
     def max_latency_validator(cls, val):
         """Max latency validator."""
         if val < 0:
@@ -231,17 +228,14 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     subscribe_to_delete_events: bool = False
     is_healthy: bool = False
 
-    class Config:
-        """Telegram config."""
-
-    @validator("api_hash")
+    @field_validator("api_hash")
     def api_hash_alphanumeric(cls, val):
         """API hash alphanumeric validator."""
         if not val.isalnum():
             assert val.isalnum(), "the API hash must be alphanumeric"
         return val
 
-    @validator("api_hash")
+    @field_validator("api_hash")
     def api_hash_length(cls, val):
         """API hash length validator."""
         if len(val) != 32:
@@ -260,7 +254,7 @@ class LoggerConfig(BaseModel):  # pylint: disable=too-few-public-methods
     console: bool = True
     compress: bool = False
 
-    @validator("level")
+    @field_validator("level")
     def level_validator(cls, val):
         """Level validator."""
         if not val:
@@ -271,7 +265,7 @@ class LoggerConfig(BaseModel):  # pylint: disable=too-few-public-methods
             )
         return val
 
-    @validator("file_max_bytes")
+    @field_validator("file_max_bytes")
     def file_max_bytes_validator(cls, val):
         """File max bytes validator."""
         if val < 0:
@@ -290,14 +284,14 @@ class HistoryConfig(BaseModel):  # pylint: disable=too-few-public-methods
     file_max_bytes: StrictInt = 10485760
     file_backup_count: StrictInt = 5
 
-    @validator("backend")
+    @field_validator("backend")
     def backend_validator(cls, val):
         """Ensure the configured backend is supported."""
         if val not in ["json", "sqlite"]:
             raise ValueError("backend must be one of json, sqlite")
         return val
 
-    @validator("file_max_bytes")
+    @field_validator("file_max_bytes")
     def history_file_max_bytes_validator(cls, val):
         """Validate the maximum history file size."""
         if val < 0:
@@ -323,14 +317,14 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     anti_spam_contextual_analysis: bool = False
     anti_spam_strategy: str = "heuristic"
 
-    @validator("version")
+    @field_validator("version")
     def version_validator(cls, val):
         """Version validator."""
         if not val:
             assert val, "version must not be empty"
         return val
 
-    @validator("name")
+    @field_validator("name")
     def name_validator(cls, val):
         """Name validator."""
         if not val:
@@ -340,7 +334,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
             assert val.isalnum(), "name must be alphanumeric"
         return val
 
-    @validator("healthcheck_interval")
+    @field_validator("healthcheck_interval")
     def healthcheck_interval_validator(cls, val):
         """Healthcheck interval validator."""
         if val < 30:
@@ -349,7 +343,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
             assert val > 1200, "healthcheck_interval must be < 1200"
         return val
 
-    @validator("recoverer_delay")
+    @field_validator("recoverer_delay")
     def recoverer_delay_validator(cls, val):
         """Recoverer delay validator."""
         if val < 10:
@@ -358,7 +352,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
             assert val > 3600, "recoverer_delay must be < 3600"
         return val
 
-    @validator("anti_spam_similarity_timeframe")
+    @field_validator("anti_spam_similarity_timeframe")
     def anti_spam_similarity_timeframe_validator(cls, val):
         """Anti-Spam similarity timeframe validator."""
         if val < 10:
@@ -367,7 +361,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
             assert val > 3600, "anti_spam_similarity_timeframe must be < 3600"
         return val
 
-    @validator("anti_spam_similarity_threshold")
+    @field_validator("anti_spam_similarity_threshold")
     def anti_spam_similarity_threshold_validator(cls, val):
         """Anti-Spam similarity threshold validator."""
         if val < 0:
@@ -376,7 +370,7 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
             assert val > 1, "anti_spam_similarity_threshold must be < 1"
         return val
 
-    @validator("anti_spam_strategy")
+    @field_validator("anti_spam_strategy")
     def anti_spam_strategy_validator(cls, val):
         """Validate anti spam strategy."""
         if val not in {"heuristic", "ml"}:
@@ -405,7 +399,7 @@ class APIConfig(BaseModel):  # pylint: disable=too-few-public-methods
             )
         return values
 
-    @validator("telegram_auth_request_expiration")
+    @field_validator("telegram_auth_request_expiration")
     def telegram_auth_request_expiration_validator(cls, val):
         """Telegram auth request expiration validator."""
         if val < 0:
