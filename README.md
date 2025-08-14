@@ -18,7 +18,7 @@ A `Python` bridge to forward messages from any Telegram **channel** to your **Di
 - It can run as a daemon and handle any shutdown gracefully, including `SIGTERM` and `SIGINT` signals. It will also save the state of the bridge, so you can resume from where you left off
 - You can enable logging to the file system, which will handle the rotation for you.
 - You can enable the management API to control the bridge remotely, including the ability to log in to Telegram via MFA.
-- You can enable the anti-spam feature to prevent the bridge from forwarding the same message multiple times.
+- You can enable the anti-spam feature to prevent the bridge from forwarding the same message multiple times, or let an AI model flag suspicious messages.
 
 ## Installation
 
@@ -58,6 +58,8 @@ application:
   anti_spam_similarity_timeframe: 60
   # Anti spam similarity threshold (set 0 to 1, with 1 being identical)
   anti_spam_similarity_threshold: 0.8
+  # Anti spam strategy: heuristic or ml (requires OpenAI configuration)
+  anti_spam_strategy: heuristic
 
 # Management API configuration
 api:
