@@ -2,6 +2,7 @@
 
 import asyncio
 import functools
+from typing import List
 
 from openai import OpenAI
 
@@ -88,6 +89,66 @@ class OpenAIHandler(metaclass=SingletonMeta):
         except Exception as ex:  # pylint: disable=broad-except
             logger.error("Error generating suggestion: %s", {ex})
             return "Error generating suggestion."
+
+    async def classify_message_nature(self, text: str) -> str:
+        """Classify the message as safe or unsafe."""
+
+        loop = asyncio.get_event_loop()
+        try:
+            create_completion = functools.partial(
+                self.client.chat.completions.create,
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": (
+                            "Classify the following message as safe or unsafe. "
+                            "Reply with 'safe' or 'unsafe' only.\n"
+                            f"Message: {text}"
+                        ),
+                    }
+                ],
+                temperature=0,
+                max_tokens=10,
+            )
+
+            response = await loop.run_in_executor(None, create_completion)
+
+            content = response.choices[0].message.content or ""
+            return "unsafe" if "unsafe" in content.lower() else "safe"
+        except Exception as ex:  # pylint: disable=broad-except
+            logger.error("Error classifying message nature: %s", {ex})
+            return "safe"
+
+    async def summarize_messages(self, messages: List[str]) -> str:
+        """Summarize a collection of messages."""
+
+        loop = asyncio.get_event_loop()
+        try:
+            joined_messages = "\n".join(messages)
+            create_completion = functools.partial(
+                self.client.chat.completions.create,
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": (
+                            "Summarize the following messages in a concise way:\n"
+                            f"{joined_messages}"
+                        ),
+                    }
+                ],
+                temperature=0.5,
+                max_tokens=150,
+            )
+
+            response = await loop.run_in_executor(None, create_completion)
+
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
+        except Exception as ex:  # pylint: disable=broad-except
+            logger.error("Error summarizing messages: %s", {ex})
+            return ""
 
     async def is_spam(self, text: str) -> bool:
         """Classify whether the provided text is spam."""
