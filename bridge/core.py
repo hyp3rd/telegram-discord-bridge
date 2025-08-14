@@ -3,8 +3,9 @@
 import asyncio
 import os
 import sys
+from collections import deque
 from types import SimpleNamespace
-from typing import List
+from typing import Deque, List
 
 import discord
 from discord import Message as DiscordMessage
@@ -38,6 +39,7 @@ class Bridge:
         self.discord_handler = DiscordHandler()
         self.history_manager = MessageHistoryHandler()
         self.input_channels_entities = []
+        self.last_messages: Deque[str] = deque(maxlen=10)
 
         logger.debug("Forwarders: %s", config.telegram_forwarders)
 
@@ -143,6 +145,18 @@ class Bridge:
 
         tg_channel_id = message.peer_id.channel_id  # type: ignore
 
+        if config.openai.enabled:
+            nature = await OpenAIHandler().classify_message_nature(
+                message.message or ""
+            )
+            if nature == "unsafe":
+                logger.warning(
+                    "Message %s classified as unsafe, skipping...", message.id
+                )
+                return
+
+        self.last_messages.append(message.message or "")
+
         if config.application.anti_spam_enabled:
             # check for duplicate messages
             if await self.history_manager.spam_filter(
@@ -245,6 +259,7 @@ class Bridge:
                 mention_everyone,
                 mention_roles,
                 config.openai.enabled,
+                self.last_messages,
             )
 
             if forwarder.send_as_embed:
@@ -493,13 +508,14 @@ class Bridge:
         ]  # pylint: disable=line-too-long
 
     @staticmethod
-    async def process_message_text(
+    async def process_message_text(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         message: Message,
         strip_off_links: bool,
         mention_everyone: bool,
         mention_roles: List[str],
         openai_enabled: bool,
-    ) -> str:  # pylint: disable=too-many-arguments
+        last_messages: Deque[str] | None = None,
+    ) -> str:
         """Process the message text and return the processed text."""
 
         if message.entities:
@@ -512,6 +528,9 @@ class Bridge:
                 message.message
             )
             message_text = f"{message_text}\n{suggestions}"
+            if last_messages is not None and len(last_messages) == last_messages.maxlen:
+                summary = await OpenAIHandler().summarize_messages(list(last_messages))
+                message_text = f"{message_text}\n\nSummary of last {last_messages.maxlen} messages:\n{summary}"
 
         if mention_everyone:
             message_text += "\n" + "@everyone"
