@@ -88,3 +88,33 @@ class OpenAIHandler(metaclass=SingletonMeta):
         except Exception as ex:  # pylint: disable=broad-except
             logger.error("Error generating suggestion: %s", {ex})
             return "Error generating suggestion."
+
+    async def is_spam(self, text: str) -> bool:
+        """Classify whether the provided text is spam."""
+
+        loop = asyncio.get_event_loop()
+        try:
+            create_completion = functools.partial(
+                self.client.chat.completions.create,
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": (
+                            "Classify the following message as spam or not spam. "
+                            "Reply with 'spam' or 'not spam' only.\n"
+                            f"Message: {text}"
+                        ),
+                    }
+                ],
+                temperature=0,
+                max_tokens=10,
+            )
+
+            response = await loop.run_in_executor(None, create_completion)
+
+            content = response.choices[0].message.content or ""
+            return "spam" in content.lower()
+        except Exception as ex:  # pylint: disable=broad-except
+            logger.error("Error classifying spam: %s", {ex})
+            return False

@@ -12,6 +12,7 @@ from bridge.config import Config
 from bridge.history.contextual_analysis import ContextualAnalysis
 from bridge.history.backends import get_backend
 from bridge.logger import Logger
+from bridge.openai.handler import OpenAIHandler
 
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
@@ -183,7 +184,9 @@ class MessageHistoryHandler:
         )
 
         if config.application.anti_spam_strategy == "ml":
-            logger.debug("ML anti-spam strategy selected but not implemented")
-            return False
+            if not config.openai.enabled:
+                logger.warning("ML anti-spam strategy selected but OpenAI is disabled")
+                return False
+            return await OpenAIHandler().is_spam(telegram_message.text)
 
         return False
