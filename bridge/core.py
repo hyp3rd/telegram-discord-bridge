@@ -649,7 +649,7 @@ class Bridge:
                     search = data.get("query", {}).get("search")
                     if search:
                         title = search[0]["title"].replace(" ", "_")
-                        link = f"https://en.wikipedia.org/wiki/{title}"
+                        link = f"https://en.wikipedia.org/wiki/{quote(title)}"
                         results.append((claim, link))
                 except Exception as ex:  # pylint: disable=broad-except
                     logger.error("Error fetching sources for query %s: %s", query, ex)
