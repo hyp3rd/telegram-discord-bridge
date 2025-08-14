@@ -1,17 +1,13 @@
 """Tests for message source enrichment."""
 
-# pylint: disable=protected-access
+# pylint: disable=protected-access,import-error
 
 import asyncio
 import copy
 import importlib
 from types import SimpleNamespace
 
-import yaml
-
-from bridge.config import config as config_module
-
-from tests.fixtures import TEST_CONFIG_DATA
+from tests.fixtures import TEST_CONFIG_DATA, patch_config
 
 
 def test_enrich_and_send_sources(tmp_path, monkeypatch):
@@ -22,11 +18,7 @@ def test_enrich_and_send_sources(tmp_path, monkeypatch):
     cfg["openai"]["api_key"] = "key"
     cfg["openai"]["organization"] = "org"
     cfg["openai"]["enrich_with_sources"] = True
-    cfg_file = tmp_path / "config.yml"
-    with cfg_file.open("w", encoding="utf-8") as handle:
-        yaml.safe_dump(cfg, handle)
-    monkeypatch.setattr(config_module, "_file_path", str(cfg_file))
-    config_module._instances.clear()
+    patch_config(cfg, tmp_path, monkeypatch)
     core = importlib.reload(importlib.import_module("bridge.core"))
 
     async def fake_analyze(_self, _text):
