@@ -145,6 +145,7 @@ class OpenAIConfig(BaseModel):  # pylint: disable=too-few-public-methods
     api_key: str
     organization: str
     model: str = "gpt-4o-mini"
+    enrich_with_sources: bool = False
     sentiment_analysis_prompt: List[str]
     is_healthy: bool = True  # FIX: This is a hack to make the health check pass
 

@@ -83,6 +83,7 @@ openai:
   api_key: "<your openai api key>"
   organization: "<your openai organization>"
   model: "gpt-4o-mini"
+  enrich_with_sources: False # enable to append fact-check sources
   # The prompt to use for OpenAI, the #text_to_parse will be appended to this prompt
   sentiment_analysis_prompt:
     - "Analyze the following text to determine its sentiment: #text_to_parse.\n\n"
