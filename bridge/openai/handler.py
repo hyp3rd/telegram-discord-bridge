@@ -60,7 +60,11 @@ class OpenAIHandler(metaclass=SingletonMeta):
             content = response.choices[0].message.content
             if content is None:
                 return []
-            return json.loads(content)
+            try:
+                return json.loads(content)
+            except JSONDecodeError as json_ex:
+                logger.error("Failed to parse OpenAI response as JSON: %s. Content: %r", json_ex, content)
+                return []
         except Exception as ex:  # pylint: disable=broad-except
             logger.error("Error generating fact check suggestions: %s", ex)
             return []
