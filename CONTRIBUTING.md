@@ -37,6 +37,14 @@ To ensure that contributions are consistent and aligned with the project's objec
 
 **Respect Others:** Be kind and respectful towards other community members. Avoid disrespectful language and behaviour.
 
+## Feature Requests
+
+Have an idea for a new capability? Open an issue using the **Feature Request** template and describe the problem you're trying to solve. Maintainers will review and tag it appropriately.
+
+## Newcomer-Friendly Issues
+
+The issue tracker contains tickets labelled `good first issue` and `help wanted`. These are well-scoped tasks intended for new contributors. If you need more context on any of them, feel free to ask questions in the issue discussion.
+
 ## Conclusion
 
 Participating in open-source projects like this one can be an enriching experience. You have the opportunity to enhance your abilities while also making a valuable contribution to a resource that positively impacts the greater community.
