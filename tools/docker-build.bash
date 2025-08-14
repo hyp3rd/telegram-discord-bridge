@@ -30,7 +30,7 @@ build() {
     docker push ghcr.io/hyp3rd/bridge:"$latest_version"
     docker push ghcr.io/hyp3rd/bridge:latest
   else
-    echo "docker is not installed or not running'"
+    echo "docker is not installed or not running"
   fi
 }
 
