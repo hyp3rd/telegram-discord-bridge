@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+import time
 from collections import deque
 from types import SimpleNamespace
 from typing import Deque, List, Dict, Tuple
@@ -65,11 +66,15 @@ class Bridge:
         """Register the forwarders."""
         logger.info("Registering forwarders...")
 
-        if not self.telegram_client.is_connected():
+        start_time = time.monotonic()
+        while not self.telegram_client.is_connected():
             logger.warning("Telegram client not connected, retrying...")
             await asyncio.sleep(1)
-            await self._register_forwarders()
-            return
+            if time.monotonic() - start_time > 30:
+                logger.error(
+                    "Telegram client not connected after 30 seconds, aborting registration"
+                )
+                return
 
         logger.debug("Iterating dialogs...")
         try:

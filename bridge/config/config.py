@@ -83,21 +83,21 @@ class ForwarderConfig(BaseModel):
     def forwarder_name_validator(cls, val):
         """Forwarder name validator."""
         if not val:
-            assert val, "forwarder_name must not be empty"
+            raise ValueError("forwarder_name must not be empty")
         return val
 
     @field_validator("tg_channel_id")
     def tg_channel_id_validator(cls, val):
         """Telegram channel id validator."""
-        if val < 0:
-            assert val < 0, "tg_channel_id must be > 0"
+        if val <= 0:
+            raise ValueError("tg_channel_id must be > 0")
         return val
 
     @field_validator("discord_channel_id")
     def discord_channel_id_validator(cls, val):
         """Discord channel id validator."""
-        if val < 0:
-            assert val < 0, "discord_channel_id must be > 0"
+        if val <= 0:
+            raise ValueError("discord_channel_id must be > 0")
         return val
 
     @field_validator("forward_hashtags")
@@ -106,9 +106,7 @@ class ForwarderConfig(BaseModel):
         if val:
             for forward_hashtags in val:
                 if not forward_hashtags["name"].startswith("#"):
-                    assert forward_hashtags["name"].startswith(
-                        "#"
-                    ), "forward_hashtags name must start with #"
+                    raise ValueError("forward_hashtags name must start with #")
         return val
 
     @field_validator("excluded_hashtags")
@@ -117,9 +115,7 @@ class ForwarderConfig(BaseModel):
         if val:
             for excluded_hashtags in val:
                 if not excluded_hashtags["name"].startswith("#"):
-                    assert excluded_hashtags["name"].startswith(
-                        "#"
-                    ), "excluded_hashtags name must start with #"
+                    raise ValueError("excluded_hashtags name must start with #")
         return val
 
     @field_validator("mention_override")
@@ -127,11 +123,10 @@ class ForwarderConfig(BaseModel):
         """Mention override validator."""
         if val:
             for mention_override in val:
-                assert mention_override["tag"], "mention_override tag must not be empty"
-                if not mention_override["roles"]:
-                    assert mention_override[
-                        "roles"
-                    ], "mention_override roles must not be empty"
+                if not mention_override.get("tag"):
+                    raise ValueError("mention_override tag must not be empty")
+                if not mention_override.get("roles"):
+                    raise ValueError("mention_override roles must not be empty")
         return val
 
 
@@ -356,18 +351,16 @@ class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     def anti_spam_similarity_timeframe_validator(cls, val):
         """Anti-Spam similarity timeframe validator."""
         if val < 10:
-            assert val < 10, "anti_spam_similarity_timeframe must be > 10"
+            raise ValueError("anti_spam_similarity_timeframe must be > 10")
         if val > 3600:
-            assert val > 3600, "anti_spam_similarity_timeframe must be < 3600"
+            raise ValueError("anti_spam_similarity_timeframe must be < 3600")
         return val
 
     @field_validator("anti_spam_similarity_threshold")
     def anti_spam_similarity_threshold_validator(cls, val):
         """Anti-Spam similarity threshold validator."""
-        if val < 0:
-            assert val < 0, "anti_spam_similarity_threshold must be > 0"
-        if val > 1:
-            assert val > 1, "anti_spam_similarity_threshold must be < 1"
+        if not 0 < val < 1:
+            raise ValueError("anti_spam_similarity_threshold must be between 0 and 1")
         return val
 
     @field_validator("anti_spam_strategy")
@@ -552,7 +545,7 @@ class Config(BaseModel):
     @classmethod
     def get_instance(cls, version: str = "default") -> "Config":
         """Get config instance."""
-        if version not in _instances.items():
+        if version not in _instances:
             _instances[version] = cls.load_instance(_file_path)
         return _instances[version]
 
