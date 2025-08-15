@@ -366,7 +366,7 @@ class Forwarder(metaclass=SingletonMeta):
             Exception,
             asyncio.CancelledError,
         ) as ex:
-            self.logger.error("Error disconnecting Telegram client: %s", {ex})
+            self.logger.error("Error disconnecting Telegram client: %s", ex)
 
         try:
             self.logger.info("Disconnecting Discord client...")
@@ -377,7 +377,7 @@ class Forwarder(metaclass=SingletonMeta):
             Exception,
             asyncio.CancelledError,
         ) as ex:  # pylint: disable=broad-except
-            self.logger.error("Error disconnecting Discord client: %s", {ex})
+            self.logger.error("Error disconnecting Discord client: %s", ex)
 
         # if not config.api.enabled:
         for running_task in all_tasks:
@@ -390,14 +390,14 @@ class Forwarder(metaclass=SingletonMeta):
                     running_task is not None
                     and running_task.get_name() in forwarder_tasks
                 ):
-                    self.logger.debug(
-                        "Cancelling task %s...", {running_task.get_name()}
-                    )
+                    self.logger.debug("Cancelling task %s...", running_task.get_name())
                     try:
                         running_task.cancel()
                     except Exception as ex:  # pylint: disable=broad-except
                         self.logger.error(
-                            "Error cancelling task %s: %s", {running_task}, {ex}
+                            "Error cancelling task %s: %s",
+                            running_task,
+                            ex,
                         )
 
         self.pid_manager.remove_pid_file()
@@ -405,7 +405,7 @@ class Forwarder(metaclass=SingletonMeta):
 
     async def shutdown(self, sig):
         """Shutdown the application gracefully."""
-        self.logger.warning("Shutdown received signal %s, shutting down...", {sig})
+        self.logger.warning("Shutdown received signal %s, shutting down...", sig)
 
         # Cancel all tasks
         tasks = [

@@ -1,7 +1,7 @@
 """Bridge controller router."""
 
 import asyncio
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -45,6 +45,8 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
         self.health_history: HealthHistory = self.health_history_manager_instance.HealthHistory()  # type: ignore # pylint: disable=no-member
 
         self.ws_connection_manager: WSConnectionManager
+        self.healthcheck_subscriber: Optional[HealthcheckSubscriber] = None
+        self.on_update = None
 
         self.bridge_router = APIRouter(
             prefix="/bridge",
@@ -86,8 +88,46 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
             "/health/ws", name="Get the health status of the Bridge."
         )(self.health_websocket_endpoint)
 
+    async def _setup_runtime(self):
+        """Initialize dispatcher and subscribers."""
+        healthcheck_subscribers: List[HealthcheckSubscriber] = []
+        self.ws_connection_manager = WSConnectionManager(self.health_history)
+        self.dispatcher = EventDispatcher(subscribers=healthcheck_subscribers)
+        self.healthcheck_subscriber = HealthcheckSubscriber(
+            "healthcheck_subscriber",
+            self.dispatcher,
+            self.health_history,
+            self.ws_connection_manager,
+        )
+        self.dispatcher.add_subscriber("healthcheck", self.healthcheck_subscriber)
+        self.on_update = self.healthcheck_subscriber.create_on_update_decorator()
+        self.telegram_handler = TelegramHandler(dispatcher=self.dispatcher)
+
+    async def _start_forwarder(self) -> OperationStatus:
+        """Start the forwarder controller."""
+        locker = asyncio.Lock()
+        await locker.acquire()
+        operation_status: OperationStatus = await self.forwarder.api_controller()
+        locker.release()
+        return operation_status
+
+    def _build_response(
+        self, status: ProcessStateEnum, pid: int, error: str
+    ) -> BridgeResponseSchema:
+        """Build a bridge response schema."""
+        return BridgeResponseSchema(
+            bridge=BridgeResponse(
+                name=config.application.name,
+                status=status,
+                process_id=pid,
+                config_version=config.application.version,
+                telegram_authenticated=self.telegram_handler.has_session_file(),
+                error=error,
+            )
+        )
+
     async def start(self):
-        """start the bridge."""
+        """Start the bridge."""
 
         process_state, pid = self.forwarder.determine_process_state()
 
@@ -97,53 +137,11 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
                 ProcessStateEnum.STARTING,
                 ProcessStateEnum.UNKNOWN,
             ]:
-                # create a shared list of subscribers
-                healthcheck_subscribers: List[HealthcheckSubscriber] = []
-
-                self.ws_connection_manager = WSConnectionManager(self.health_history)
-
-                # create the event dispatcher
-                self.dispatcher = EventDispatcher(subscribers=healthcheck_subscribers)
-                self.healthcheck_subscriber = HealthcheckSubscriber(
-                    "healthcheck_subscriber",
-                    self.dispatcher,
-                    self.health_history,
-                    self.ws_connection_manager,
-                )
-                self.dispatcher.add_subscriber(
-                    "healthcheck", self.healthcheck_subscriber
-                )
-
-                self.on_update = (
-                    self.healthcheck_subscriber.create_on_update_decorator()
-                )
-
-                self.telegram_handler = TelegramHandler(dispatcher=self.dispatcher)
-
-                # event_loop = asyncio.get_running_loop()
-
-                # controller_task = asyncio.ensure_future(run_controller(self.dispatcher, event_loop, True, False, False,))
-
-                locker = asyncio.Lock()
-                await locker.acquire()
-                # event_loop.create_task(run_controller(self.dispatcher, event_loop, True, False, False))
-                # event_loop.create_task(self.forwarder.api_controller())
-                operation_status: OperationStatus = (
-                    await self.forwarder.api_controller()
-                )
-                locker.release()
-
+                await self._setup_runtime()
+                operation_status = await self._start_forwarder()
                 logger.info("Operation status: %s", operation_status)
-
-                return BridgeResponseSchema(
-                    bridge=BridgeResponse(
-                        name=config.application.name,
-                        status=operation_status[0],
-                        process_id=pid,
-                        config_version=config.application.version,
-                        telegram_authenticated=self.telegram_handler.has_session_file(),
-                        error=operation_status[1],
-                    )
+                return self._build_response(
+                    operation_status[0], pid, operation_status[1]
                 )
         except Exception as ex:  # pylint: disable=broad-except
             logger.error(
@@ -151,42 +149,12 @@ class BridgeRouter:  # pylint: disable=too-many-instance-attributes
                 ex,
                 exc_info=Config.get_instance().application.debug,
             )
-            return BridgeResponseSchema(
-                bridge=BridgeResponse(
-                    name=config.application.name,
-                    status=ProcessStateEnum.STOPPED,
-                    process_id=pid,
-                    config_version=config.application.version,
-                    telegram_authenticated=self.telegram_handler.has_session_file(),
-                    error=str(ex),
-                )
-            )
+            return self._build_response(ProcessStateEnum.STOPPED, pid, str(ex))
 
-        # if the pid file is empty and the process is not None and is alive,
-        # then return that the bridge is starting
         if pid == 0 and process_state == ProcessStateEnum.RUNNING:
-            return BridgeResponseSchema(
-                bridge=BridgeResponse(
-                    name=config.application.name,
-                    status=ProcessStateEnum.ORPHANED,
-                    process_id=pid,
-                    config_version=config.application.version,
-                    telegram_authenticated=self.telegram_handler.has_session_file(),
-                    error="",
-                )
-            )
+            return self._build_response(ProcessStateEnum.ORPHANED, pid, "")
 
-        # otherwise return the state of the process
-        return BridgeResponseSchema(
-            bridge=BridgeResponse(
-                name=config.application.name,
-                status=ProcessStateEnum.RUNNING,
-                process_id=pid,
-                config_version=config.application.version,
-                telegram_authenticated=self.telegram_handler.has_session_file(),
-                error="",
-            )
-        )
+        return self._build_response(ProcessStateEnum.RUNNING, pid, "")
 
     async def stop(self):
         """stop the bridge."""

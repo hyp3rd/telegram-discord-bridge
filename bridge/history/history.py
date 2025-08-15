@@ -142,6 +142,8 @@ class MessageHistoryHandler:
             logger.debug("Current message text: %s", telegram_message.text)
 
             if message.id != telegram_message.id:
+                if not message.text or not telegram_message.text:
+                    continue
                 similarity = 1 - Levenshtein.distance(
                     message.text, telegram_message.text
                 ) / max(len(message.text), len(telegram_message.text))
@@ -187,6 +189,6 @@ class MessageHistoryHandler:
             if not config.openai.enabled:
                 logger.warning("ML anti-spam strategy selected but OpenAI is disabled")
                 return False
-            return await OpenAIHandler().is_spam(telegram_message.text)
+            return await OpenAIHandler().is_spam(telegram_message.text or "")
 
         return False
