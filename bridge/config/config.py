@@ -294,6 +294,20 @@ class HistoryConfig(BaseModel):  # pylint: disable=too-few-public-methods
         return val
 
 
+class QueueConfig(BaseModel):  # pylint: disable=too-few-public-methods
+    """Queue service config."""
+
+    enabled: bool = False
+    max_size: StrictInt = 1000
+
+    @field_validator("max_size")
+    def max_size_validator(cls, val):
+        """Validate queue max size."""
+        if val <= 0:
+            raise ValueError("max_size must be > 0")
+        return val
+
+
 class ApplicationConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Application config."""
 
@@ -415,6 +429,7 @@ class ConfigYAMLSchema(BaseModel):  # pylint: disable=too-few-public-methods
     application: ApplicationConfig
     logger: LoggerConfig
     history: HistoryConfig
+    queue: QueueConfig
     api: APIConfig
     telegram: TelegramConfig
     discord: DiscordConfig
@@ -478,6 +493,7 @@ class Config(BaseModel):
     application: ApplicationConfig
     logger: LoggerConfig
     history: HistoryConfig
+    queue: QueueConfig
     api: APIConfig
     telegram: TelegramConfig
     discord: DiscordConfig
