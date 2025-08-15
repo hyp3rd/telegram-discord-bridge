@@ -94,7 +94,7 @@ class OpenAIHandler(metaclass=SingletonMeta):
 
             return suggestion
         except Exception as ex:  # pylint: disable=broad-except
-            logger.error("Error generating suggestion: %s", {ex})
+            logger.error("Error generating suggestion: %s", ex)
             return "Error generating suggestion."
 
     async def classify_message_nature(self, text: str) -> str:
@@ -124,7 +124,7 @@ class OpenAIHandler(metaclass=SingletonMeta):
             content = response.choices[0].message.content or ""
             return "unsafe" if "unsafe" in content.lower() else "safe"
         except Exception as ex:  # pylint: disable=broad-except
-            logger.error("Error classifying message nature: %s", {ex})
+            logger.error("Error classifying message nature: %s", ex)
             return "safe"
 
     async def summarize_messages(self, messages: List[str]) -> str:
@@ -154,7 +154,7 @@ class OpenAIHandler(metaclass=SingletonMeta):
             content = response.choices[0].message.content
             return content.strip() if content else ""
         except Exception as ex:  # pylint: disable=broad-except
-            logger.error("Error summarizing messages: %s", {ex})
+            logger.error("Error summarizing messages: %s", ex)
             return ""
 
     async def is_spam(self, text: str) -> bool:
@@ -184,5 +184,5 @@ class OpenAIHandler(metaclass=SingletonMeta):
             content = response.choices[0].message.content or ""
             return "spam" in content.lower()
         except Exception as ex:  # pylint: disable=broad-except
-            logger.error("Error classifying spam: %s", {ex})
+            logger.error("Error classifying spam: %s", ex)
             return False

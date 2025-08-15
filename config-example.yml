@@ -50,6 +50,11 @@ history:
   file_max_bytes: 10485760 # 10MB
   file_backup_count: 5
 
+# Queue configuration
+queue:
+  enabled: False
+  max_size: 1000
+
 # Telegram configuration
 telegram:
   # Your Telegram phone number | With quotes

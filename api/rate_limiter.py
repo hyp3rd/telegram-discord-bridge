@@ -1,5 +1,6 @@
 """Rate Limiter for the Bridge API"""
 
+import asyncio
 from collections import defaultdict
 from time import time
 
@@ -17,20 +18,30 @@ class RateLimitMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public
         self.limit = limit
         self.interval = interval
         self.requests = defaultdict(list)
+        self.lock = asyncio.Lock()
 
     async def dispatch(self, request, call_next):
         if request.client is not None:
             client_ip = request.client.host
         else:
             client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-        request_times = self.requests[client_ip]
-        request_times = [t for t in request_times if time() - t < self.interval]
-        self.requests[client_ip] = request_times
 
-        if len(request_times) >= self.limit:
-            return RateLimitResponse()
+        async with self.lock:
+            request_times = [
+                t
+                for t in self.requests.get(client_ip, [])
+                if time() - t < self.interval
+            ]
+            if request_times:
+                self.requests[client_ip] = request_times
+            else:
+                self.requests.pop(client_ip, None)
 
-        self.requests[client_ip].append(time())
+            if len(request_times) >= self.limit:
+                return RateLimitResponse()
+
+            self.requests.setdefault(client_ip, []).append(time())
+
         return await call_next(request)
 
 

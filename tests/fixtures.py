@@ -42,6 +42,10 @@ TEST_CONFIG_DATA = {
         "file_max_bytes": 1024,
         "file_backup_count": 1,
     },
+    "queue": {
+        "enabled": False,
+        "max_size": 100,
+    },
     "telegram": {
         "phone": "+10000000000",
         "password": "pwd",

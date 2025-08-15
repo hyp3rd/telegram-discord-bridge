@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+import time
 from collections import deque
 from types import SimpleNamespace
 from typing import Deque, List, Dict, Tuple
@@ -28,6 +29,7 @@ from bridge.logger import Logger
 from bridge.openai.handler import OpenAIHandler
 from bridge.utils import extract_urls, telegram_entities_to_markdown, transform_urls
 from bridge.stats import StatsTracker
+from bridge.queue import MessageQueue
 
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
@@ -43,12 +45,19 @@ class Bridge:
         self.history_manager = MessageHistoryHandler()
         self.input_channels_entities = []
         self.last_messages: Deque[str] = deque(maxlen=10)
+        self.message_queue: MessageQueue | None = None
+        if config.queue.enabled:
+            self.message_queue = MessageQueue(
+                self._handle_new_message, max_size=config.queue.max_size
+            )
 
         logger.debug("Forwarders: %s", config.telegram_forwarders)
 
     async def start(self):
         """Start the bridge."""
         await self._register_forwarders()
+        if self.message_queue:
+            self.message_queue.start()
         await self._register_telegram_handlers()
 
         # @self.telegram_client.on(events.NewMessage(chats=self.input_channels_entities))
@@ -65,11 +74,15 @@ class Bridge:
         """Register the forwarders."""
         logger.info("Registering forwarders...")
 
-        if not self.telegram_client.is_connected():
+        start_time = time.monotonic()
+        while not self.telegram_client.is_connected():
             logger.warning("Telegram client not connected, retrying...")
             await asyncio.sleep(1)
-            await self._register_forwarders()
-            return
+            if time.monotonic() - start_time > 30:
+                logger.error(
+                    "Telegram client not connected after 30 seconds, aborting registration"
+                )
+                return
 
         logger.debug("Iterating dialogs...")
         try:
@@ -112,9 +125,11 @@ class Bridge:
     async def _register_telegram_handlers(self):
         """Register the Telegram handlers."""
         logger.info("Registering Telegram handlers...")
+        handler = (
+            self._enqueue_message if self.message_queue else self._handle_new_message
+        )
         self.telegram_client.add_event_handler(
-            self._handle_new_message,
-            events.NewMessage(chats=self.input_channels_entities),
+            handler, events.NewMessage(chats=self.input_channels_entities)
         )
 
         if config.telegram.subscribe_to_edit_events:
@@ -130,6 +145,11 @@ class Bridge:
                 events.MessageDeleted(chats=self.input_channels_entities),
             )
             logger.info("Subscribed to Telegram delete events")
+
+    async def _enqueue_message(self, event) -> None:
+        """Enqueue incoming Telegram events for asynchronous processing."""
+        if self.message_queue:
+            await self.message_queue.enqueue(event)
 
     async def _handle_new_message(
         self, event
