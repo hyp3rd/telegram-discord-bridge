@@ -10,7 +10,7 @@ openai==1.99.9
 uvicorn[standard]==0.35.0
 ulid-py==1.1.0
 python-magic==0.4.27
-python-multipart==0.0.20
+python-multipart==0.0.22
 Levenshtein==0.27.1
 nltk==3.9.1
 prometheus-client==0.21.0
