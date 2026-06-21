@@ -263,7 +263,10 @@ This project is not affiliated with Telegram or Discord. It is an open-source pr
 
 ## Author
 
-I'm a surfer, a crypto trader, and a software architect with 15 years of experience designing highly available distributed production environments and developing cloud-native apps in public and private clouds. Just your average bloke. Feel free to connect with me on LinkedIn, but no funny business.
+Software architect with 15+ years building distributed systems and cloud-native platforms across banking,
+defense, and product startups. I work with challenges and research. Heavy on Go, Python, TypeScript and
+microservices. Comfortable across distributed infrastructure, complexity, security, and product.
+Feel free to hook me up on
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/francesco-cosentino/)
 
